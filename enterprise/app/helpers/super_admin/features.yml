@@ -19,6 +19,7 @@ agent_capacity:
   description: 'Set limits to auto-assigning conversations to your agents.'
   enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
   icon: 'icon-hourglass-line'
+  config_key: 'agent_capacity'
   enterprise: true
 audit_logs:
   name: 'Audit Logs'
@@ -42,6 +43,7 @@ email:
   description: 'Manage your email customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-mail-send-fill'
+  config_key: 'email'
 messenger:
   name: 'Messenger'
   description: 'Stay connected with your customers on Facebook & Instagram.'
@@ -59,11 +61,13 @@ whatsapp:
   description: 'Manage your WhatsApp business interactions from Chatwit.'
   enabled: true
   icon: 'icon-whatsapp-line'
+  config_key: 'whatsapp'
 telegram:
   name: 'Telegram'
   description: 'Manage your Telegram customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-telegram-line'
+  config_key: 'telegram'
 line:
   name: 'Line'
   description: 'Manage your Line customer interactions from Chatwit.'
@@ -74,6 +78,7 @@ sms:
   description: 'Manage your SMS customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-message-line'
+  config_key: 'sms'
 help_center:
   name: 'Help Center'
   description: 'Allow agents to create help center articles and publish them in a portal.'
