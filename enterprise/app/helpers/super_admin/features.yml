@@ -3,33 +3,33 @@
 captain:
   name: 'Captain'
   description: 'Enable AI-powered conversations with your customers.'
-  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
   icon: 'icon-captain'
   config_key: 'captain'
   enterprise: true
 custom_branding:
   name: 'Custom Branding'
   description: 'Apply your own branding to this installation.'
-  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
   icon: 'icon-paint-brush-line'
   config_key: 'custom_branding'
   enterprise: true
 agent_capacity:
   name: 'Agent Capacity'
   description: 'Set limits to auto-assigning conversations to your agents.'
-  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
   icon: 'icon-hourglass-line'
   enterprise: true
 audit_logs:
   name: 'Audit Logs'
   description: 'Track and trace account activities with ease with detailed audit logs.'
-  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
   icon: 'icon-menu-search-line'
   enterprise: true
 disable_branding:
   name: 'Disable Branding'
   description: 'Disable branding on live-chat widget and external emails.'
-  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
   icon: 'icon-sailbot-fill'
   enterprise: true
 live_chat:
@@ -39,7 +39,7 @@ live_chat:
   icon: 'icon-chat-smile-3-line'
 email:
   name: 'Email'
-  description: 'Manage your email customer interactions from Chatwoot.'
+  description: 'Manage your email customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-mail-send-fill'
 messenger:
@@ -56,22 +56,22 @@ instagram:
   config_key: 'instagram'
 whatsapp:
   name: 'WhatsApp'
-  description: 'Manage your WhatsApp business interactions from Chatwoot.'
+  description: 'Manage your WhatsApp business interactions from Chatwit.'
   enabled: true
   icon: 'icon-whatsapp-line'
 telegram:
   name: 'Telegram'
-  description: 'Manage your Telegram customer interactions from Chatwoot.'
+  description: 'Manage your Telegram customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-telegram-line'
 line:
   name: 'Line'
-  description: 'Manage your Line customer interactions from Chatwoot.'
+  description: 'Manage your Line customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-line-line'
 sms:
   name: 'SMS'
-  description: 'Manage your SMS customer interactions from Chatwoot.'
+  description: 'Manage your SMS customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-message-line'
 help_center:

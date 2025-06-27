@@ -32,7 +32,7 @@ npm install -g pnpm@10.x
 
 ### 1. Navegar para o diretório
 ```powershell
-cd chatwit
+cd chatwoot
 ```
 
 ### 2. Instalar dependências Ruby

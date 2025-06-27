@@ -1,17 +1,16 @@
 class Webhooks::WhatsappEventsJob < ApplicationJob
   queue_as :low
+  retry_on ActiveRecord::RecordNotFound, wait: 30.seconds, attempts: 5
 
   def perform(params = {})
     channel = find_channel_from_whatsapp_business_payload(params)
-
-    if channel_is_inactive?(channel)
-      Rails.logger.warn("Inactive WhatsApp channel: #{channel&.phone_number || "unknown - #{params[:phone_number]}"}")
-      return
-    end
+    return if channel_is_inactive?(channel)
 
     case channel.provider
     when 'whatsapp_cloud'
       Whatsapp::IncomingMessageWhatsappCloudService.new(inbox: channel.inbox, params: params).perform
+    when 'unoapi'
+      Whatsapp::IncomingMessageUnoapiService.new(inbox: channel.inbox, params: params).perform
     else
       Whatsapp::IncomingMessageService.new(inbox: channel.inbox, params: params).perform
     end

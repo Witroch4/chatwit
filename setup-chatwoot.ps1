@@ -4,16 +4,16 @@
 Write-Host "Iniciando setup do Chatwoot..." -ForegroundColor Green
 
 # Verificar se estamos no diretório correto
-if (-not (Test-Path "chatwit")) {
-    Write-Host "ERRO: Diretório 'chatwit' não encontrado!" -ForegroundColor Red
-    Write-Host "Execute este script na pasta raiz do projeto (onde está o diretório chatwit)" -ForegroundColor Yellow
+if (-not (Test-Path "chatwoot")) {
+    Write-Host "ERRO: Diretório 'chatwoot' não encontrado!" -ForegroundColor Red
+    Write-Host "Execute este script na pasta raiz do projeto (onde está o diretório chatwoot)" -ForegroundColor Yellow
     exit 1
 }
 
 # Navegar para o diretório do projeto
-Set-Location "chatwit"
+Set-Location "chatwoot"
 
-Write-Host "Navegado para o diretório chatwit" -ForegroundColor Cyan
+Write-Host "Navegado para o diretório chatwoot" -ForegroundColor Cyan
 
 # Verificar Ruby
 Write-Host "Verificando Ruby..." -ForegroundColor Cyan

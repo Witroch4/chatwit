@@ -8,7 +8,7 @@ param(
     [string]$Registry = "witrocha",
     
     [Parameter(Mandatory=$false)]
-    [string]$ImageName = "chatwit",
+    [string]$ImageName = "chatwoot",
     
     [Parameter(Mandatory=$false)]
     [switch]$Enterprise,
@@ -73,7 +73,7 @@ if ($Push) {
     
     # Push da tag 'latest' se criada
     if ($Latest) {
-        docker push "$FullImageName:latest"
+        docker push "${FullImageName}:latest"
         if ($LASTEXITCODE -ne 0) {
             Write-Host "❌ Falha no push da tag latest!" -ForegroundColor Red
             exit 1

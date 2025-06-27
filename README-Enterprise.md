@@ -30,13 +30,13 @@ A imagem vem pré-configurada com:
 
 ### 📋 Como Usar no Docker Swarm
 
-1. **Baixe o arquivo de exemplo**: `chatwit-enterprise.yaml`
+1. **Baixe o arquivo de exemplo**: `chatwoot-enterprise.yaml`
 
 2. **Configure suas variáveis de ambiente** no arquivo `.env`
 
 3. **Deploy no Swarm**:
 ```bash
-docker stack deploy -c chatwit-enterprise.yaml chatwit
+docker stack deploy -c chatwoot-enterprise.yaml chatwoot
 ```
 
 ### 🏗️ Como Foi Construída

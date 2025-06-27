@@ -68,7 +68,7 @@ services:
 
       labels:
         - traefik.enable=true
-        - traefik.http.routers.chatwoot_app.rule=Host(`chatwit.witdev.com.br`)
+        - traefik.http.routers.chatwoot_app.rule=Host(`chatwoot.witdev.com.br`)
         - traefik.http.routers.chatwoot_app.entrypoints=websecure
         - traefik.http.routers.chatwoot_app.tls.certresolver=letsencryptresolver
         - traefik.http.routers.chatwoot_app.priority=1
