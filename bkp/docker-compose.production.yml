@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # CHATWIT - SEM TELEMETRIA (PRIVACIDADE TOTAL)
+  # ============================================
+  chatwit:
+    image: witrocha/chatwit:latest
+    container_name: chatwit-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # ========== CONFIGURACOES DE PRIVACIDADE ==========
+      # Desabilita toda telemetria
+      DISABLE_TELEMETRY: "true"
+      
+      # Remove analytics do frontend
+      ANALYTICS_TOKEN: ""
+      HELP_CENTER_ANALYTICS_ID: ""
+      
+      # Remove conexoes com suporte Chatwoot
+      CHATWOOT_INBOX_TOKEN: ""
+      CHATWOOT_INBOX_HMAC_KEY: ""
+      CHATWOOT_SUPPORT_WEBSITE_TOKEN: ""
+      CHATWOOT_SUPPORT_SCRIPT_URL: ""
+      CHATWOOT_SUPPORT_IDENTIFIER_HASH: ""
+      
+      # Redireciona hub para localhost (bloqueia envios)
+      CHATWOOT_HUB_URL: "http://localhost:9999"
+      
+      # ========== CONFIGURACOES DE PRODUCAO ==========
+      RAILS_ENV: production
+      NODE_ENV: production
+      
+      # Banco de dados
+      POSTGRES_HOST: postgres
+      POSTGRES_DATABASE: chatwit_production
+      POSTGRES_USERNAME: chatwit_user
+      POSTGRES_PASSWORD: sua_senha_segura_aqui
+      
+      # Redis
+      REDIS_URL: redis://redis:6379
+      
+      # Aplicacao
+      SECRET_KEY_BASE: sua_secret_key_base_muito_longa_e_segura_aqui
+      FRONTEND_URL: https://seu-dominio.com
+      FORCE_SSL: "true"
+      
+      # Email (configure conforme seu provedor)
+      MAILER_SENDER_EMAIL: "noreply@seu-dominio.com"
+      SMTP_DOMAIN: seu-dominio.com
+      SMTP_PORT: 587
+      SMTP_ADDRESS: smtp.seu-provedor.com
+      SMTP_USERNAME: seu-usuario-smtp
+      SMTP_PASSWORD: sua-senha-smtp
+      SMTP_AUTHENTICATION: plain
+      SMTP_ENABLE_STARTTLS_AUTO: "true"
+      
+      # Storage (configure conforme necessario)
+      # AWS S3
+      # AWS_ACCESS_KEY_ID: sua_access_key
+      # AWS_SECRET_ACCESS_KEY: sua_secret_key  
+      # AWS_REGION: us-east-1
+      # AWS_S3_BUCKET_NAME: chatwit-storage
+      
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - chatwit_storage:/app/storage
+      - ./logs:/app/log
+    networks:
+      - chatwit-network
+
+  # ============================================
+  # BANCO DE DADOS POSTGRESQL
+  # ============================================  
+  postgres:
+    image: postgres:15-alpine
+    container_name: chatwit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatwit_production
+      POSTGRES_USER: chatwit_user
+      POSTGRES_PASSWORD: sua_senha_segura_aqui
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - chatwit-network
+    ports:
+      - "5432:5432"  # Opcional: para acesso externo
+
+  # ============================================
+  # REDIS PARA CACHE E JOBS
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: chatwit-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass sua_senha_redis_aqui
+    volumes:
+      - redis_data:/data
+    networks:
+      - chatwit-network
+    ports:
+      - "6379:6379"  # Opcional: para acesso externo
+
+  # ============================================
+  # NGINX PROXY REVERSO (OPCIONAL)
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: chatwit-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - chatwit
+    networks:
+      - chatwit-network
+
+# ============================================
+# VOLUMES PERSISTENTES
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  chatwit_storage:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# ============================================
+# REDE INTERNA
+# ============================================
+networks:
+  chatwit-network:
+    driver: bridge 
