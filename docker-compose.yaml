@@ -15,10 +15,7 @@ services:
 
   rails:
     <<: *base
-    build:
-      context: .
-      dockerfile: ./docker/dockerfiles/rails.Dockerfile
-    image: chatwit-rails:development
+    image: chatwit:development
     volumes:
       - ./:/app:delegated
       - node_modules:/app/node_modules
@@ -42,7 +39,7 @@ services:
 
   sidekiq:
     <<: *base
-    image: chatwit-rails:development
+    image: chatwit:development
     volumes:
       - ./:/app:delegated
       - node_modules:/app/node_modules
@@ -60,10 +57,7 @@ services:
 
   vite:
     <<: *base
-    build:
-      context: .
-      dockerfile: ./docker/dockerfiles/vite.Dockerfile
-    image: chatwit-vite:development
+    image: chatwit:development
     volumes:
       - ./:/app:delegated
       - node_modules:/app/node_modules

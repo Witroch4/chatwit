@@ -54,6 +54,29 @@
   display_title: 'Chatwoot Metadata'
   description: 'Display default Chatwoot metadata like favicons and upgrade warnings'
   type: boolean
+- name: HIDE_CHATWOOT_BRANDING
+  value: false
+  display_title: 'Hide Chatwoot Branding'
+  description: 'Hide "Powered by Chatwoot" branding from widget and emails'
+  locked: false
+  type: boolean
+- name: CUSTOM_POWERED_BY_TEXT
+  value: ''
+  display_title: 'Custom Powered By Text'
+  description: 'Custom text to replace "Powered by Chatwoot" branding'
+  locked: false
+- name: REMOVE_WIDGET_BRANDING
+  value: false
+  display_title: 'Remove Widget Branding'
+  description: 'Remove all branding from the chat widget'
+  locked: false
+  type: boolean
+- name: REMOVE_EMAIL_BRANDING
+  value: false
+  display_title: 'Remove Email Branding'
+  description: 'Remove branding from automated emails'
+  locked: false
+  type: boolean
 # ------- End of Branding Related Config ------- #
 
 # ------- Signup & Account Related Config ------- #
@@ -159,6 +182,74 @@
   type: code
 
 # End of Captain Config
+
+# ------- Audit Logs Config ------- #
+- name: ENABLE_AUDIT_LOGS
+  value: false
+  display_title: 'Enable Audit Logs'
+  description: 'Enable detailed audit logging for account activities'
+  locked: false
+  type: boolean
+- name: AUDIT_LOG_RETENTION_DAYS
+  value: 90
+  display_title: 'Audit Log Retention (Days)'
+  description: 'Number of days to retain audit logs before automatic deletion'
+  locked: false
+- name: AUDIT_LOG_EXPORT_FORMAT
+  value: 'JSON'
+  display_title: 'Audit Log Export Format'
+  description: 'Default format for audit log exports (JSON, CSV, PDF)'
+  locked: false
+# ------- End of Audit Logs Config ------- #
+
+# ------- Line Channel Config ------- #
+- name: LINE_CHANNEL_ID
+  value: ''
+  display_title: 'Line Channel ID'
+  description: 'The Channel ID from Line Developers Console'
+  locked: false
+- name: LINE_CHANNEL_SECRET
+  value: ''
+  display_title: 'Line Channel Secret'
+  description: 'The Channel Secret from Line Developers Console'
+  locked: false
+  type: secret
+- name: LINE_CHANNEL_ACCESS_TOKEN
+  value: ''
+  display_title: 'Line Channel Access Token'
+  description: 'The Channel Access Token from Line Developers Console'
+  locked: false
+  type: secret
+- name: LINE_WEBHOOK_URL
+  value: ''
+  display_title: 'Line Webhook URL'
+  description: 'The webhook URL configured in Line Developers Console'
+  locked: false
+# ------- End of Line Channel Config ------- #
+
+# ------- Help Center Config ------- #
+- name: HELP_CENTER_DOMAIN
+  value: ''
+  display_title: 'Help Center Custom Domain'
+  description: 'Custom domain for the help center portal'
+  locked: false
+- name: HELP_CENTER_THEME
+  value: 'default'
+  display_title: 'Help Center Theme'
+  description: 'Theme to use for the help center (default, modern, minimal)'
+  locked: false
+- name: HELP_CENTER_CUSTOM_CSS
+  value: ''
+  display_title: 'Help Center Custom CSS'
+  description: 'Custom CSS styles for the help center'
+  locked: false
+  type: code
+- name: HELP_CENTER_ANALYTICS_ID
+  value: ''
+  display_title: 'Help Center Analytics ID'
+  description: 'Google Analytics or other analytics tracking ID for help center'
+  locked: false
+# ------- End of Help Center Config ------- #
 
 # ------- Chatwoot Internal Config for Cloud ----#
 - name: CHATWOOT_INBOX_TOKEN

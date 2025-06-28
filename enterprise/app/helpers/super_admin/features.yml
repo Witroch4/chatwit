@@ -3,35 +3,37 @@
 captain:
   name: 'Captain'
   description: 'Enable AI-powered conversations with your customers.'
-  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
   icon: 'icon-captain'
   config_key: 'captain'
   enterprise: true
 custom_branding:
   name: 'Custom Branding'
   description: 'Apply your own branding to this installation.'
-  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
   icon: 'icon-paint-brush-line'
   config_key: 'custom_branding'
   enterprise: true
 agent_capacity:
   name: 'Agent Capacity'
   description: 'Set limits to auto-assigning conversations to your agents.'
-  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
   icon: 'icon-hourglass-line'
   config_key: 'agent_capacity'
   enterprise: true
 audit_logs:
   name: 'Audit Logs'
   description: 'Track and trace account activities with ease with detailed audit logs.'
-  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
   icon: 'icon-menu-search-line'
+  config_key: 'audit_logs'
   enterprise: true
 disable_branding:
   name: 'Disable Branding'
   description: 'Disable branding on live-chat widget and external emails.'
-  enabled: <%= (ChatwitHub.pricing_plan != 'community') %>
+  enabled: <%= (ChatwootHub.pricing_plan != 'community') %>
   icon: 'icon-sailbot-fill'
+  config_key: 'disable_branding'
   enterprise: true
 live_chat:
   name: 'Live Chat'
@@ -73,6 +75,7 @@ line:
   description: 'Manage your Line customer interactions from Chatwit.'
   enabled: true
   icon: 'icon-line-line'
+  config_key: 'line'
 sms:
   name: 'SMS'
   description: 'Manage your SMS customer interactions from Chatwit.'
@@ -84,6 +87,7 @@ help_center:
   description: 'Allow agents to create help center articles and publish them in a portal.'
   enabled: true
   icon: 'icon-book-2-line'
+  config_key: 'help_center'
 microsoft:
   name: 'Microsoft'
   description: 'Configuration for setting up Microsoft Email'
