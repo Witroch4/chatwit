@@ -15,8 +15,14 @@ class FlipChatwootV4DefaultFeatureFlagInstallationConfig < ActiveRecord::Migrati
     end
 
     # Enable chatwoot_v4 for all accounts in batches of 100
-    Account.find_in_batches(batch_size: 100) do |accounts|
-      accounts.each { |account| account.enable_features!('chatwoot_v4') }
+    # Only if the settings column exists (v4 schema)
+    if ActiveRecord::Base.connection.column_exists?(:accounts, :settings)
+      Account.find_in_batches(batch_size: 100) do |accounts|
+        accounts.each { |account| account.enable_features!('chatwoot_v4') }
+      end
+    else
+      # Running on v3 schema - settings column will be added later
+      Rails.logger.info "Skipping account feature enable - settings column not found (v3->v4 migration in progress)"
     end
 
     GlobalConfig.clear_cache

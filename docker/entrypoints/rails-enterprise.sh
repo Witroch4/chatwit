@@ -68,19 +68,23 @@ bundle exec rails runner "
       puts '✅ Agent quantity set to 100'
     end
     
-    # Enable Enterprise features for all accounts
-    Account.find_each do |account|
-      enterprise_features = [
-        'disable_branding',
-        'audit_logs', 
-        'sla',
-        'captain_integration',
-        'custom_roles',
-        'response_bot'
-      ]
-      
-      account.enable_features!(*enterprise_features)
-      puts \"✅ Enterprise features enabled for account: #{account.name}\"
+    # Enable Enterprise features for all accounts (only if settings column exists)
+    if ActiveRecord::Base.connection.column_exists?(:accounts, :settings)
+      Account.find_each do |account|
+        enterprise_features = [
+          'disable_branding',
+          'audit_logs', 
+          'sla',
+          'captain_integration',
+          'custom_roles',
+          'response_bot'
+        ]
+        
+        account.enable_features!(*enterprise_features)
+        puts \"✅ Enterprise features enabled for account: #{account.name}\"
+      end
+    else
+      puts '⚠️ Settings column not found - features will be enabled after migration'
     end
     
     puts '🎉 Enterprise setup completed!'

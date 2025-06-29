@@ -82,6 +82,10 @@ RUN pnpm i
 
 COPY . /app
 
+# Copy migration scripts
+COPY migrate-chatwoot-v3-to-v4.rb /app/
+COPY lib/tasks/chatwit_migrate.rake /app/lib/tasks/
+
 # creating a log directory so that image wont fail when RAILS_LOG_TO_STDOUT is false
 # https://github.com/chatwoot/chatwoot/issues/701
 RUN mkdir -p /app/log

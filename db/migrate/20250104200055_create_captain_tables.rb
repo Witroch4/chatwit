@@ -32,6 +32,8 @@ class CreateCaptainTables < ActiveRecord::Migration[7.0]
   end
 
   def create_assistants
+    return if table_exists?(:captain_assistants)
+    
     create_table :captain_assistants do |t|
       t.string :name, null: false
       t.bigint :account_id, null: false
@@ -45,6 +47,8 @@ class CreateCaptainTables < ActiveRecord::Migration[7.0]
   end
 
   def create_documents
+    return if table_exists?(:captain_documents)
+    
     create_table :captain_documents do |t|
       t.string :name, null: false
       t.string :external_link, null: false
@@ -61,6 +65,8 @@ class CreateCaptainTables < ActiveRecord::Migration[7.0]
   end
 
   def create_assistant_responses
+    return if table_exists?(:captain_assistant_responses)
+    
     create_table :captain_assistant_responses do |t|
       t.string :question, null: false
       t.text :answer, null: false

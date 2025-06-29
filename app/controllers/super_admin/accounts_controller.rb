@@ -65,6 +65,40 @@ class SuperAdmin::AccountsController < SuperAdmin::ApplicationController
     redirect_back(fallback_location: [namespace, requested_resource], notice: 'Account deletion is in progress.')
     # rubocop:enable Rails/I18nLocaleTexts
   end
+
+  def backup
+    backup_result = AccountBackupService.new(requested_resource).create_backup
+    
+    send_data backup_result[:data].to_json,
+              filename: backup_result[:filename],
+              type: 'application/json',
+              disposition: 'attachment'
+  end
+
+  def restore
+    unless params[:backup_file].present?
+      flash[:error] = 'Por favor, selecione um arquivo de backup'
+      redirect_back(fallback_location: [namespace, requested_resource])
+      return
+    end
+
+    begin
+      backup_data = JSON.parse(params[:backup_file].read)
+      result = AccountRestoreService.new(requested_resource, backup_data).restore_backup
+      
+      if result[:success]
+        flash[:notice] = result[:message]
+      else
+        flash[:error] = result[:message]
+      end
+    rescue JSON::ParserError
+      flash[:error] = 'Arquivo de backup inválido'
+    rescue StandardError => e
+      flash[:error] = "Erro ao restaurar backup: #{e.message}"
+    end
+
+    redirect_back(fallback_location: [namespace, requested_resource])
+  end
 end
 
 SuperAdmin::AccountsController.prepend_mod_with('SuperAdmin::AccountsController')
