@@ -47,6 +47,7 @@ function Show-Help {
     Write-Host "  logs        - Mostrar logs dos servicos" -ForegroundColor White
     Write-Host "  status      - Mostrar status dos containers" -ForegroundColor White
     Write-Host "  shell       - Entrar no container Rails" -ForegroundColor White
+    Write-Host "  migrate     - Executar migracoes pendentes" -ForegroundColor White
     Write-Host "  db-setup    - Configurar banco de dados" -ForegroundColor White
     Write-Host "  db-reset    - Resetar banco de dados" -ForegroundColor White
     Write-Host "  clean       - Limpar containers e volumes" -ForegroundColor White
@@ -202,6 +203,17 @@ puts 'Enterprise habilitado com sucesso!'
     "shell" {
         Write-Host "[SHELL] Entrando no container Rails..." -ForegroundColor Cyan
         Invoke-Expression "$DockerComposeCmd exec rails bash"
+    }
+    
+    "migrate" {
+        Write-Host "[MIGRATE] Executando migracoes pendentes..." -ForegroundColor Green
+        Invoke-Expression "$DockerComposeCmd exec rails bundle exec rails db:migrate"
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[SUCCESS] Migracoes executadas com sucesso!" -ForegroundColor Green
+        } else {
+            Write-Host "[ERROR] Falha ao executar migracoes!" -ForegroundColor Red
+        }
     }
     
     "db-setup" {

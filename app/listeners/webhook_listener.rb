@@ -108,10 +108,38 @@ class WebhookListener < BaseListener
   end
 
   def deliver_account_webhooks(payload, account)
-    account.webhooks.account_type.each do |webhook|
-      next unless webhook.subscriptions.include?(payload[:event])
+    webhooks = account.webhooks.account_type.where('subscriptions @> ?', [payload[:event]].to_json)
+    
+    Rails.logger.info "[WEBHOOK] Account #{account.id}: Found #{webhooks.count} webhooks for event '#{payload[:event]}'"
+    
+    webhooks.each do |webhook|
+      Rails.logger.info "[WEBHOOK] Processing webhook ID #{webhook.id} - URL: #{webhook.url}"
+      Rails.logger.info "[WEBHOOK] Include access token: #{webhook.include_access_token}"
 
-      WebhookJob.perform_later(webhook.url, payload)
+      final_payload = payload.dup
+      
+      # Incluir ACCESS_TOKEN se o webhook estiver configurado para isso
+      if webhook.include_access_token
+        administrator = account.administrators.first
+        access_token = administrator&.access_token&.token
+        
+        Rails.logger.info "[WEBHOOK] Administrator found: #{administrator.present?}"
+        Rails.logger.info "[WEBHOOK] Access token available: #{access_token.present?}"
+        
+        if access_token
+          final_payload[:ACCESS_TOKEN] = access_token
+          Rails.logger.info "[WEBHOOK] ACCESS_TOKEN added to payload"
+        else
+          Rails.logger.warn "[WEBHOOK] ACCESS_TOKEN requested but not available - Administrator: #{administrator.present?}, Token: #{access_token.present?}"
+        end
+      end
+
+      begin
+        WebhookJob.perform_later(webhook.url, final_payload)
+        Rails.logger.info "[WEBHOOK] Job enqueued successfully for webhook ID #{webhook.id}"
+      rescue => e
+        Rails.logger.error "[WEBHOOK] Failed to enqueue job for webhook ID #{webhook.id}: #{e.message}"
+      end
     end
   end
 
@@ -119,6 +147,7 @@ class WebhookListener < BaseListener
     return unless inbox.channel_type == 'Channel::Api'
     return if inbox.channel.webhook_url.blank?
 
+    Rails.logger.info "[WEBHOOK] Delivering to API inbox webhook: #{inbox.channel.webhook_url}"
     WebhookJob.perform_later(inbox.channel.webhook_url, payload, :api_inbox_webhook)
   end
 

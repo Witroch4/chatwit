@@ -1,6 +1,25 @@
 # Git (keep .git for commit hash, exclude .gitignore)
 .gitignore
 
+# Development setup files
+SETUP_LOCAL.md
+setup-chatwoot.ps1
+*.ps1
+
+# Docker files (não necessários na imagem final)
+Dockerfile*
+docker-compose*.yml
+docker-compose*.yaml
+
+# Environment files
+.env*
+
+# Development directories
+bkp/
+
+# Cursor IDE
+.cursorignore
+
 # Logs
 log
 *.log
@@ -73,10 +92,14 @@ LICENSE*
 tmp/
 temp/
 
-# Build artifacts
-public/assets/
+# Build artifacts - exclude compiled assets only
+public/assets/*.css
+public/assets/*.js
+public/assets/*.map
+public/assets/manifest-*.json
 public/packs/
 public/packs-test/
+# Note: Static assets in public/assets/images/ and public/assets/administrate/ are preserved
 
 # Backup files
 *.bak

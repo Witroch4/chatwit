@@ -51,6 +51,12 @@
           "PLACEHOLDER": "Exemplo: {webhookExampleURL}",
           "ERROR": "Por favor, insira uma URL válida"
         },
+        "ACCESS_TOKEN": {
+          "LABEL": "Incluir TOKEN de Acesso",
+          "HELP": "Quando ativado, inclui o TOKEN de acesso da conta no payload do webhook para maior segurança",
+          "ENABLED": "Ativado",
+          "DISABLED": "Desativado"
+        },
         "EDIT_SUBMIT": "Atualizar webhook",
         "ADD_SUBMIT": "Criar webhook"
       },

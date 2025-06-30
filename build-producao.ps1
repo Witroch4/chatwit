@@ -5,7 +5,8 @@ param(
     [string]$ImageName = "chatwit",
     [switch]$Latest,
     [switch]$Enterprise,
-    [switch]$DisableTelemetry = $true  # Por padrão desabilita telemetria
+    [switch]$DisableTelemetry = $true,  # Por padrão desabilita telemetria
+    [switch]$NoCache  # Força build sem cache
 )
 
 # Construir array de tags
@@ -33,11 +34,19 @@ if ($DisableTelemetry) {
 $PrimaryTag = $Tags[0]
 Write-Host "[BUILD] Building ${FullImage}:${PrimaryTag}..." -ForegroundColor Yellow
 
-if ($BuildArgs.Count -gt 0) {
-    docker build -f $DockerFile $BuildArgs -t "${FullImage}:${PrimaryTag}" .
-} else {
-    docker build -f $DockerFile -t "${FullImage}:${PrimaryTag}" .
+# Adicionar flag --no-cache se solicitado
+$DockerBuildCmd = @("docker", "build", "-f", $DockerFile)
+if ($NoCache) {
+    $DockerBuildCmd += "--no-cache"
+    Write-Host "[INFO] Build sem cache habilitado" -ForegroundColor Yellow
 }
+if ($BuildArgs.Count -gt 0) {
+    $DockerBuildCmd += $BuildArgs
+}
+$DockerBuildCmd += "-t", "${FullImage}:${PrimaryTag}", "."
+
+# Executar comando de build
+& $DockerBuildCmd[0] $DockerBuildCmd[1..($DockerBuildCmd.Length-1)]
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[SUCCESS] Build successful!" -ForegroundColor Green

@@ -86,6 +86,14 @@ RUN if [ "$RAILS_ENV" = "production" ]; then \
   && rm -rf spec node_modules tmp/cache; \
   fi
 
+# Ensure all static assets are preserved in public folder
+# Fix for missing assets in /assets/images/ after precompile
+RUN mkdir -p /app/public/assets/images
+COPY public/assets/images/ /app/public/assets/images/
+# Also copy administrate assets (avatars, etc)
+RUN mkdir -p /app/public/assets/administrate
+COPY public/assets/administrate/ /app/public/assets/administrate/
+
 # Generate .git_sha file with current commit hash
 RUN git rev-parse HEAD > /app/.git_sha
 
