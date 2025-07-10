@@ -284,3 +284,31 @@ leadsquared:
       'conversation_activity_score',
       'transcript_activity_score',
     ]
+
+socialwise_chatwit:
+  id: socialwise_chatwit
+  logo: socialwise-chatwit.png
+  i18n_key: socialwise_chatwit
+  action: /socialwise_chatwit
+  hook_type: account
+  allow_multiple_hooks: false
+  settings_json_schema:
+    {
+      'type': 'object',
+      'properties':
+        {
+          'enabled': { 'type': 'boolean' },
+        },
+      'required': [],
+      'additionalProperties': false,
+    }
+  settings_form_schema:
+    [
+      {
+        'label': 'Ativar Socialwise Chatwit',
+        'type': 'checkbox',
+        'name': 'enabled',
+        'help': 'Ativa o envio de dados do WhatsApp (token, IDs de mensagem) no payload do Dialogflow para permitir manipulação avançada de mensagens',
+      },
+    ]
+  visible_properties: ['enabled']

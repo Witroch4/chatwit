@@ -249,6 +249,10 @@ pt_BR:
       name: 'LeadSquared'
       short_description: 'Sincronize seus contatos e conversas com LeadSquared CRM.'
       description: 'Sincronize seus contatos e conversas com LeadSquared CRM. Essa integração cria automaticamente leads em LeadSquared quando novos contatos são adicionados, e registra a atividade de conversação para fornecer à sua equipe de vendas um contexto completo.'
+    socialwise_chatwit:
+      name: 'Socialwise Chatwit'
+      short_description: 'Envia dados do WhatsApp no payload do Dialogflow para manipulação avançada de mensagens.'
+      description: 'Permite que o Dialogflow receba informações detalhadas do WhatsApp (como token de acesso, IDs de mensagem e número do telefone) para possibilitar funcionalidades avançadas como reações com emoji, templates interativos e outras manipulações de mensagens que não são possíveis apenas com o Dialogflow padrão.'
   captain:
     copilot_error: 'Conecte com um assistente a esta caixa de entrada para usar Copilot'
     copilot_limit: 'Você está sem créditos de Copilot. Pode comprar mais créditos na seção de faturamento.'

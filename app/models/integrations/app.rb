@@ -60,6 +60,8 @@ class Integrations::App
       account.feature_enabled?('crm_integration')
     when 'notion'
       notion_enabled?(account)
+    when 'socialwise_chatwit'
+      socialwise_chatwit_enabled?(account)
     else
       true
     end
@@ -124,5 +126,10 @@ class Integrations::App
 
   def notion_enabled?(account)
     account.feature_enabled?('notion_integration') && GlobalConfigService.load('NOTION_CLIENT_ID', nil).present?
+  end
+
+  def socialwise_chatwit_enabled?(account)
+    # Só permite ativar se existir uma integração ativa do Dialogflow
+    account.hooks.exists?(app_id: 'dialogflow', status: 'enabled')
   end
 end
