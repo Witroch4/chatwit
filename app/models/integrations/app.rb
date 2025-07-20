@@ -129,7 +129,7 @@ class Integrations::App
   end
 
   def socialwise_chatwit_enabled?(account)
-    # Só permite ativar se existir uma integração ativa do Dialogflow
-    account.hooks.exists?(app_id: 'dialogflow', status: 'enabled')
+    # Socialwise é independente e sempre disponível
+    true
   end
 end
