@@ -180,6 +180,17 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
     
     Rails.logger.info "[SOCIALWISE] É canal WhatsApp: #{is_whatsapp_channel}"
     
+    # Extrair API_KEY do WhatsApp se disponível
+    whatsapp_api_key = nil
+    if is_whatsapp_channel && inbox.channel.respond_to?(:provider_config)
+      begin
+        whatsapp_api_key = inbox.channel.provider_config&.dig('api_key')
+        Rails.logger.info "[SOCIALWISE] WhatsApp API key extracted: #{whatsapp_api_key.present? ? 'Present' : 'Not found'}"
+      rescue => e
+        Rails.logger.error "[SOCIALWISE] Error extracting WhatsApp API key: #{e.class}: #{e.message}"
+      end
+    end
+    
     # =======================================================
     # PAYLOAD EXPANDIDO - DADOS COMPLETOS DO CHATWOOT
     # =======================================================
@@ -224,9 +235,13 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
       # === DADOS DO CANAL ===
       "contact_source" => conversation.contact_inbox.source_id,
       
+      # === API KEY DO WHATSAPP ===
+      "whatsapp_api_key" => whatsapp_api_key,
+      
       # === METADADOS DA INTEGRAÇÃO ===
       "socialwise_active" => true,
       "is_whatsapp_channel" => is_whatsapp_channel,
+      "has_whatsapp_api_key" => whatsapp_api_key.present?,
       "payload_version" => "2.0",
       "timestamp" => Time.current.iso8601
     }
@@ -245,6 +260,8 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
       "contact_name" => contact.name,
       **contact.custom_attributes.to_h,
       "socialwise_active" => true,
+      "whatsapp_api_key" => nil,
+      "has_whatsapp_api_key" => false,
       "error" => "Payload construction failed: #{e.class}: #{e.message}"
     }
   end

@@ -134,6 +134,9 @@ class WebhookListener < BaseListener
         end
       end
 
+      # Incluir dados do SocialWise se estiver ativo
+      final_payload = Integrations::Socialwise::WebhookEnhancerService.enhance_payload(final_payload, account)
+
       begin
         WebhookJob.perform_later(webhook.url, final_payload)
         Rails.logger.info "[WEBHOOK] Job enqueued successfully for webhook ID #{webhook.id}"
@@ -148,7 +151,11 @@ class WebhookListener < BaseListener
     return if inbox.channel.webhook_url.blank?
 
     Rails.logger.info "[WEBHOOK] Delivering to API inbox webhook: #{inbox.channel.webhook_url}"
-    WebhookJob.perform_later(inbox.channel.webhook_url, payload, :api_inbox_webhook)
+    
+    # Incluir dados do SocialWise se estiver ativo
+    enhanced_payload = Integrations::Socialwise::WebhookEnhancerService.enhance_payload(payload, inbox.account)
+    
+    WebhookJob.perform_later(inbox.channel.webhook_url, enhanced_payload, :api_inbox_webhook)
   end
 
   def deliver_webhook_payloads(payload, inbox)
