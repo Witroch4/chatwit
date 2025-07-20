@@ -150,115 +150,114 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
   end
 
   def socialwise_chatwit_enabled?
-    # Procura por hook Socialwise ativo
-    socialwise_hook = hook.account.hooks.find_by(app_id: 'socialwise_chatwit', status: 'enabled')
-    
-    if socialwise_hook
-      # Verifica se o settings tem enabled = true
-      enabled = socialwise_hook.settings&.dig('enabled')
-      Rails.logger.info "[SOCIALWISE] Hook encontrado. Settings: #{socialwise_hook.settings.inspect}, enabled: #{enabled}"
-      return enabled == true || enabled == 'true'
-    else
-      Rails.logger.info "[SOCIALWISE] Nenhum hook Socialwise encontrado"
-      return false
-    end
+    # Use shared SocialWise service to check if integration is active
+    Integrations::Socialwise::WebhookEnhancerService.socialwise_active?(hook.account)
   end
 
   def build_whatsapp_payload_data
+    # Use shared SocialWise service to get structured data
     message = event_data[:message]
     conversation = message.conversation
-    inbox = conversation.inbox
     contact = conversation.contact
+    inbox = conversation.inbox
     
-    Rails.logger.info "[SOCIALWISE] Inbox type: #{inbox.channel_type}"
-    Rails.logger.info "[SOCIALWISE] Contact custom_attributes: #{contact.custom_attributes.inspect}"
+    # Create a webhook-like payload for the shared service
+    webhook_payload = {
+      message: message,
+      conversation: conversation,
+      contact: contact,
+      inbox: inbox
+    }
     
-    # Verifica se é um canal WhatsApp (pode ser diferente)
-    is_whatsapp_channel = inbox.channel_type == 'Channel::Whatsapp' || 
-                         inbox.channel.class.name == 'Channel::Whatsapp' ||
-                         message.source_id&.include?('WAID')
+    # Get enhanced payload from shared service
+    enhanced_payload = Integrations::Socialwise::WebhookEnhancerService.enhance_payload(webhook_payload, hook.account)
+    socialwise_data = enhanced_payload['socialwise-chatwit']
     
-    Rails.logger.info "[SOCIALWISE] É canal WhatsApp: #{is_whatsapp_channel}"
+    return {} unless socialwise_data
     
-    # Extrair API_KEY do WhatsApp se disponível
-    whatsapp_api_key = nil
-    if is_whatsapp_channel && inbox.channel.respond_to?(:provider_config)
-      begin
-        whatsapp_api_key = inbox.channel.provider_config&.dig('api_key')
-        Rails.logger.info "[SOCIALWISE] WhatsApp API key extracted: #{whatsapp_api_key.present? ? 'Present' : 'Not found'}"
-      rescue => e
-        Rails.logger.error "[SOCIALWISE] Error extracting WhatsApp API key: #{e.class}: #{e.message}"
+    # Convert nested structure to flat structure for Dialogflow backward compatibility
+    flat_payload = {}
+    
+    # WhatsApp identifiers
+    if socialwise_data['whatsapp_identifiers']
+      flat_payload['wamid'] = socialwise_data['whatsapp_identifiers']['wamid']
+      flat_payload['whatsapp_id'] = socialwise_data['whatsapp_identifiers']['whatsapp_id']
+      flat_payload['contact_source'] = socialwise_data['whatsapp_identifiers']['contact_source']
+    end
+    
+    # Contact data
+    if socialwise_data['contact_data']
+      flat_payload['contact_name'] = socialwise_data['contact_data']['name']
+      flat_payload['contact_phone'] = socialwise_data['contact_data']['phone_number']
+      flat_payload['contact_email'] = socialwise_data['contact_data']['email']
+      flat_payload['contact_identifier'] = socialwise_data['contact_data']['identifier']
+      flat_payload['contact_id'] = socialwise_data['contact_data']['id']
+      
+      # Merge custom attributes at root level for backward compatibility
+      if socialwise_data['contact_data']['custom_attributes'].is_a?(Hash)
+        flat_payload.merge!(socialwise_data['contact_data']['custom_attributes'])
       end
     end
     
-    # =======================================================
-    # PAYLOAD EXPANDIDO - DADOS COMPLETOS DO CHATWOOT
-    # =======================================================
-    payload = {
-      # === IDENTIFICADORES WHATSAPP ===
-      "wamid" => message.source_id,
-      "whatsapp_id" => message.source_id,
-      
-      # === DADOS DO CONTATO ===
-      "contact_name" => contact.name,
-      "contact_phone" => contact.phone_number,
-      "contact_email" => contact.email,
-      "contact_identifier" => contact.identifier,
-      "contact_id" => contact.id,
-      
-      # === CUSTOM ATTRIBUTES (DADOS PERSONALIZADOS) ===
-      **contact.custom_attributes.to_h,
-      
-      # === DADOS DA CONVERSA ===
-      "conversation_id" => conversation.id,
-      "conversation_status" => conversation.status,
-      "conversation_assignee_id" => conversation.assignee_id,
-      "conversation_created_at" => conversation.created_at&.iso8601,
-      "conversation_updated_at" => conversation.updated_at&.iso8601,
-      
-      # === DADOS DO INBOX ===
-      "inbox_id" => inbox.id,
-      "inbox_name" => inbox.name,
-      "channel_type" => inbox.channel_type,
-      
-      # === DADOS DA CONTA ===
-      "account_id" => conversation.account_id,
-      "account_name" => conversation.account.name,
-      
-      # === DADOS DA MENSAGEM ===
-      "message_id" => message.id,
-      "message_content" => message.content,
-      "message_type" => message.message_type,
-      "message_created_at" => message.created_at&.iso8601,
-      "message_content_type" => message.content_type,
-      
-      # === DADOS DO CANAL ===
-      "contact_source" => conversation.contact_inbox.source_id,
-      
-      # === API KEY DO WHATSAPP ===
-      "whatsapp_api_key" => whatsapp_api_key,
-      
-      # === METADADOS DA INTEGRAÇÃO ===
-      "socialwise_active" => true,
-      "is_whatsapp_channel" => is_whatsapp_channel,
-      "has_whatsapp_api_key" => whatsapp_api_key.present?,
-      "payload_version" => "2.0",
-      "timestamp" => Time.current.iso8601
-    }
+    # Conversation data
+    if socialwise_data['conversation_data']
+      flat_payload['conversation_id'] = socialwise_data['conversation_data']['id']
+      flat_payload['conversation_status'] = socialwise_data['conversation_data']['status']
+      flat_payload['conversation_assignee_id'] = socialwise_data['conversation_data']['assignee_id']
+      flat_payload['conversation_created_at'] = socialwise_data['conversation_data']['created_at']
+      flat_payload['conversation_updated_at'] = socialwise_data['conversation_data']['updated_at']
+    end
     
-    Rails.logger.info "[SOCIALWISE] Payload final construído: #{payload.inspect}"
+    # Message data
+    if socialwise_data['message_data']
+      flat_payload['message_id'] = socialwise_data['message_data']['id']
+      flat_payload['message_content'] = socialwise_data['message_data']['content']
+      flat_payload['message_type'] = socialwise_data['message_data']['message_type']
+      flat_payload['message_created_at'] = socialwise_data['message_data']['created_at']
+      flat_payload['message_content_type'] = socialwise_data['message_data']['content_type']
+    end
     
-    payload
+    # Inbox data
+    if socialwise_data['inbox_data']
+      flat_payload['inbox_id'] = socialwise_data['inbox_data']['id']
+      flat_payload['inbox_name'] = socialwise_data['inbox_data']['name']
+      flat_payload['channel_type'] = socialwise_data['inbox_data']['channel_type']
+    end
+    
+    # Account data
+    if socialwise_data['account_data']
+      flat_payload['account_id'] = socialwise_data['account_data']['id']
+      flat_payload['account_name'] = socialwise_data['account_data']['name']
+    end
+    
+    # WhatsApp API key and metadata
+    flat_payload['whatsapp_api_key'] = socialwise_data['whatsapp_api_key']
+    
+    if socialwise_data['metadata']
+      flat_payload['socialwise_active'] = socialwise_data['metadata']['socialwise_active']
+      flat_payload['is_whatsapp_channel'] = socialwise_data['metadata']['is_whatsapp_channel']
+      flat_payload['has_whatsapp_api_key'] = socialwise_data['metadata']['has_whatsapp_api_key']
+      flat_payload['payload_version'] = socialwise_data['metadata']['payload_version']
+      flat_payload['timestamp'] = socialwise_data['metadata']['timestamp']
+    end
+    
+    Rails.logger.info "[SOCIALWISE] Dialogflow payload built using shared service: #{flat_payload.inspect}"
+    
+    flat_payload
   rescue => e
-    Rails.logger.error "[SOCIALWISE] Erro ao construir payload: #{e.class}: #{e.message}"
+    Rails.logger.error "[SOCIALWISE] Error building Dialogflow payload: #{e.class}: #{e.message}"
     Rails.logger.error "[SOCIALWISE] Backtrace: #{e.backtrace.join('\n')}"
     
-    # Payload de fallback com dados essenciais
+    # Fallback payload with essential data
+    message = event_data[:message]
+    conversation = message.conversation
+    contact = conversation.contact
+    
     {
       "wamid" => message.source_id,
       "whatsapp_id" => message.source_id,
       "contact_name" => contact.name,
-      **contact.custom_attributes.to_h,
+      **(contact.custom_attributes.to_h rescue {}),
       "socialwise_active" => true,
       "whatsapp_api_key" => nil,
       "has_whatsapp_api_key" => false,

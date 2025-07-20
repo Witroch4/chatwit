@@ -20,6 +20,15 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
   let(:service) { described_class.new(event_data: event_data, hook: hook) }
 
   describe '#build_whatsapp_payload_data' do
+    before do
+      # Create SocialWise hook for testing
+      create(:integrations_hook, 
+             app_id: 'socialwise_chatwit', 
+             status: 'enabled', 
+             account: account,
+             settings: { 'enabled' => true })
+    end
+
     context 'when inbox is not WhatsApp channel' do
       it 'returns payload without WhatsApp API key' do
         result = service.send(:build_whatsapp_payload_data)
@@ -176,6 +185,258 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         expect(result['whatsapp_api_key']).to be_nil
         expect(result['has_whatsapp_api_key']).to be false
         expect(result['error']).to include('Payload construction failed')
+      end
+    end
+
+    context 'when using shared SocialWise service' do
+      it 'calls the shared SocialWise service to build payload data' do
+        expect(Integrations::Socialwise::WebhookEnhancerService).to receive(:enhance_payload).and_call_original
+        
+        service.send(:build_whatsapp_payload_data)
+      end
+
+      it 'converts nested SocialWise data to flat structure for Dialogflow compatibility' do
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Should have flat structure, not nested socialwise-chatwit
+        expect(result).not_to have_key('socialwise-chatwit')
+        expect(result).to include(
+          'contact_name',
+          'conversation_id',
+          'message_id',
+          'inbox_id',
+          'account_id'
+        )
+      end
+
+      it 'merges contact custom attributes at root level for backward compatibility' do
+        contact.update!(custom_attributes: { 'whatsapp_token' => 'test_token_123', 'custom_field' => 'custom_value' })
+        
+        result = service.send(:build_whatsapp_payload_data)
+        
+        expect(result['whatsapp_token']).to eq('test_token_123')
+        expect(result['custom_field']).to eq('custom_value')
+      end
+    end
+  end
+
+  describe '#socialwise_chatwit_enabled?' do
+    context 'when SocialWise hook is not present' do
+      it 'returns false' do
+        expect(service.send(:socialwise_chatwit_enabled?)).to be false
+      end
+    end
+
+    context 'when SocialWise hook is present and enabled' do
+      before do
+        create(:integrations_hook, 
+               app_id: 'socialwise_chatwit', 
+               status: 'enabled', 
+               account: account,
+               settings: { 'enabled' => true })
+      end
+
+      it 'returns true' do
+        expect(service.send(:socialwise_chatwit_enabled?)).to be true
+      end
+
+      it 'uses shared SocialWise service to check activation' do
+        expect(Integrations::Socialwise::WebhookEnhancerService).to receive(:socialwise_active?).with(account).and_call_original
+        
+        service.send(:socialwise_chatwit_enabled?)
+      end
+    end
+
+    context 'when SocialWise hook is present but disabled' do
+      before do
+        create(:integrations_hook, 
+               app_id: 'socialwise_chatwit', 
+               status: 'enabled', 
+               account: account,
+               settings: { 'enabled' => false })
+      end
+
+      it 'returns false' do
+        expect(service.send(:socialwise_chatwit_enabled?)).to be false
+      end
+    end
+  end
+
+  describe 'backward compatibility' do
+    before do
+      create(:integrations_hook, 
+             app_id: 'socialwise_chatwit', 
+             status: 'enabled', 
+             account: account,
+             settings: { 'enabled' => true })
+    end
+
+    context 'when maintaining existing Dialogflow payload structure' do
+      it 'maintains flat payload structure instead of nested socialwise-chatwit' do
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Should not have nested structure
+        expect(result).not_to have_key('socialwise-chatwit')
+        
+        # Should have flat structure for backward compatibility
+        expect(result).to include(
+          'wamid',
+          'whatsapp_id',
+          'contact_name',
+          'contact_phone',
+          'conversation_id',
+          'message_id',
+          'inbox_id',
+          'account_id',
+          'whatsapp_api_key',
+          'socialwise_active'
+        )
+      end
+
+      it 'preserves existing field names and data types' do
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Check specific field names that existing integrations expect
+        expect(result['contact_name']).to eq(contact.name)
+        expect(result['contact_phone']).to eq(contact.phone_number)
+        expect(result['conversation_id']).to eq(conversation.id)
+        expect(result['message_id']).to eq(message.id)
+        expect(result['inbox_id']).to eq(inbox.id)
+        expect(result['account_id']).to eq(account.id)
+        
+        # Check data types
+        expect(result['conversation_id']).to be_a(Integer)
+        expect(result['message_id']).to be_a(Integer)
+        expect(result['socialwise_active']).to be_a(TrueClass)
+      end
+
+      it 'merges contact custom_attributes at root level for backward compatibility' do
+        contact.update!(custom_attributes: { 
+          'whatsapp_token' => 'legacy_token_123',
+          'customer_type' => 'premium',
+          'source' => 'website'
+        })
+        
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Custom attributes should be at root level, not nested
+        expect(result['whatsapp_token']).to eq('legacy_token_123')
+        expect(result['customer_type']).to eq('premium')
+        expect(result['source']).to eq('website')
+        
+        # Should not have nested custom_attributes
+        expect(result).not_to have_key('custom_attributes')
+      end
+
+      it 'maintains timestamp format compatibility' do
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Check ISO8601 format for timestamps
+        expect(result['conversation_created_at']).to match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+        expect(result['conversation_updated_at']).to match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+        expect(result['message_created_at']).to match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+        expect(result['timestamp']).to match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+      end
+
+      it 'preserves WhatsApp identifier fields' do
+        message.update!(source_id: 'wamid.test123456')
+        
+        result = service.send(:build_whatsapp_payload_data)
+        
+        expect(result['wamid']).to eq('wamid.test123456')
+        expect(result['whatsapp_id']).to eq('wamid.test123456')
+        expect(result['wamid']).to eq(result['whatsapp_id']) # Should be the same for compatibility
+      end
+    end
+
+    context 'when existing Dialogflow integrations process the payload' do
+      it 'provides all expected fields for existing integrations' do
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Fields that existing Dialogflow integrations expect
+        expected_fields = [
+          'wamid', 'whatsapp_id', 'contact_name', 'contact_phone', 'contact_email',
+          'contact_identifier', 'contact_id', 'conversation_id', 'conversation_status',
+          'conversation_assignee_id', 'conversation_created_at', 'conversation_updated_at',
+          'message_id', 'message_content', 'message_type', 'message_created_at',
+          'message_content_type', 'inbox_id', 'inbox_name', 'channel_type',
+          'account_id', 'account_name', 'contact_source', 'whatsapp_api_key',
+          'socialwise_active', 'is_whatsapp_channel', 'has_whatsapp_api_key',
+          'payload_version', 'timestamp'
+        ]
+        
+        expected_fields.each do |field|
+          expect(result).to have_key(field), "Expected field '#{field}' to be present in payload"
+        end
+      end
+
+      it 'handles nil values gracefully for backward compatibility' do
+        # Set some fields to nil to test graceful handling
+        contact.update!(email: nil, identifier: nil)
+        conversation.update!(assignee_id: nil)
+        
+        result = service.send(:build_whatsapp_payload_data)
+        
+        expect(result['contact_email']).to be_nil
+        expect(result['contact_identifier']).to be_nil
+        expect(result['conversation_assignee_id']).to be_nil
+        
+        # Should not raise errors and should include the fields
+        expect(result).to have_key('contact_email')
+        expect(result).to have_key('contact_identifier')
+        expect(result).to have_key('conversation_assignee_id')
+      end
+
+      it 'maintains error handling structure for backward compatibility' do
+        # Mock an error in the shared service
+        allow(Integrations::Socialwise::WebhookEnhancerService).to receive(:enhance_payload).and_raise(StandardError, 'Service error')
+        
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Should return fallback payload with expected structure
+        expect(result).to include(
+          'wamid',
+          'whatsapp_id',
+          'contact_name',
+          'socialwise_active',
+          'whatsapp_api_key',
+          'has_whatsapp_api_key',
+          'error'
+        )
+        
+        expect(result['error']).to include('Payload construction failed')
+        expect(result['socialwise_active']).to be true
+        expect(result['whatsapp_api_key']).to be_nil
+        expect(result['has_whatsapp_api_key']).to be false
+      end
+    end
+
+    context 'when Dialogflow functionality remains unaffected' do
+      it 'does not interfere with existing Dialogflow processing' do
+        # This test ensures that the SocialWise changes don't break Dialogflow
+        expect(service).to respond_to(:get_response)
+        expect(service).to respond_to(:process_response)
+        expect(service).to respond_to(:detect_intent)
+        
+        # The service should still have all its original methods
+        expect(service.private_methods).to include(:configure_dialogflow_client_defaults)
+        expect(service.private_methods).to include(:build_session_path)
+        expect(service.private_methods).to include(:hash_to_struct)
+      end
+
+      it 'maintains originalDetectIntentRequest payload structure' do
+        # The payload built by build_whatsapp_payload_data should be suitable
+        # for inclusion in originalDetectIntentRequest.payload
+        result = service.send(:build_whatsapp_payload_data)
+        
+        # Should be a flat hash suitable for Dialogflow's originalDetectIntentRequest.payload
+        expect(result).to be_a(Hash)
+        expect(result.keys).to all(be_a(String))
+        
+        # Should not have deeply nested structures that would break Dialogflow
+        result.values.each do |value|
+          expect(value).not_to be_a(Hash) unless value.nil?
+        end
       end
     end
   end

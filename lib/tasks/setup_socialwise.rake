@@ -51,12 +51,12 @@ namespace :socialwise do
       puts "   Settings: #{hook.settings}"
     end
     
-    # Verificar se existe hook do Dialogflow
+    # Verificar se existe hook do Dialogflow (informativo apenas)
     dialogflow_hook = account.hooks.find_by(app_id: 'dialogflow')
     if dialogflow_hook
-      puts "✅ Hook Dialogflow encontrado (ID: #{dialogflow_hook.id})".colorize(:green)
+      puts "ℹ️  Hook Dialogflow encontrado (ID: #{dialogflow_hook.id}) - Socialwise funcionará com Dialogflow".colorize(:blue)
     else
-      puts "⚠️  Hook Dialogflow não encontrado! Socialwise precisa do Dialogflow configurado.".colorize(:yellow)
+      puts "ℹ️  Hook Dialogflow não encontrado - Socialwise funcionará independentemente".colorize(:blue)
     end
     
     puts ""

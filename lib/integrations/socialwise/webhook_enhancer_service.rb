@@ -10,7 +10,16 @@ class Integrations::Socialwise::WebhookEnhancerService
       return payload unless socialwise_active?(account)
 
       enhanced_payload = payload.dup
-      enhanced_payload['socialwise-chatwit'] = build_socialwise_data(payload, account)
+      socialwise_data = build_socialwise_data(payload, account)
+      
+      # Validate the socialwise-chatwit data structure before adding to payload
+      if validate_socialwise_data(socialwise_data)
+        enhanced_payload['socialwise-chatwit'] = socialwise_data
+      else
+        Rails.logger.warn "[SOCIALWISE] Validation failed for socialwise-chatwit data, using fallback"
+        enhanced_payload['socialwise-chatwit'] = build_fallback_data_structure(StandardError.new('Validation failed'), account)
+      end
+      
       enhanced_payload
     rescue => e
       Rails.logger.error "[SOCIALWISE] Enhancement failed: #{e.message}"
@@ -337,6 +346,229 @@ class Integrations::Socialwise::WebhookEnhancerService
         'payload_version' => '2.0',
         'timestamp' => Time.current.iso8601
       }
+    end
+
+    # Validates the socialwise-chatwit data structure
+    # @param data [Hash] The socialwise-chatwit data to validate
+    # @return [Boolean] true if valid, false otherwise
+    def validate_socialwise_data(data)
+      return false unless data.is_a?(Hash)
+      
+      # Validate required top-level keys
+      required_keys = %w[
+        whatsapp_identifiers contact_data conversation_data message_data
+        inbox_data account_data metadata whatsapp_api_key
+      ]
+      
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing required keys in socialwise-chatwit data"
+        return false
+      end
+      
+      # Validate individual sections
+      return false unless validate_whatsapp_identifiers(data['whatsapp_identifiers'])
+      return false unless validate_contact_data(data['contact_data'])
+      return false unless validate_conversation_data(data['conversation_data'])
+      return false unless validate_message_data(data['message_data'])
+      return false unless validate_inbox_data(data['inbox_data'])
+      return false unless validate_account_data(data['account_data'])
+      return false unless validate_metadata(data['metadata'])
+      
+      # Validate whatsapp_api_key field (can be nil or string)
+      unless data['whatsapp_api_key'].nil? || data['whatsapp_api_key'].is_a?(String)
+        Rails.logger.warn "[SOCIALWISE] Invalid whatsapp_api_key type: #{data['whatsapp_api_key'].class}"
+        return false
+      end
+      
+      Rails.logger.debug "[SOCIALWISE] SocialWise data validation passed"
+      true
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Validation error: #{e.class}: #{e.message}"
+      false
+    end
+
+    # Validates whatsapp_identifiers section
+    def validate_whatsapp_identifiers(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[wamid whatsapp_id contact_source]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in whatsapp_identifiers"
+        return false
+      end
+      
+      # Values can be nil or strings
+      data.values.each do |value|
+        unless value.nil? || value.is_a?(String)
+          Rails.logger.warn "[SOCIALWISE] Invalid type in whatsapp_identifiers: #{value.class}"
+          return false
+        end
+      end
+      
+      true
+    end
+
+    # Validates contact_data section
+    def validate_contact_data(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[id name phone_number email identifier custom_attributes]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in contact_data"
+        return false
+      end
+      
+      # Validate data types
+      unless data['id'].nil? || data['id'].is_a?(Integer)
+        Rails.logger.warn "[SOCIALWISE] Invalid contact id type: #{data['id'].class}"
+        return false
+      end
+      
+      unless data['custom_attributes'].is_a?(Hash)
+        Rails.logger.warn "[SOCIALWISE] Invalid custom_attributes type: #{data['custom_attributes'].class}"
+        return false
+      end
+      
+      true
+    end
+
+    # Validates conversation_data section
+    def validate_conversation_data(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[id status assignee_id created_at updated_at]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in conversation_data"
+        return false
+      end
+      
+      # Validate data types
+      unless data['id'].nil? || data['id'].is_a?(Integer)
+        Rails.logger.warn "[SOCIALWISE] Invalid conversation id type: #{data['id'].class}"
+        return false
+      end
+      
+      unless data['assignee_id'].nil? || data['assignee_id'].is_a?(Integer)
+        Rails.logger.warn "[SOCIALWISE] Invalid assignee_id type: #{data['assignee_id'].class}"
+        return false
+      end
+      
+      # Validate timestamp formats
+      %w[created_at updated_at].each do |timestamp_field|
+        value = data[timestamp_field]
+        if value && !value.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+          Rails.logger.warn "[SOCIALWISE] Invalid timestamp format for #{timestamp_field}: #{value}"
+          return false
+        end
+      end
+      
+      true
+    end
+
+    # Validates message_data section
+    def validate_message_data(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[id content content_type message_type created_at]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in message_data"
+        return false
+      end
+      
+      # Validate data types
+      unless data['id'].nil? || data['id'].is_a?(Integer)
+        Rails.logger.warn "[SOCIALWISE] Invalid message id type: #{data['id'].class}"
+        return false
+      end
+      
+      # Validate timestamp format
+      created_at = data['created_at']
+      if created_at && !created_at.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+        Rails.logger.warn "[SOCIALWISE] Invalid timestamp format for message created_at: #{created_at}"
+        return false
+      end
+      
+      true
+    end
+
+    # Validates inbox_data section
+    def validate_inbox_data(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[id name channel_type]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in inbox_data"
+        return false
+      end
+      
+      # Validate data types
+      unless data['id'].nil? || data['id'].is_a?(Integer)
+        Rails.logger.warn "[SOCIALWISE] Invalid inbox id type: #{data['id'].class}"
+        return false
+      end
+      
+      true
+    end
+
+    # Validates account_data section
+    def validate_account_data(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[id name]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in account_data"
+        return false
+      end
+      
+      # Validate data types
+      unless data['id'].nil? || data['id'].is_a?(Integer)
+        Rails.logger.warn "[SOCIALWISE] Invalid account id type: #{data['id'].class}"
+        return false
+      end
+      
+      true
+    end
+
+    # Validates metadata section
+    def validate_metadata(data)
+      return false unless data.is_a?(Hash)
+      
+      required_keys = %w[socialwise_active is_whatsapp_channel payload_version timestamp has_whatsapp_api_key]
+      unless required_keys.all? { |key| data.key?(key) }
+        Rails.logger.warn "[SOCIALWISE] Missing keys in metadata"
+        return false
+      end
+      
+      # Validate boolean fields
+      unless [TrueClass, FalseClass].include?(data['socialwise_active'].class)
+        Rails.logger.warn "[SOCIALWISE] Invalid socialwise_active type: #{data['socialwise_active'].class}"
+        return false
+      end
+      
+      unless [TrueClass, FalseClass].include?(data['is_whatsapp_channel'].class)
+        Rails.logger.warn "[SOCIALWISE] Invalid is_whatsapp_channel type: #{data['is_whatsapp_channel'].class}"
+        return false
+      end
+      
+      unless [TrueClass, FalseClass].include?(data['has_whatsapp_api_key'].class)
+        Rails.logger.warn "[SOCIALWISE] Invalid has_whatsapp_api_key type: #{data['has_whatsapp_api_key'].class}"
+        return false
+      end
+      
+      # Validate payload_version
+      unless data['payload_version'] == '2.0'
+        Rails.logger.warn "[SOCIALWISE] Invalid payload_version: #{data['payload_version']}"
+        return false
+      end
+      
+      # Validate timestamp format
+      timestamp = data['timestamp']
+      unless timestamp.is_a?(String) && timestamp.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+        Rails.logger.warn "[SOCIALWISE] Invalid timestamp format: #{timestamp}"
+        return false
+      end
+      
+      true
     end
 
     # Builds a comprehensive fallback data structure when full data collection fails
