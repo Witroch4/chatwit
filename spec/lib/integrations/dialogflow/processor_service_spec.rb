@@ -117,6 +117,41 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
           'payload_version'
         )
       end
+
+      it 'includes interactive button data when present' do
+        # Create message with button interaction
+        whatsapp_message.update!(content_attributes: {
+          button_reply: { id: 'btn_test_123', title: 'Confirm' },
+          interaction_type: 'button_reply'
+        })
+        
+        result = whatsapp_service.send(:build_whatsapp_payload_data)
+        
+        expect(result['button_id']).to eq('btn_test_123')
+        expect(result['button_title']).to eq('Confirm')
+        expect(result['interaction_type']).to eq('button_reply')
+        expect(result['list_id']).to be_nil
+      end
+
+      it 'includes interactive list data when present' do
+        # Create message with list interaction
+        whatsapp_message.update!(content_attributes: {
+          list_reply: { 
+            id: 'list_test_456', 
+            title: 'Option A',
+            description: 'First choice'
+          },
+          interaction_type: 'list_reply'
+        })
+        
+        result = whatsapp_service.send(:build_whatsapp_payload_data)
+        
+        expect(result['list_id']).to eq('list_test_456')
+        expect(result['list_title']).to eq('Option A')
+        expect(result['list_description']).to eq('First choice')
+        expect(result['interaction_type']).to eq('list_reply')
+        expect(result['button_id']).to be_nil
+      end
     end
 
     context 'when inbox is WhatsApp channel without API key' do
@@ -375,7 +410,8 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
           'message_content_type', 'inbox_id', 'inbox_name', 'channel_type',
           'account_id', 'account_name', 'contact_source', 'whatsapp_api_key',
           'phone_number_id', 'business_id', 'socialwise_active', 'is_whatsapp_channel', 
-          'has_whatsapp_api_key', 'payload_version', 'timestamp'
+          'has_whatsapp_api_key', 'payload_version', 'timestamp', 'button_id',
+          'button_title', 'list_id', 'list_title', 'list_description', 'interaction_type'
         ]
         
         expected_fields.each do |field|

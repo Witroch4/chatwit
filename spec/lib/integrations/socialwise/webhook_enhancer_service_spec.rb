@@ -150,6 +150,7 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
         
         expect(message_data['id']).to eq(message.id)
         expect(message_data['content']).to eq(message.content)
+        expect(message_data['interactive_data']).to be_a(Hash)
       end
 
       it 'includes inbox data' do
@@ -173,6 +174,51 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
         whatsapp_api_key = result['socialwise-chatwit']['whatsapp_api_key']
         
         expect(whatsapp_api_key).to be_nil # Default inbox is not WhatsApp
+      end
+
+      it 'includes interactive data for button messages' do
+        # Create a message with interactive button data
+        interactive_message = create(:message, 
+                                   account: account, 
+                                   inbox: inbox, 
+                                   conversation: conversation,
+                                   content_attributes: {
+                                     button_reply: { id: 'btn_123', title: 'Yes' },
+                                     interaction_type: 'button_reply'
+                                   })
+        
+        interactive_payload = webhook_payload.merge(message: interactive_message)
+        result = described_class.enhance_payload(interactive_payload, account)
+        
+        interactive_data = result['socialwise-chatwit']['message_data']['interactive_data']
+        expect(interactive_data['button_id']).to eq('btn_123')
+        expect(interactive_data['button_title']).to eq('Yes')
+        expect(interactive_data['interaction_type']).to eq('button_reply')
+      end
+
+      it 'includes interactive data for list messages' do
+        # Create a message with interactive list data
+        interactive_message = create(:message, 
+                                   account: account, 
+                                   inbox: inbox, 
+                                   conversation: conversation,
+                                   content_attributes: {
+                                     list_reply: { 
+                                       id: 'list_456', 
+                                       title: 'Option 1',
+                                       description: 'First option'
+                                     },
+                                     interaction_type: 'list_reply'
+                                   })
+        
+        interactive_payload = webhook_payload.merge(message: interactive_message)
+        result = described_class.enhance_payload(interactive_payload, account)
+        
+        interactive_data = result['socialwise-chatwit']['message_data']['interactive_data']
+        expect(interactive_data['list_id']).to eq('list_456')
+        expect(interactive_data['list_title']).to eq('Option 1')
+        expect(interactive_data['list_description']).to eq('First option')
+        expect(interactive_data['interaction_type']).to eq('list_reply')
       end
     end
 
@@ -607,7 +653,8 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
           'content' => 'Test message',
           'content_type' => 'text',
           'message_type' => 'incoming',
-          'created_at' => '2025-01-19T10:00:00Z'
+          'created_at' => '2025-01-19T10:00:00Z',
+          'interactive_data' => {}
         }
         
         expect(described_class.send(:validate_message_data, valid_message)).to be true
@@ -615,6 +662,10 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
         # Test with invalid timestamp
         invalid_timestamp = valid_message.merge('created_at' => 'invalid')
         expect(described_class.send(:validate_message_data, invalid_timestamp)).to be false
+        
+        # Test with invalid interactive_data type
+        invalid_interactive = valid_message.merge('interactive_data' => 'not_hash')
+        expect(described_class.send(:validate_message_data, invalid_interactive)).to be false
       end
 
       it 'validates inbox_data structure' do

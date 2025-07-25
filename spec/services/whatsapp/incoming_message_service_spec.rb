@@ -181,6 +181,67 @@ describe Whatsapp::IncomingMessageService do
         expect(Contact.all.first.name).to eq('Sojan Jose')
         expect(whatsapp_channel.inbox.messages.first.content).to eq('First Button')
       end
+
+      it 'extracts button interaction data to content_attributes' do
+        params = {
+          'contacts' => [{ 'profile' => { 'name' => 'Test User' }, 'wa_id' => '1234567890' }],
+          'messages' => [{ 'from' => '1234567890', 'id' => 'test_message_id',
+                           :interactive => {
+                             'button_reply': {
+                               'id': 'btn_confirm_123',
+                               'title': 'Confirm Order'
+                             },
+                             'type': 'button_reply'
+                           },
+                           'timestamp' => '1633034394', 'type' => 'interactive' }]
+        }.with_indifferent_access
+        
+        described_class.new(inbox: whatsapp_channel.inbox, params: params).perform
+        
+        message = whatsapp_channel.inbox.messages.first
+        expect(message.content_attributes['button_reply']['id']).to eq('btn_confirm_123')
+        expect(message.content_attributes['button_reply']['title']).to eq('Confirm Order')
+        expect(message.content_attributes['interaction_type']).to eq('button_reply')
+      end
+
+      it 'extracts list interaction data to content_attributes' do
+        params = {
+          'contacts' => [{ 'profile' => { 'name' => 'Test User' }, 'wa_id' => '1234567890' }],
+          'messages' => [{ 'from' => '1234567890', 'id' => 'test_message_id',
+                           :interactive => {
+                             'list_reply': {
+                               'id': 'list_option_456',
+                               'title': 'Pizza Margherita',
+                               'description': 'Classic pizza with tomato and mozzarella'
+                             },
+                             'type': 'list_reply'
+                           },
+                           'timestamp' => '1633034394', 'type' => 'interactive' }]
+        }.with_indifferent_access
+        
+        described_class.new(inbox: whatsapp_channel.inbox, params: params).perform
+        
+        message = whatsapp_channel.inbox.messages.first
+        expect(message.content_attributes['list_reply']['id']).to eq('list_option_456')
+        expect(message.content_attributes['list_reply']['title']).to eq('Pizza Margherita')
+        expect(message.content_attributes['list_reply']['description']).to eq('Classic pizza with tomato and mozzarella')
+        expect(message.content_attributes['interaction_type']).to eq('list_reply')
+      end
+
+      it 'handles non-interactive messages without errors' do
+        params = {
+          'contacts' => [{ 'profile' => { 'name' => 'Test User' }, 'wa_id' => '1234567890' }],
+          'messages' => [{ 'from' => '1234567890', 'id' => 'test_message_id',
+                           'text': { 'body': 'Regular text message' },
+                           'timestamp' => '1633034394', 'type' => 'text' }]
+        }.with_indifferent_access
+        
+        described_class.new(inbox: whatsapp_channel.inbox, params: params).perform
+        
+        message = whatsapp_channel.inbox.messages.first
+        expect(message.content_attributes).to eq({})
+        expect(message.content).to eq('Regular text message')
+      end
     end
 
     # ref: https://github.com/chatwoot/chatwoot/issues/3795#issuecomment-1018057318

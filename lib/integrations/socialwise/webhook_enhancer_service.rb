@@ -285,17 +285,23 @@ class Integrations::Socialwise::WebhookEnhancerService
           'content' => nil,
           'content_type' => nil,
           'message_type' => nil,
-          'created_at' => nil
+          'created_at' => nil,
+          'interactive_data' => {}
         }
       end
 
-      {
+      message_data = {
         'id' => message.id,
         'content' => message.content,
         'content_type' => message.content_type,
         'message_type' => message.message_type,
-        'created_at' => message.created_at&.iso8601
+        'created_at' => message.created_at&.iso8601,
+        'interactive_data' => extract_interactive_data_from_message(message)
       }
+      
+      Rails.logger.info "[SOCIALWISE] Message interactive data: #{message_data['interactive_data']}" if message_data['interactive_data'].any?
+      
+      message_data
     rescue => e
       Rails.logger.error "[SOCIALWISE] Error building message data: #{e.class}: #{e.message}"
       Rails.logger.error "[SOCIALWISE] Message ID: #{message&.id}, Message class: #{message&.class}"
@@ -304,8 +310,42 @@ class Integrations::Socialwise::WebhookEnhancerService
         'content' => nil,
         'content_type' => nil,
         'message_type' => nil,
-        'created_at' => nil
+        'created_at' => nil,
+        'interactive_data' => {}
       }
+    end
+
+    # Extract interactive data from message content_attributes
+    def extract_interactive_data_from_message(message)
+      return {} unless message&.content_attributes.is_a?(Hash)
+      
+      interactive_data = {}
+      content_attrs = message.content_attributes.with_indifferent_access
+      
+      # Extract button reply data
+      if content_attrs[:button_reply]
+        interactive_data['button_id'] = content_attrs[:button_reply][:id]
+        interactive_data['button_title'] = content_attrs[:button_reply][:title]
+        interactive_data['interaction_type'] = 'button_reply'
+      end
+      
+      # Extract list reply data
+      if content_attrs[:list_reply]
+        interactive_data['list_id'] = content_attrs[:list_reply][:id]
+        interactive_data['list_title'] = content_attrs[:list_reply][:title]
+        interactive_data['list_description'] = content_attrs[:list_reply][:description]
+        interactive_data['interaction_type'] = 'list_reply'
+      end
+      
+      # Add interaction type if available
+      if content_attrs[:interaction_type]
+        interactive_data['interaction_type'] = content_attrs[:interaction_type]
+      end
+      
+      interactive_data
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Error extracting interactive data from message: #{e.class}: #{e.message}"
+      {}
     end
 
     # Build inbox data section
@@ -511,7 +551,7 @@ class Integrations::Socialwise::WebhookEnhancerService
     def validate_message_data(data)
       return false unless data.is_a?(Hash)
       
-      required_keys = %w[id content content_type message_type created_at]
+      required_keys = %w[id content content_type message_type created_at interactive_data]
       unless required_keys.all? { |key| data.key?(key) }
         Rails.logger.warn "[SOCIALWISE] Missing keys in message_data"
         return false
@@ -520,6 +560,12 @@ class Integrations::Socialwise::WebhookEnhancerService
       # Validate data types
       unless data['id'].nil? || data['id'].is_a?(Integer)
         Rails.logger.warn "[SOCIALWISE] Invalid message id type: #{data['id'].class}"
+        return false
+      end
+      
+      # Validate interactive_data type
+      unless data['interactive_data'].is_a?(Hash)
+        Rails.logger.warn "[SOCIALWISE] Invalid interactive_data type: #{data['interactive_data'].class}"
         return false
       end
       
@@ -648,7 +694,8 @@ class Integrations::Socialwise::WebhookEnhancerService
           'content' => nil,
           'content_type' => nil,
           'message_type' => nil,
-          'created_at' => nil
+          'created_at' => nil,
+          'interactive_data' => {}
         },
         'inbox_data' => {
           'id' => nil,

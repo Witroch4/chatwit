@@ -214,6 +214,17 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
       flat_payload['message_type'] = socialwise_data['message_data']['message_type']
       flat_payload['message_created_at'] = socialwise_data['message_data']['created_at']
       flat_payload['message_content_type'] = socialwise_data['message_data']['content_type']
+      
+      # Interactive data (button/list IDs)
+      if socialwise_data['message_data']['interactive_data']
+        interactive_data = socialwise_data['message_data']['interactive_data']
+        flat_payload['button_id'] = interactive_data['button_id']
+        flat_payload['button_title'] = interactive_data['button_title']
+        flat_payload['list_id'] = interactive_data['list_id']
+        flat_payload['list_title'] = interactive_data['list_title']
+        flat_payload['list_description'] = interactive_data['list_description']
+        flat_payload['interaction_type'] = interactive_data['interaction_type']
+      end
     end
     
     # Inbox data
