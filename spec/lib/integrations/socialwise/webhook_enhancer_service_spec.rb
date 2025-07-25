@@ -111,7 +111,9 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
           'inbox_data',
           'account_data',
           'metadata',
-          'whatsapp_api_key'
+          'whatsapp_api_key',
+          'whatsapp_phone_number_id',
+          'whatsapp_business_id'
         )
       end
 
@@ -176,7 +178,7 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
 
     context 'when SocialWise is active and inbox is WhatsApp' do
       let(:whatsapp_inbox) { create(:inbox, account: account) }
-      let(:whatsapp_channel) { create(:channel_whatsapp, account: account, provider_config: { 'api_key' => 'test_whatsapp_api_key' }) }
+      let(:whatsapp_channel) { create(:channel_whatsapp, account: account, provider_config: { 'api_key' => 'test_whatsapp_api_key', 'phone_number_id' => 'test_phone_number_id', 'business_account_id' => 'test_business_id' }) }
       let(:whatsapp_conversation) { create(:conversation, account: account, inbox: whatsapp_inbox, contact: contact) }
       let(:whatsapp_message) { create(:message, account: account, inbox: whatsapp_inbox, conversation: whatsapp_conversation) }
       
@@ -206,6 +208,20 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
         whatsapp_api_key = result['socialwise-chatwit']['whatsapp_api_key']
         
         expect(whatsapp_api_key).to eq('test_whatsapp_api_key')
+      end
+
+      it 'includes WhatsApp phone number ID in the payload' do
+        result = described_class.enhance_payload(whatsapp_webhook_payload, account)
+        phone_number_id = result['socialwise-chatwit']['whatsapp_phone_number_id']
+        
+        expect(phone_number_id).to eq('test_phone_number_id')
+      end
+
+      it 'includes WhatsApp business ID in the payload' do
+        result = described_class.enhance_payload(whatsapp_webhook_payload, account)
+        business_id = result['socialwise-chatwit']['whatsapp_business_id']
+        
+        expect(business_id).to eq('test_business_id')
       end
 
       it 'indicates WhatsApp API key is present in metadata' do
@@ -257,6 +273,20 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
         whatsapp_api_key = result['socialwise-chatwit']['whatsapp_api_key']
         
         expect(whatsapp_api_key).to be_nil
+      end
+
+      it 'includes nil WhatsApp phone number ID in the payload' do
+        result = described_class.enhance_payload(whatsapp_webhook_payload, account)
+        phone_number_id = result['socialwise-chatwit']['whatsapp_phone_number_id']
+        
+        expect(phone_number_id).to be_nil
+      end
+
+      it 'includes nil WhatsApp business ID in the payload' do
+        result = described_class.enhance_payload(whatsapp_webhook_payload, account)
+        business_id = result['socialwise-chatwit']['whatsapp_business_id']
+        
+        expect(business_id).to be_nil
       end
 
       it 'indicates WhatsApp API key is not present in metadata' do
@@ -339,7 +369,9 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
           'inbox_data',
           'account_data',
           'metadata',
-          'whatsapp_api_key'
+          'whatsapp_api_key',
+          'whatsapp_phone_number_id',
+          'whatsapp_business_id'
         )
         
         expect(fallback_data['metadata']['fallback_used']).to be true
@@ -645,18 +677,28 @@ RSpec.describe Integrations::Socialwise::WebhookEnhancerService do
           'inbox_data' => { 'id' => nil, 'name' => nil, 'channel_type' => nil },
           'account_data' => { 'id' => nil, 'name' => nil },
           'metadata' => { 'socialwise_active' => true, 'is_whatsapp_channel' => false, 'payload_version' => '2.0', 'timestamp' => '2025-01-19T10:00:00Z', 'has_whatsapp_api_key' => false },
-          'whatsapp_api_key' => 'test_api_key'
+          'whatsapp_api_key' => 'test_api_key',
+          'whatsapp_phone_number_id' => 'test_phone_id',
+          'whatsapp_business_id' => 'test_business_id'
         }
         
         expect(described_class.send(:validate_socialwise_data, valid_data_with_key)).to be true
         
         # Test with nil api_key
-        valid_data_nil_key = valid_data_with_key.merge('whatsapp_api_key' => nil)
+        valid_data_nil_key = valid_data_with_key.merge('whatsapp_api_key' => nil, 'whatsapp_phone_number_id' => nil, 'whatsapp_business_id' => nil)
         expect(described_class.send(:validate_socialwise_data, valid_data_nil_key)).to be true
         
         # Test with invalid api_key type
         invalid_data = valid_data_with_key.merge('whatsapp_api_key' => 123)
         expect(described_class.send(:validate_socialwise_data, invalid_data)).to be false
+        
+        # Test with invalid phone_number_id type
+        invalid_phone_id = valid_data_with_key.merge('whatsapp_phone_number_id' => 123)
+        expect(described_class.send(:validate_socialwise_data, invalid_phone_id)).to be false
+        
+        # Test with invalid business_id type
+        invalid_business_id = valid_data_with_key.merge('whatsapp_business_id' => 123)
+        expect(described_class.send(:validate_socialwise_data, invalid_business_id)).to be false
       end
 
       it 'uses fallback data when validation fails' do

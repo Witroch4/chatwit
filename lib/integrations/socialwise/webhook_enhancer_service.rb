@@ -67,6 +67,8 @@ class Integrations::Socialwise::WebhookEnhancerService
       data['account_data'] = build_account_data(account)
       data['metadata'] = build_metadata(inbox)
       data['whatsapp_api_key'] = extract_whatsapp_api_key(inbox)
+      data['whatsapp_phone_number_id'] = extract_whatsapp_phone_number_id(inbox)
+      data['whatsapp_business_id'] = extract_whatsapp_business_id(inbox)
       
       Rails.logger.info "[SOCIALWISE] Successfully built socialwise-chatwit data"
       data
@@ -146,6 +148,34 @@ class Integrations::Socialwise::WebhookEnhancerService
         api_key
       rescue => e
         Rails.logger.error "[SOCIALWISE] Error extracting WhatsApp API key: #{e.class}: #{e.message}"
+        nil
+      end
+    end
+
+    # Extract WhatsApp phone number ID from inbox channel
+    def extract_whatsapp_phone_number_id(inbox)
+      return nil unless inbox&.channel_type == 'Channel::Whatsapp'
+      
+      begin
+        phone_number_id = inbox.channel.provider_config&.dig('phone_number_id')
+        Rails.logger.info "[SOCIALWISE] WhatsApp phone_number_id extracted: #{phone_number_id.present? ? 'Present' : 'Not found'}"
+        phone_number_id
+      rescue => e
+        Rails.logger.error "[SOCIALWISE] Error extracting WhatsApp phone_number_id: #{e.class}: #{e.message}"
+        nil
+      end
+    end
+
+    # Extract WhatsApp business account ID from inbox channel
+    def extract_whatsapp_business_id(inbox)
+      return nil unless inbox&.channel_type == 'Channel::Whatsapp'
+      
+      begin
+        business_id = inbox.channel.provider_config&.dig('business_account_id')
+        Rails.logger.info "[SOCIALWISE] WhatsApp business_account_id extracted: #{business_id.present? ? 'Present' : 'Not found'}"
+        business_id
+      rescue => e
+        Rails.logger.error "[SOCIALWISE] Error extracting WhatsApp business_account_id: #{e.class}: #{e.message}"
         nil
       end
     end
@@ -357,7 +387,7 @@ class Integrations::Socialwise::WebhookEnhancerService
       # Validate required top-level keys
       required_keys = %w[
         whatsapp_identifiers contact_data conversation_data message_data
-        inbox_data account_data metadata whatsapp_api_key
+        inbox_data account_data metadata whatsapp_api_key whatsapp_phone_number_id whatsapp_business_id
       ]
       
       unless required_keys.all? { |key| data.key?(key) }
@@ -377,6 +407,18 @@ class Integrations::Socialwise::WebhookEnhancerService
       # Validate whatsapp_api_key field (can be nil or string)
       unless data['whatsapp_api_key'].nil? || data['whatsapp_api_key'].is_a?(String)
         Rails.logger.warn "[SOCIALWISE] Invalid whatsapp_api_key type: #{data['whatsapp_api_key'].class}"
+        return false
+      end
+
+      # Validate whatsapp_phone_number_id field (can be nil or string)
+      unless data['whatsapp_phone_number_id'].nil? || data['whatsapp_phone_number_id'].is_a?(String)
+        Rails.logger.warn "[SOCIALWISE] Invalid whatsapp_phone_number_id type: #{data['whatsapp_phone_number_id'].class}"
+        return false
+      end
+
+      # Validate whatsapp_business_id field (can be nil or string)
+      unless data['whatsapp_business_id'].nil? || data['whatsapp_business_id'].is_a?(String)
+        Rails.logger.warn "[SOCIALWISE] Invalid whatsapp_business_id type: #{data['whatsapp_business_id'].class}"
         return false
       end
       
@@ -626,7 +668,9 @@ class Integrations::Socialwise::WebhookEnhancerService
           'fallback_used' => true,
           'has_whatsapp_api_key' => false
         },
-        'whatsapp_api_key' => nil
+        'whatsapp_api_key' => nil,
+        'whatsapp_phone_number_id' => nil,
+        'whatsapp_business_id' => nil
       }
 
       Rails.logger.info "[SOCIALWISE] Fallback data structure created successfully"

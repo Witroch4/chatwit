@@ -55,7 +55,7 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
     end
 
     context 'when inbox is WhatsApp channel with API key' do
-      let(:whatsapp_channel) { create(:channel_whatsapp, account: account, provider_config: { 'api_key' => 'test_whatsapp_api_key_123' }) }
+      let(:whatsapp_channel) { create(:channel_whatsapp, account: account, provider_config: { 'api_key' => 'test_whatsapp_api_key_123', 'phone_number_id' => 'test_phone_number_id', 'business_account_id' => 'test_business_id' }) }
       let(:whatsapp_inbox) { create(:inbox, account: account, channel: whatsapp_channel) }
       let(:whatsapp_conversation) { create(:conversation, account: account, inbox: whatsapp_inbox, contact: contact) }
       let(:whatsapp_message) { create(:message, account: account, inbox: whatsapp_inbox, conversation: whatsapp_conversation) }
@@ -79,11 +79,23 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         expect(result['is_whatsapp_channel']).to be true
       end
 
+      it 'includes WhatsApp phone number ID in the payload' do
+        result = whatsapp_service.send(:build_whatsapp_payload_data)
+        
+        expect(result['phone_number_id']).to eq('test_phone_number_id')
+      end
+
+      it 'includes WhatsApp business ID in the payload' do
+        result = whatsapp_service.send(:build_whatsapp_payload_data)
+        
+        expect(result['business_id']).to eq('test_business_id')
+      end
+
       it 'includes WhatsApp identifiers' do
         result = whatsapp_service.send(:build_whatsapp_payload_data)
         
         expect(result['wamid']).to eq(whatsapp_message.source_id)
-        expect(result['whatsapp_id']).to eq(whatsapp_message.source_id)
+        # whatsapp_id foi removido para evitar duplicação
       end
 
       it 'includes complete payload structure' do
@@ -91,13 +103,14 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         
         expect(result).to include(
           'wamid',
-          'whatsapp_id',
           'contact_name',
           'contact_phone',
           'conversation_id',
           'inbox_id',
           'message_id',
           'whatsapp_api_key',
+          'phone_number_id',
+          'business_id',
           'has_whatsapp_api_key',
           'is_whatsapp_channel',
           'socialwise_active',
@@ -281,7 +294,6 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         # Should have flat structure for backward compatibility
         expect(result).to include(
           'wamid',
-          'whatsapp_id',
           'contact_name',
           'contact_phone',
           'conversation_id',
@@ -289,6 +301,8 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
           'inbox_id',
           'account_id',
           'whatsapp_api_key',
+          'phone_number_id',
+          'business_id',
           'socialwise_active'
         )
       end
@@ -344,8 +358,7 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         result = service.send(:build_whatsapp_payload_data)
         
         expect(result['wamid']).to eq('wamid.test123456')
-        expect(result['whatsapp_id']).to eq('wamid.test123456')
-        expect(result['wamid']).to eq(result['whatsapp_id']) # Should be the same for compatibility
+        # whatsapp_id foi removido para evitar duplicação
       end
     end
 
@@ -355,14 +368,14 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         
         # Fields that existing Dialogflow integrations expect
         expected_fields = [
-          'wamid', 'whatsapp_id', 'contact_name', 'contact_phone', 'contact_email',
+          'wamid', 'contact_name', 'contact_phone', 'contact_email',
           'contact_identifier', 'contact_id', 'conversation_id', 'conversation_status',
           'conversation_assignee_id', 'conversation_created_at', 'conversation_updated_at',
           'message_id', 'message_content', 'message_type', 'message_created_at',
           'message_content_type', 'inbox_id', 'inbox_name', 'channel_type',
           'account_id', 'account_name', 'contact_source', 'whatsapp_api_key',
-          'socialwise_active', 'is_whatsapp_channel', 'has_whatsapp_api_key',
-          'payload_version', 'timestamp'
+          'phone_number_id', 'business_id', 'socialwise_active', 'is_whatsapp_channel', 
+          'has_whatsapp_api_key', 'payload_version', 'timestamp'
         ]
         
         expected_fields.each do |field|
@@ -396,10 +409,11 @@ RSpec.describe Integrations::Dialogflow::ProcessorService do
         # Should return fallback payload with expected structure
         expect(result).to include(
           'wamid',
-          'whatsapp_id',
           'contact_name',
           'socialwise_active',
           'whatsapp_api_key',
+          'phone_number_id',
+          'business_id',
           'has_whatsapp_api_key',
           'error'
         )

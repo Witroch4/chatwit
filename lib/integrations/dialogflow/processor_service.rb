@@ -178,10 +178,9 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
     # Convert nested structure to flat structure for Dialogflow backward compatibility
     flat_payload = {}
     
-    # WhatsApp identifiers
+    # WhatsApp identifiers (removendo duplicação - mantendo apenas wamid)
     if socialwise_data['whatsapp_identifiers']
       flat_payload['wamid'] = socialwise_data['whatsapp_identifiers']['wamid']
-      flat_payload['whatsapp_id'] = socialwise_data['whatsapp_identifiers']['whatsapp_id']
       flat_payload['contact_source'] = socialwise_data['whatsapp_identifiers']['contact_source']
     end
     
@@ -230,8 +229,10 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
       flat_payload['account_name'] = socialwise_data['account_data']['name']
     end
     
-    # WhatsApp API key and metadata
+    # WhatsApp API key, phone number ID, business ID and metadata
     flat_payload['whatsapp_api_key'] = socialwise_data['whatsapp_api_key']
+    flat_payload['phone_number_id'] = socialwise_data['whatsapp_phone_number_id']
+    flat_payload['business_id'] = socialwise_data['whatsapp_business_id']
     
     if socialwise_data['metadata']
       flat_payload['socialwise_active'] = socialwise_data['metadata']['socialwise_active']
@@ -255,11 +256,12 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
     
     {
       "wamid" => message.source_id,
-      "whatsapp_id" => message.source_id,
       "contact_name" => contact.name,
       **(contact.custom_attributes.to_h rescue {}),
       "socialwise_active" => true,
       "whatsapp_api_key" => nil,
+      "phone_number_id" => nil,
+      "business_id" => nil,
       "has_whatsapp_api_key" => false,
       "error" => "Payload construction failed: #{e.class}: #{e.message}"
     }
