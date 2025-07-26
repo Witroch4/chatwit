@@ -44,6 +44,7 @@ class Inbox < ApplicationRecord
   include Avatarable
   include OutOfOffisable
   include AccountCacheRevalidator
+  include SocialwiseCacheInvalidation
 
   # Not allowing characters:
   validates :name, presence: true

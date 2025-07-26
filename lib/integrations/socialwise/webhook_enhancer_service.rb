@@ -339,7 +339,8 @@ class Integrations::Socialwise::WebhookEnhancerService
       
       # If it's a webhook_data format (Hash), convert to a mock object
       if inbox.is_a?(Hash)
-        conversation_data = payload[:conversation] || payload['conversation']
+        # Pass the full payload as conversation_data since channel info is at root level
+        conversation_data = payload
         return create_mock_inbox_from_webhook_data(inbox, conversation_data)
       end
       
@@ -394,17 +395,55 @@ class Integrations::Socialwise::WebhookEnhancerService
       Rails.logger.info "[SOCIALWISE] Conversation data present: #{conversation_data.present?}"
       
       # Try to get channel type from conversation if available
-      if conversation_data && conversation_data['channel']
-        channel_type = conversation_data['channel']
-        Rails.logger.info "[SOCIALWISE] Channel type from conversation_data: #{channel_type}"
-      elsif webhook_data.dig('conversation', 'channel')
+      if conversation_data
+        Rails.logger.info "[SOCIALWISE] Conversation data keys: #{conversation_data.keys.inspect}" if conversation_data.respond_to?(:keys)
+        Rails.logger.info "[SOCIALWISE] Conversation data class: #{conversation_data.class}"
+        
+        # Try different ways to get channel type
+        if conversation_data.respond_to?(:channel)
+          channel_type = conversation_data.channel
+          Rails.logger.info "[SOCIALWISE] Channel type from conversation_data.channel: #{channel_type}"
+        elsif conversation_data.is_a?(Hash) && conversation_data['channel']
+          channel_type = conversation_data['channel']
+          Rails.logger.info "[SOCIALWISE] Channel type from conversation_data['channel']: #{channel_type}"
+        elsif conversation_data.is_a?(Hash) && conversation_data[:channel]
+          channel_type = conversation_data[:channel]
+          Rails.logger.info "[SOCIALWISE] Channel type from conversation_data[:channel]: #{channel_type}"
+        end
+      end
+      
+      # If still not found, try from webhook_data nested conversation
+      if channel_type.nil? && webhook_data.dig('conversation', 'channel')
         channel_type = webhook_data['conversation']['channel']
         Rails.logger.info "[SOCIALWISE] Channel type from webhook_data.conversation: #{channel_type}"
       end
       
-      # If we have an inbox ID and it's a WhatsApp channel, fetch the real data with cache
+      # CORREÇÃO: Buscar channel no nível raiz do payload (onde realmente está nos webhooks)
+      if channel_type.nil? && conversation_data.is_a?(Hash)
+        if conversation_data['channel']
+          channel_type = conversation_data['channel']
+          Rails.logger.info "[SOCIALWISE] Channel type from root level payload['channel']: #{channel_type}"
+        elsif conversation_data[:channel]
+          channel_type = conversation_data[:channel]
+          Rails.logger.info "[SOCIALWISE] Channel type from root level payload[:channel]: #{channel_type}"
+        end
+      end
+      
+      # Get inbox ID for database lookup
       inbox_id = webhook_data[:id] || webhook_data['id']
       Rails.logger.info "[SOCIALWISE] Inbox ID: #{inbox_id}, Channel Type: #{channel_type}"
+      
+      # CORREÇÃO CRÍTICA: Se não conseguimos determinar o channel_type do payload, 
+      # vamos buscar no cache ou banco de dados usando o inbox_id
+      if inbox_id && channel_type.nil?
+        Rails.logger.info "[SOCIALWISE] Channel type not found in payload, fetching from cache/database for inbox #{inbox_id}"
+        
+        # Diagnose cache before fetching
+        diagnose_cache_issues(inbox_id) if Rails.logger.level <= Logger::DEBUG
+        
+        channel_type = get_cached_channel_type(inbox_id)
+        Rails.logger.info "[SOCIALWISE] Channel type from cache/database: #{channel_type}"
+      end
       
       if inbox_id && channel_type == 'Channel::Whatsapp'
         Rails.logger.info "[SOCIALWISE] Fetching provider config for WhatsApp inbox #{inbox_id}"
@@ -426,37 +465,167 @@ class Integrations::Socialwise::WebhookEnhancerService
       )
     end
 
-    # Get provider config with cache to avoid database hits
-    def get_cached_provider_config(inbox_id)
-      cache_key = "socialwise:provider_config:#{inbox_id}"
-      
-      # Try to get from cache first
-      cached_config = Rails.cache.read(cache_key)
-      return cached_config if cached_config
-      
-      # If not in cache, fetch from database
-      begin
-        real_inbox = Inbox.find(inbox_id)
-        if real_inbox&.channel&.provider_config
-          provider_config = real_inbox.channel.provider_config
-          # Cache for 1 hour to avoid repeated database hits
-          Rails.cache.write(cache_key, provider_config, expires_in: 1.hour)
-          Rails.logger.info "[SOCIALWISE] Cached provider_config for inbox #{inbox_id}"
-          return provider_config
+    # Get channel type with dedicated SocialWise cache to avoid database hits
+    def get_cached_channel_type(inbox_id)
+      Integrations::Socialwise::CacheManager.channel_type(inbox_id) do
+        begin
+          real_inbox = Inbox.find(inbox_id)
+          if real_inbox
+            Rails.logger.info "[SOCIALWISE] Fetched channel_type from database for inbox #{inbox_id}: #{real_inbox.channel_type}"
+            real_inbox.channel_type
+          else
+            Rails.logger.warn "[SOCIALWISE] Inbox #{inbox_id} not found in database"
+            nil
+          end
+        rescue => e
+          Rails.logger.warn "[SOCIALWISE] Could not fetch inbox #{inbox_id} from database: #{e.message}"
+          nil
         end
-      rescue => e
-        Rails.logger.warn "[SOCIALWISE] Could not fetch real inbox #{inbox_id}: #{e.message}"
       end
-      
-      # Return empty config if nothing found
-      {}
+    end
+
+    # Get provider config with dedicated SocialWise cache to avoid database hits
+    def get_cached_provider_config(inbox_id)
+      Integrations::Socialwise::CacheManager.provider_config(inbox_id) do
+        begin
+          real_inbox = Inbox.find(inbox_id)
+          if real_inbox&.channel&.provider_config
+            Rails.logger.info "[SOCIALWISE] Fetched provider_config from database for inbox #{inbox_id}"
+            real_inbox.channel.provider_config
+          else
+            Rails.logger.warn "[SOCIALWISE] No provider config found for inbox #{inbox_id}"
+            {}
+          end
+        rescue => e
+          Rails.logger.warn "[SOCIALWISE] Could not fetch real inbox #{inbox_id}: #{e.message}"
+          {}
+        end
+      end
     end
 
     # Clear cache for a specific inbox (useful when inbox is updated)
+    def clear_inbox_cache(inbox_id)
+      Integrations::Socialwise::CacheManager.clear_inbox_cache(inbox_id)
+    end
+
+    # Legacy method for backward compatibility
     def clear_provider_config_cache(inbox_id)
-      cache_key = "socialwise:provider_config:#{inbox_id}"
-      Rails.cache.delete(cache_key)
-      Rails.logger.info "[SOCIALWISE] Cleared cache for inbox #{inbox_id}"
+      clear_inbox_cache(inbox_id)
+    end
+
+    # Preload cache for WhatsApp inboxes to improve performance
+    def preload_whatsapp_inbox_cache(account_id = nil)
+      Integrations::Socialwise::CacheManager.preload_whatsapp_cache(account_id)
+    end
+
+    # Force preload cache for a specific inbox
+    def force_preload_inbox_cache(inbox_id)
+      Rails.logger.info "[SOCIALWISE] Force preloading cache for inbox #{inbox_id}"
+      
+      begin
+        inbox = Inbox.includes(:channel).find(inbox_id)
+        
+        # Force cache channel type
+        Integrations::Socialwise::CacheManager.channel_type(inbox.id) { inbox.channel_type }
+        Rails.logger.info "[SOCIALWISE] Force cached channel_type for inbox #{inbox.id}: #{inbox.channel_type}"
+        
+        # Force cache provider config if available
+        if inbox.channel&.provider_config
+          Integrations::Socialwise::CacheManager.provider_config(inbox.id) { inbox.channel.provider_config }
+          Rails.logger.info "[SOCIALWISE] Force cached provider_config for inbox #{inbox.id}"
+        end
+        
+        # Force cache complete inbox data
+        Integrations::Socialwise::CacheManager.inbox_data(inbox.id) do
+          {
+            id: inbox.id,
+            name: inbox.name,
+            channel_type: inbox.channel_type,
+            provider_config: inbox.channel&.provider_config || {}
+          }
+        end
+        
+        Rails.logger.info "[SOCIALWISE] Force preload completed for inbox #{inbox.id}"
+        true
+      rescue => e
+        Rails.logger.error "[SOCIALWISE] Failed to force preload cache for inbox #{inbox_id}: #{e.message}"
+        false
+      end
+    end
+
+    # Get cache statistics using the dedicated cache manager
+    def get_cache_stats
+      Integrations::Socialwise::CacheManager.cache_stats
+    end
+
+    # Diagnose cache issues using the dedicated cache manager
+    def diagnose_cache_issues(inbox_id)
+      Rails.logger.info "[SOCIALWISE] Diagnosing cache issues for inbox #{inbox_id}"
+      
+      # Get cache stats
+      stats = Integrations::Socialwise::CacheManager.cache_stats
+      Rails.logger.info "[SOCIALWISE] Cache statistics: #{stats}"
+      
+      # Test cache health
+      health = Integrations::Socialwise::CacheManager.health_check
+      Rails.logger.info "[SOCIALWISE] Cache health check: #{health}"
+      
+      # Try to get current cached values
+      cached_channel = Integrations::Socialwise::CacheManager.channel_type(inbox_id) { nil }
+      cached_provider = Integrations::Socialwise::CacheManager.provider_config(inbox_id) { nil }
+      
+      Rails.logger.info "[SOCIALWISE] Current cached values - Channel: #{cached_channel}, Provider: #{cached_provider.present?}"
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Error diagnosing cache: #{e.message}"
+    end
+
+    # Legacy method name for backward compatibility
+    def diagnose_cache_issues(inbox_id)
+      Rails.logger.info "[SOCIALWISE] === CACHE DIAGNOSIS FOR INBOX #{inbox_id} ==="
+      
+      # Check cache store type
+      Rails.logger.info "[SOCIALWISE] Cache store: #{Rails.cache.class.name}"
+      
+      # Check if cache keys exist
+      channel_key = "socialwise:channel_type:#{inbox_id}"
+      provider_key = "socialwise:provider_config:#{inbox_id}"
+      
+      channel_cached = Rails.cache.read(channel_key)
+      provider_cached = Rails.cache.read(provider_key)
+      
+      Rails.logger.info "[SOCIALWISE] Channel type cached: #{channel_cached ? 'YES' : 'NO'} (#{channel_cached})"
+      Rails.logger.info "[SOCIALWISE] Provider config cached: #{provider_cached ? 'YES' : 'NO'}"
+      
+      # Test cache write/read
+      test_key = "socialwise:test:#{inbox_id}:#{Time.current.to_i}"
+      test_value = "test_#{rand(1000)}"
+      
+      Rails.cache.write(test_key, test_value, expires_in: 1.hour)
+      read_value = Rails.cache.read(test_key)
+      
+      cache_working = test_value == read_value
+      Rails.logger.info "[SOCIALWISE] Cache write/read test: #{cache_working ? 'PASSED' : 'FAILED'}"
+      Rails.logger.info "[SOCIALWISE] Written: #{test_value}, Read: #{read_value}"
+      
+      # Clean up test key
+      Rails.cache.delete(test_key)
+      
+      # Get current stats
+      stats = get_cache_stats
+      Rails.logger.info "[SOCIALWISE] Current cache stats: #{stats}"
+      
+      Rails.logger.info "[SOCIALWISE] === END CACHE DIAGNOSIS ==="
+      
+      {
+        cache_store: Rails.cache.class.name,
+        channel_cached: channel_cached.present?,
+        provider_cached: provider_cached.present?,
+        cache_working: cache_working,
+        stats: stats
+      }
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Cache diagnosis failed: #{e.message}"
+      { error: e.message }
     end
 
     def parse_timestamp(timestamp)
