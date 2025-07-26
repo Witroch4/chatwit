@@ -15,9 +15,14 @@ class Integrations::Socialwise::WebhookEnhancerService
       # Validate the socialwise-chatwit data structure before adding to payload
       if validate_socialwise_data(socialwise_data)
         enhanced_payload['socialwise-chatwit'] = socialwise_data
+        
+        # Also add flat structure for easier webhook consumption
+        enhanced_payload = add_flat_socialwise_data(enhanced_payload, socialwise_data)
       else
         Rails.logger.warn "[SOCIALWISE] Validation failed for socialwise-chatwit data, using fallback"
-        enhanced_payload['socialwise-chatwit'] = build_fallback_data_structure(StandardError.new('Validation failed'), account)
+        fallback_data = build_fallback_data_structure(StandardError.new('Validation failed'), account)
+        enhanced_payload['socialwise-chatwit'] = fallback_data
+        enhanced_payload = add_flat_socialwise_data(enhanced_payload, fallback_data)
       end
       
       enhanced_payload
@@ -25,6 +30,96 @@ class Integrations::Socialwise::WebhookEnhancerService
       Rails.logger.error "[SOCIALWISE] Enhancement failed: #{e.message}"
       Rails.logger.error "[SOCIALWISE] Backtrace: #{e.backtrace.join('\n')}"
       payload # Return original payload on error
+    end
+
+    # Add flat socialwise data to payload for easier webhook consumption
+    # @param payload [Hash] The enhanced payload
+    # @param socialwise_data [Hash] The socialwise-chatwit data
+    # @return [Hash] Payload with flat socialwise fields
+    def add_flat_socialwise_data(payload, socialwise_data)
+      flat_payload = payload.dup
+      
+      # WhatsApp identifiers (removendo duplicação - mantendo apenas wamid)
+      if socialwise_data['whatsapp_identifiers']
+        flat_payload['wamid'] = socialwise_data['whatsapp_identifiers']['wamid']
+        flat_payload['contact_source'] = socialwise_data['whatsapp_identifiers']['contact_source']
+      end
+      
+      # Contact data
+      if socialwise_data['contact_data']
+        flat_payload['contact_name'] = socialwise_data['contact_data']['name']
+        flat_payload['contact_phone'] = socialwise_data['contact_data']['phone_number']
+        flat_payload['contact_email'] = socialwise_data['contact_data']['email']
+        flat_payload['contact_identifier'] = socialwise_data['contact_data']['identifier']
+        flat_payload['contact_id'] = socialwise_data['contact_data']['id']
+        
+        # Merge custom attributes at root level for backward compatibility
+        if socialwise_data['contact_data']['custom_attributes'].is_a?(Hash)
+          flat_payload.merge!(socialwise_data['contact_data']['custom_attributes'])
+        end
+      end
+      
+      # Conversation data
+      if socialwise_data['conversation_data']
+        flat_payload['conversation_id'] = socialwise_data['conversation_data']['id']
+        flat_payload['conversation_status'] = socialwise_data['conversation_data']['status']
+        flat_payload['conversation_assignee_id'] = socialwise_data['conversation_data']['assignee_id']
+        flat_payload['conversation_created_at'] = socialwise_data['conversation_data']['created_at']
+        flat_payload['conversation_updated_at'] = socialwise_data['conversation_data']['updated_at']
+      end
+      
+      # Message data
+      if socialwise_data['message_data']
+        flat_payload['message_id'] = socialwise_data['message_data']['id']
+        flat_payload['message_content'] = socialwise_data['message_data']['content']
+        flat_payload['message_type'] = socialwise_data['message_data']['message_type']
+        flat_payload['message_created_at'] = socialwise_data['message_data']['created_at']
+        flat_payload['message_content_type'] = socialwise_data['message_data']['content_type']
+        
+        # Interactive data (button/list IDs)
+        if socialwise_data['message_data']['interactive_data']
+          interactive_data = socialwise_data['message_data']['interactive_data']
+          flat_payload['button_id'] = interactive_data['button_id']
+          flat_payload['button_title'] = interactive_data['button_title']
+          flat_payload['list_id'] = interactive_data['list_id']
+          flat_payload['list_title'] = interactive_data['list_title']
+          flat_payload['list_description'] = interactive_data['list_description']
+          flat_payload['interaction_type'] = interactive_data['interaction_type']
+        end
+      end
+      
+      # Inbox data
+      if socialwise_data['inbox_data']
+        flat_payload['inbox_id'] = socialwise_data['inbox_data']['id']
+        flat_payload['inbox_name'] = socialwise_data['inbox_data']['name']
+        flat_payload['channel_type'] = socialwise_data['inbox_data']['channel_type']
+      end
+      
+      # Account data
+      if socialwise_data['account_data']
+        flat_payload['account_id'] = socialwise_data['account_data']['id']
+        flat_payload['account_name'] = socialwise_data['account_data']['name']
+      end
+      
+      # WhatsApp API key, phone number ID, business ID and metadata
+      flat_payload['whatsapp_api_key'] = socialwise_data['whatsapp_api_key']
+      flat_payload['phone_number_id'] = socialwise_data['whatsapp_phone_number_id']
+      flat_payload['business_id'] = socialwise_data['whatsapp_business_id']
+      
+      if socialwise_data['metadata']
+        flat_payload['socialwise_active'] = socialwise_data['metadata']['socialwise_active']
+        flat_payload['is_whatsapp_channel'] = socialwise_data['metadata']['is_whatsapp_channel']
+        flat_payload['has_whatsapp_api_key'] = socialwise_data['metadata']['has_whatsapp_api_key']
+        flat_payload['payload_version'] = socialwise_data['metadata']['payload_version']
+        flat_payload['timestamp'] = socialwise_data['metadata']['timestamp']
+      end
+      
+      Rails.logger.info "[SOCIALWISE] Flat webhook payload enhanced with #{flat_payload.keys.count} total fields"
+      
+      flat_payload
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Error adding flat socialwise data: #{e.class}: #{e.message}"
+      payload
     end
 
     # Checks if SocialWise integration is enabled for the given account
@@ -120,22 +215,110 @@ class Integrations::Socialwise::WebhookEnhancerService
     
     # Extract message object from payload
     def extract_message_from_payload(payload)
-      payload[:message] || payload['message']
+      message = payload[:message] || payload['message']
+      
+      # If it's a webhook_data format (Hash), convert to a mock object
+      if message.is_a?(Hash)
+        return create_mock_message_from_webhook_data(message)
+      end
+      
+      message
     end
 
     # Extract conversation object from payload
     def extract_conversation_from_payload(payload)
-      payload[:conversation] || payload['conversation']
+      conversation = payload[:conversation] || payload['conversation']
+      
+      # If it's a webhook_data format (Hash), convert to a mock object
+      if conversation.is_a?(Hash)
+        return create_mock_conversation_from_webhook_data(conversation)
+      end
+      
+      conversation
     end
 
     # Extract contact object from payload
     def extract_contact_from_payload(payload)
-      payload[:contact] || payload['contact']
+      contact = payload[:contact] || payload['contact']
+      
+      # If it's a webhook_data format (Hash), convert to a mock object
+      if contact.is_a?(Hash)
+        return create_mock_contact_from_webhook_data(contact)
+      end
+      
+      contact
     end
 
     # Extract inbox object from payload
     def extract_inbox_from_payload(payload)
-      payload[:inbox] || payload['inbox']
+      inbox = payload[:inbox] || payload['inbox']
+      
+      # If it's a webhook_data format (Hash), convert to a mock object
+      if inbox.is_a?(Hash)
+        return create_mock_inbox_from_webhook_data(inbox)
+      end
+      
+      inbox
+    end
+
+    # Create mock objects from webhook_data format
+    def create_mock_message_from_webhook_data(webhook_data)
+      OpenStruct.new(
+        id: webhook_data[:id] || webhook_data['id'],
+        content: webhook_data[:content] || webhook_data['content'],
+        content_type: webhook_data[:content_type] || webhook_data['content_type'],
+        message_type: webhook_data[:message_type] || webhook_data['message_type'],
+        created_at: parse_timestamp(webhook_data[:created_at] || webhook_data['created_at']),
+        source_id: webhook_data[:source_id] || webhook_data['source_id'],
+        content_attributes: webhook_data[:content_attributes] || webhook_data['content_attributes'] || {}
+      )
+    end
+
+    def create_mock_conversation_from_webhook_data(webhook_data)
+      OpenStruct.new(
+        id: webhook_data[:id] || webhook_data['id'],
+        status: webhook_data[:status] || webhook_data['status'],
+        assignee_id: webhook_data[:assignee_id] || webhook_data['assignee_id'],
+        created_at: parse_timestamp(webhook_data[:created_at] || webhook_data['created_at']),
+        updated_at: parse_timestamp(webhook_data[:updated_at] || webhook_data['updated_at']),
+        contact: create_mock_contact_from_webhook_data(webhook_data[:contact] || webhook_data['contact'] || {})
+      )
+    end
+
+    def create_mock_contact_from_webhook_data(webhook_data)
+      OpenStruct.new(
+        id: webhook_data[:id] || webhook_data['id'],
+        name: webhook_data[:name] || webhook_data['name'],
+        phone_number: webhook_data[:phone_number] || webhook_data['phone_number'],
+        email: webhook_data[:email] || webhook_data['email'],
+        identifier: webhook_data[:identifier] || webhook_data['identifier'],
+        custom_attributes: webhook_data[:custom_attributes] || webhook_data['custom_attributes'] || {},
+        contact_inboxes: []
+      )
+    end
+
+    def create_mock_inbox_from_webhook_data(webhook_data)
+      channel_data = webhook_data[:channel] || webhook_data['channel'] || {}
+      
+      mock_channel = OpenStruct.new(
+        provider_config: channel_data[:provider_config] || channel_data['provider_config'] || {}
+      )
+      
+      OpenStruct.new(
+        id: webhook_data[:id] || webhook_data['id'],
+        name: webhook_data[:name] || webhook_data['name'],
+        channel_type: webhook_data[:channel_type] || webhook_data['channel_type'],
+        channel: mock_channel
+      )
+    end
+
+    def parse_timestamp(timestamp)
+      return nil unless timestamp
+      return timestamp if timestamp.is_a?(Time)
+      
+      Time.parse(timestamp.to_s)
+    rescue
+      nil
     end
 
     # Extract WhatsApp API key from inbox channel
@@ -143,7 +326,8 @@ class Integrations::Socialwise::WebhookEnhancerService
       return nil unless inbox&.channel_type == 'Channel::Whatsapp'
       
       begin
-        api_key = inbox.channel.provider_config&.dig('api_key')
+        provider_config = get_provider_config(inbox)
+        api_key = provider_config&.dig('api_key')
         Rails.logger.info "[SOCIALWISE] WhatsApp API key extracted: #{api_key.present? ? 'Present' : 'Not found'}"
         api_key
       rescue => e
@@ -157,7 +341,8 @@ class Integrations::Socialwise::WebhookEnhancerService
       return nil unless inbox&.channel_type == 'Channel::Whatsapp'
       
       begin
-        phone_number_id = inbox.channel.provider_config&.dig('phone_number_id')
+        provider_config = get_provider_config(inbox)
+        phone_number_id = provider_config&.dig('phone_number_id')
         Rails.logger.info "[SOCIALWISE] WhatsApp phone_number_id extracted: #{phone_number_id.present? ? 'Present' : 'Not found'}"
         phone_number_id
       rescue => e
@@ -171,11 +356,25 @@ class Integrations::Socialwise::WebhookEnhancerService
       return nil unless inbox&.channel_type == 'Channel::Whatsapp'
       
       begin
-        business_id = inbox.channel.provider_config&.dig('business_account_id')
+        provider_config = get_provider_config(inbox)
+        business_id = provider_config&.dig('business_account_id')
         Rails.logger.info "[SOCIALWISE] WhatsApp business_account_id extracted: #{business_id.present? ? 'Present' : 'Not found'}"
         business_id
       rescue => e
         Rails.logger.error "[SOCIALWISE] Error extracting WhatsApp business_account_id: #{e.class}: #{e.message}"
+        nil
+      end
+    end
+
+    # Get provider config from inbox, handling both ActiveRecord and mock objects
+    def get_provider_config(inbox)
+      return nil unless inbox
+      
+      if inbox.respond_to?(:channel) && inbox.channel.respond_to?(:provider_config)
+        inbox.channel.provider_config
+      elsif inbox.is_a?(OpenStruct) && inbox.channel.is_a?(OpenStruct)
+        inbox.channel.provider_config
+      else
         nil
       end
     end
@@ -192,7 +391,12 @@ class Integrations::Socialwise::WebhookEnhancerService
       end
 
       source_id = message.source_id
-      contact_source = contact.contact_inboxes&.first&.source_id
+      
+      # Handle contact_source extraction for both ActiveRecord and mock objects
+      contact_source = nil
+      if contact.respond_to?(:contact_inboxes) && contact.contact_inboxes.respond_to?(:first)
+        contact_source = contact.contact_inboxes&.first&.source_id
+      end
       
       {
         'wamid' => source_id,
