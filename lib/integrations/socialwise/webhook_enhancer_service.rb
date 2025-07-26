@@ -7,10 +7,20 @@ class Integrations::Socialwise::WebhookEnhancerService
     # @param account [Account] The account to check for SocialWise integration
     # @return [Hash] Enhanced payload with socialwise-chatwit data or original payload
     def enhance_payload(payload, account)
-      return payload unless socialwise_active?(account)
+      Rails.logger.info "[SOCIALWISE] enhance_payload called for account #{account&.id}"
+      
+      unless socialwise_active?(account)
+        Rails.logger.info "[SOCIALWISE] Socialwise not active for account #{account&.id}, skipping enhancement"
+        return payload
+      end
 
       # Check if webhook enhancement is enabled
-      return payload unless webhook_enhancement_enabled?(account)
+      unless webhook_enhancement_enabled?(account)
+        Rails.logger.info "[SOCIALWISE] Webhook enhancement disabled for account #{account&.id}, skipping enhancement"
+        return payload
+      end
+      
+      Rails.logger.info "[SOCIALWISE] Starting payload enhancement for account #{account&.id}"
 
       enhanced_payload = payload.dup
       socialwise_data = build_socialwise_data(payload, account)
@@ -129,11 +139,18 @@ class Integrations::Socialwise::WebhookEnhancerService
     # @param account [Account] The account to check
     # @return [Boolean] true if SocialWise is active, false otherwise
     def socialwise_active?(account)
+      Rails.logger.info "[SOCIALWISE] Checking if socialwise is active for account #{account&.id}"
+      
       hook = account.hooks.find_by(app_id: 'socialwise_chatwit', status: 'enabled')
-      return false unless hook
+      unless hook
+        Rails.logger.info "[SOCIALWISE] No enabled socialwise hook found for account #{account&.id}"
+        return false
+      end
 
       enabled = hook.settings&.dig('enabled')
-      enabled == true || enabled == 'true'
+      is_active = enabled == true || enabled == 'true'
+      Rails.logger.info "[SOCIALWISE] Hook found with enabled=#{enabled}, active=#{is_active}"
+      is_active
     rescue => e
       Rails.logger.error "[SOCIALWISE] State check failed: #{e.message}"
       false
@@ -143,16 +160,26 @@ class Integrations::Socialwise::WebhookEnhancerService
     # @param account [Account] The account to check
     # @return [Boolean] true if webhook enhancement is enabled, false otherwise
     def webhook_enhancement_enabled?(account)
+      Rails.logger.info "[SOCIALWISE] Checking webhook enhancement for account #{account&.id}"
+      
       hook = account.hooks.find_by(app_id: 'socialwise_chatwit', status: 'enabled')
-      return false unless hook
+      unless hook
+        Rails.logger.info "[SOCIALWISE] No enabled socialwise hook found for webhook enhancement check"
+        return false
+      end
 
       # Check if webhook enhancement is specifically enabled
       webhook_enabled = hook.settings&.dig('webhook_enhancement_enabled')
       
       # Default to true for backward compatibility if not set
-      return true if webhook_enabled.nil?
+      if webhook_enabled.nil?
+        Rails.logger.info "[SOCIALWISE] webhook_enhancement_enabled not set, defaulting to true"
+        return true
+      end
       
-      webhook_enabled == true || webhook_enabled == 'true'
+      is_enabled = webhook_enabled == true || webhook_enabled == 'true'
+      Rails.logger.info "[SOCIALWISE] webhook_enhancement_enabled=#{webhook_enabled}, enabled=#{is_enabled}"
+      is_enabled
     rescue => e
       Rails.logger.error "[SOCIALWISE] Webhook enhancement check failed: #{e.message}"
       true # Default to enabled on error for backward compatibility

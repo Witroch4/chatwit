@@ -135,7 +135,12 @@ class WebhookListener < BaseListener
       end
 
       # Incluir dados do SocialWise se estiver ativo
+      Rails.logger.info "[WEBHOOK] Calling Socialwise enhancement for account #{account.id}"
+      original_payload_keys = final_payload.keys.count
       final_payload = Integrations::Socialwise::WebhookEnhancerService.enhance_payload(final_payload, account)
+      enhanced_payload_keys = final_payload.keys.count
+      Rails.logger.info "[WEBHOOK] Socialwise enhancement result: #{original_payload_keys} -> #{enhanced_payload_keys} keys"
+      Rails.logger.info "[WEBHOOK] Socialwise data present: #{final_payload.key?('socialwise-chatwit')}"
 
       begin
         WebhookJob.perform_later(webhook.url, final_payload)
