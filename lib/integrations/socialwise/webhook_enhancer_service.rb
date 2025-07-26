@@ -267,8 +267,11 @@ class Integrations::Socialwise::WebhookEnhancerService
     
     # Extract message object from payload
     def extract_message_from_payload(payload)
+      Rails.logger.info "[SOCIALWISE] Extracting message from payload with keys: #{payload.keys.inspect}"
+      
       # For webhook payloads, the message data is at the root level
       if payload.key?('id') && payload.key?('content') && payload.key?('message_type')
+        Rails.logger.info "[SOCIALWISE] Creating mock message from root level data"
         return create_mock_message_from_webhook_data(payload)
       end
       
@@ -277,9 +280,19 @@ class Integrations::Socialwise::WebhookEnhancerService
       
       # If it's a webhook_data format (Hash), convert to a mock object
       if message.is_a?(Hash)
+        Rails.logger.info "[SOCIALWISE] Creating mock message from nested message data"
         return create_mock_message_from_webhook_data(message)
       end
       
+      # If message is nil, try to extract from the payload structure
+      if message.nil?
+        Rails.logger.warn "[SOCIALWISE] Message is nil, attempting to extract from payload structure"
+        Rails.logger.info "[SOCIALWISE] Payload has id: #{payload.key?(:id)}, content: #{payload.key?(:content)}, message_type: #{payload.key?(:message_type)}"
+        # The payload might have the message data directly
+        return create_mock_message_from_webhook_data(payload)
+      end
+      
+      Rails.logger.info "[SOCIALWISE] Returning message as-is: #{message.class}"
       message
     end
 
@@ -444,11 +457,15 @@ class Integrations::Socialwise::WebhookEnhancerService
         return Time.at(timestamp)
       end
       
-      # Handle string timestamps
-      Time.parse(timestamp.to_s)
-    rescue => e
-      Rails.logger.warn "[SOCIALWISE] Could not parse timestamp #{timestamp}: #{e.message}"
-      nil
+      # Handle string timestamps with timezone
+      begin
+        parsed_time = Time.parse(timestamp.to_s)
+        # Convert to ISO8601 format without timezone for validation
+        return parsed_time.utc
+      rescue => e
+        Rails.logger.warn "[SOCIALWISE] Could not parse timestamp #{timestamp}: #{e.message}"
+        nil
+      end
     end
 
     # Extract WhatsApp API key from inbox channel
@@ -881,7 +898,7 @@ class Integrations::Socialwise::WebhookEnhancerService
       # Validate timestamp formats
       %w[created_at updated_at].each do |timestamp_field|
         value = data[timestamp_field]
-        if value && !value.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+        if value && !value.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})/)
           Rails.logger.warn "[SOCIALWISE] Invalid timestamp format for #{timestamp_field}: #{value}"
           return false
         end
@@ -912,9 +929,9 @@ class Integrations::Socialwise::WebhookEnhancerService
         return false
       end
       
-      # Validate timestamp format
+      # Validate timestamp format (accept both Z and +00:00 formats)
       created_at = data['created_at']
-      if created_at && !created_at.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+      if created_at && !created_at.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})/)
         Rails.logger.warn "[SOCIALWISE] Invalid timestamp format for message created_at: #{created_at}"
         return false
       end
@@ -994,7 +1011,7 @@ class Integrations::Socialwise::WebhookEnhancerService
       
       # Validate timestamp format
       timestamp = data['timestamp']
-      unless timestamp.is_a?(String) && timestamp.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/)
+      unless timestamp.is_a?(String) && timestamp.match?(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})/)
         Rails.logger.warn "[SOCIALWISE] Invalid timestamp format: #{timestamp}"
         return false
       end

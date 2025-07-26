@@ -1,11 +1,13 @@
 # Otimizações de Performance e Controle - Socialwise
 
 ## Problema Identificado
+
 O sistema estava fazendo consultas ao banco de dados a cada webhook para buscar o `provider_config` dos canais WhatsApp, o que poderia gerar sobrecarga na aplicação.
 
 ## Soluções Implementadas
 
 ### 1. **Sistema de Cache Inteligente**
+
 **Arquivo:** `lib/integrations/socialwise/webhook_enhancer_service.rb`
 
 Implementado cache Redis para evitar consultas desnecessárias ao banco:
@@ -13,11 +15,11 @@ Implementado cache Redis para evitar consultas desnecessárias ao banco:
 ```ruby
 def get_cached_provider_config(inbox_id)
   cache_key = "socialwise:provider_config:#{inbox_id}"
-  
+
   # Tentar buscar do cache primeiro
   cached_config = Rails.cache.read(cache_key)
   return cached_config if cached_config
-  
+
   # Se não estiver no cache, buscar do banco
   begin
     real_inbox = Inbox.find(inbox_id)
@@ -30,18 +32,20 @@ def get_cached_provider_config(inbox_id)
   rescue => e
     Rails.logger.warn "[SOCIALWISE] Could not fetch real inbox #{inbox_id}: #{e.message}"
   end
-  
+
   # Retornar config vazio se nada for encontrado
   {}
 end
 ```
 
 **Benefícios:**
+
 - ✅ Reduz consultas ao banco em 99%
 - ✅ Cache de 1 hora para dados que raramente mudam
 - ✅ Fallback gracioso em caso de erro
 
 ### 2. **Switch de Controle de Webhook Enhancement**
+
 **Arquivo:** `config/integration/apps.yml`
 
 Adicionado controle granular para ativar/desativar o enhancement de webhooks:
@@ -58,7 +62,7 @@ socialwise_chatwit:
       },
       {
         'label': 'Ativar Enhancement de Webhooks',
-        'type': 'checkbox', 
+        'type': 'checkbox',
         'name': 'webhook_enhancement_enabled',
         'help': 'Ativa o envio de dados enriquecidos nos webhooks comuns. ATENÇÃO: Pode aumentar a carga no banco de dados. Desative se houver problemas de performance.',
       },
@@ -66,15 +70,16 @@ socialwise_chatwit:
 ```
 
 ### 3. **Lógica de Controle Inteligente**
+
 **Arquivo:** `lib/integrations/socialwise/webhook_enhancer_service.rb`
 
 ```ruby
 def enhance_payload(payload, account)
   return payload unless socialwise_active?(account)
-  
+
   # Verificar se webhook enhancement está habilitado
   return payload unless webhook_enhancement_enabled?(account)
-  
+
   # Continuar com enhancement...
 end
 
@@ -83,15 +88,16 @@ def webhook_enhancement_enabled?(account)
   return false unless hook
 
   webhook_enabled = hook.settings&.dig('webhook_enhancement_enabled')
-  
+
   # Padrão true para compatibilidade se não configurado
   return true if webhook_enabled.nil?
-  
+
   webhook_enabled == true || webhook_enabled == 'true'
 end
 ```
 
 ### 4. **Invalidação Automática de Cache**
+
 **Arquivo:** `app/models/inbox.rb`
 
 Cache é automaticamente limpo quando inbox é atualizada:
@@ -111,6 +117,7 @@ end
 ```
 
 ### 5. **Traduções Atualizadas**
+
 **Arquivos:** `config/locales/en.yml`, `config/locales/pt_BR.yml`
 
 Traduções atualizadas para refletir as novas funcionalidades:
@@ -126,6 +133,7 @@ socialwise_chatwit:
 ## Interface de Configuração
 
 ### Tela de Configuração do Socialwise:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Socialwise Chatwit Configuration                            │
@@ -148,28 +156,34 @@ socialwise_chatwit:
 ## Cenários de Uso
 
 ### 1. **Performance Máxima (Recomendado para Alto Volume)**
+
 ```
 ✅ Ativar Socialwise Chatwit: ON
 ❌ Ativar Enhancement de Webhooks: OFF
 ```
+
 - Dialogflow recebe dados completos
 - Webhooks recebem dados básicos
 - Zero impacto no banco de dados
 
 ### 2. **Funcionalidade Completa (Recomendado para Médio Volume)**
+
 ```
-✅ Ativar Socialwise Chatwit: ON  
+✅ Ativar Socialwise Chatwit: ON
 ✅ Ativar Enhancement de Webhooks: ON
 ```
+
 - Dialogflow e webhooks recebem dados completos
 - Cache reduz impacto no banco em 99%
 - Funcionalidade máxima
 
 ### 3. **Desabilitado (Para Troubleshooting)**
+
 ```
 ❌ Ativar Socialwise Chatwit: OFF
 ❌ Ativar Enhancement de Webhooks: OFF
 ```
+
 - Nenhum enhancement é aplicado
 - Zero impacto na performance
 - Útil para debug de problemas
@@ -177,16 +191,19 @@ socialwise_chatwit:
 ## Métricas de Performance
 
 ### Antes (sem cache):
+
 - **Consultas ao banco por webhook**: 1-3 queries
 - **Tempo médio por webhook**: 50-100ms
 - **Impacto em 1000 webhooks/hora**: 1000-3000 queries
 
 ### Depois (com cache):
+
 - **Consultas ao banco por webhook**: 0 (99% dos casos)
 - **Tempo médio por webhook**: 5-10ms
 - **Impacto em 1000 webhooks/hora**: 0-10 queries
 
 ### Redução de Carga:
+
 - ✅ **99% menos consultas ao banco**
 - ✅ **80% menos tempo de processamento**
 - ✅ **Controle granular de funcionalidades**
@@ -205,6 +222,7 @@ O sistema inclui logs detalhados para monitoramento:
 ## Resultado Final
 
 Agora o sistema oferece:
+
 - ✅ **Performance otimizada** com cache inteligente
 - ✅ **Controle granular** via interface de configuração
 - ✅ **Compatibilidade total** com configurações existentes
