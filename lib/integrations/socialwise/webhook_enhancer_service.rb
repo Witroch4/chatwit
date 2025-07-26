@@ -390,17 +390,28 @@ class Integrations::Socialwise::WebhookEnhancerService
       channel_type = nil
       provider_config = {}
       
+      Rails.logger.info "[SOCIALWISE] Creating mock inbox - webhook_data keys: #{webhook_data.keys.inspect}"
+      Rails.logger.info "[SOCIALWISE] Conversation data present: #{conversation_data.present?}"
+      
       # Try to get channel type from conversation if available
       if conversation_data && conversation_data['channel']
         channel_type = conversation_data['channel']
+        Rails.logger.info "[SOCIALWISE] Channel type from conversation_data: #{channel_type}"
       elsif webhook_data.dig('conversation', 'channel')
         channel_type = webhook_data['conversation']['channel']
+        Rails.logger.info "[SOCIALWISE] Channel type from webhook_data.conversation: #{channel_type}"
       end
       
       # If we have an inbox ID and it's a WhatsApp channel, fetch the real data with cache
       inbox_id = webhook_data[:id] || webhook_data['id']
+      Rails.logger.info "[SOCIALWISE] Inbox ID: #{inbox_id}, Channel Type: #{channel_type}"
+      
       if inbox_id && channel_type == 'Channel::Whatsapp'
+        Rails.logger.info "[SOCIALWISE] Fetching provider config for WhatsApp inbox #{inbox_id}"
         provider_config = get_cached_provider_config(inbox_id)
+        Rails.logger.info "[SOCIALWISE] Provider config keys: #{provider_config.keys.inspect}"
+      else
+        Rails.logger.warn "[SOCIALWISE] Not fetching provider config - inbox_id: #{inbox_id}, channel_type: #{channel_type}"
       end
       
       mock_channel = OpenStruct.new(
