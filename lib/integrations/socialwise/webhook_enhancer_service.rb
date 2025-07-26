@@ -9,6 +9,9 @@ class Integrations::Socialwise::WebhookEnhancerService
     def enhance_payload(payload, account)
       return payload unless socialwise_active?(account)
 
+      # Check if webhook enhancement is enabled
+      return payload unless webhook_enhancement_enabled?(account)
+
       enhanced_payload = payload.dup
       socialwise_data = build_socialwise_data(payload, account)
       
@@ -136,6 +139,25 @@ class Integrations::Socialwise::WebhookEnhancerService
       false
     end
 
+    # Checks if webhook enhancement is enabled for the given account
+    # @param account [Account] The account to check
+    # @return [Boolean] true if webhook enhancement is enabled, false otherwise
+    def webhook_enhancement_enabled?(account)
+      hook = account.hooks.find_by(app_id: 'socialwise_chatwit', status: 'enabled')
+      return false unless hook
+
+      # Check if webhook enhancement is specifically enabled
+      webhook_enabled = hook.settings&.dig('webhook_enhancement_enabled')
+      
+      # Default to true for backward compatibility if not set
+      return true if webhook_enabled.nil?
+      
+      webhook_enabled == true || webhook_enabled == 'true'
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Webhook enhancement check failed: #{e.message}"
+      true # Default to enabled on error for backward compatibility
+    end
+
     private
 
     # Builds the socialwise-chatwit data structure from the webhook payload
@@ -144,12 +166,15 @@ class Integrations::Socialwise::WebhookEnhancerService
     # @return [Hash] The socialwise-chatwit data structure
     def build_socialwise_data(payload, account)
       Rails.logger.info "[SOCIALWISE] Building socialwise-chatwit data for account #{account&.id}"
+      Rails.logger.info "[SOCIALWISE] Payload structure: #{payload.keys.inspect}"
       
       # Extract core objects from payload with error handling
       message = safe_extract_message_from_payload(payload)
       conversation = safe_extract_conversation_from_payload(payload)
       contact = safe_extract_contact_from_payload(payload)
       inbox = safe_extract_inbox_from_payload(payload)
+
+      Rails.logger.info "[SOCIALWISE] Extracted objects - Message: #{message.class}, Conversation: #{conversation.class}, Contact: #{contact.class}, Inbox: #{inbox.class}"
 
       # Build comprehensive data structure with individual error handling
       data = {}
@@ -215,6 +240,12 @@ class Integrations::Socialwise::WebhookEnhancerService
     
     # Extract message object from payload
     def extract_message_from_payload(payload)
+      # For webhook payloads, the message data is at the root level
+      if payload.key?('id') && payload.key?('content') && payload.key?('message_type')
+        return create_mock_message_from_webhook_data(payload)
+      end
+      
+      # For Dialogflow payloads, look for nested message object
       message = payload[:message] || payload['message']
       
       # If it's a webhook_data format (Hash), convert to a mock object
@@ -227,6 +258,7 @@ class Integrations::Socialwise::WebhookEnhancerService
 
     # Extract conversation object from payload
     def extract_conversation_from_payload(payload)
+      # For webhook payloads, look for conversation data
       conversation = payload[:conversation] || payload['conversation']
       
       # If it's a webhook_data format (Hash), convert to a mock object
@@ -239,7 +271,18 @@ class Integrations::Socialwise::WebhookEnhancerService
 
     # Extract contact object from payload
     def extract_contact_from_payload(payload)
+      # For webhook payloads, contact might be nested in sender or conversation
       contact = payload[:contact] || payload['contact']
+      
+      # If not found, try to get from sender
+      if contact.nil?
+        contact = payload[:sender] || payload['sender']
+      end
+      
+      # If still not found, try to get from conversation.meta.sender
+      if contact.nil? && payload['conversation'].is_a?(Hash)
+        contact = payload['conversation'].dig('meta', 'sender')
+      end
       
       # If it's a webhook_data format (Hash), convert to a mock object
       if contact.is_a?(Hash)
@@ -251,11 +294,13 @@ class Integrations::Socialwise::WebhookEnhancerService
 
     # Extract inbox object from payload
     def extract_inbox_from_payload(payload)
+      # For webhook payloads, look for inbox data
       inbox = payload[:inbox] || payload['inbox']
       
       # If it's a webhook_data format (Hash), convert to a mock object
       if inbox.is_a?(Hash)
-        return create_mock_inbox_from_webhook_data(inbox)
+        conversation_data = payload[:conversation] || payload['conversation']
+        return create_mock_inbox_from_webhook_data(inbox, conversation_data)
       end
       
       inbox
@@ -275,13 +320,16 @@ class Integrations::Socialwise::WebhookEnhancerService
     end
 
     def create_mock_conversation_from_webhook_data(webhook_data)
+      # Extract contact from meta.sender if available
+      contact_data = webhook_data.dig('meta', 'sender') || webhook_data[:contact] || webhook_data['contact'] || {}
+      
       OpenStruct.new(
         id: webhook_data[:id] || webhook_data['id'],
         status: webhook_data[:status] || webhook_data['status'],
         assignee_id: webhook_data[:assignee_id] || webhook_data['assignee_id'],
         created_at: parse_timestamp(webhook_data[:created_at] || webhook_data['created_at']),
         updated_at: parse_timestamp(webhook_data[:updated_at] || webhook_data['updated_at']),
-        contact: create_mock_contact_from_webhook_data(webhook_data[:contact] || webhook_data['contact'] || {})
+        contact: create_mock_contact_from_webhook_data(contact_data)
       )
     end
 
@@ -297,27 +345,82 @@ class Integrations::Socialwise::WebhookEnhancerService
       )
     end
 
-    def create_mock_inbox_from_webhook_data(webhook_data)
-      channel_data = webhook_data[:channel] || webhook_data['channel'] || {}
+    def create_mock_inbox_from_webhook_data(webhook_data, conversation_data = nil)
+      # For webhook payloads, we need to determine channel_type from conversation data
+      channel_type = nil
+      provider_config = {}
+      
+      # Try to get channel type from conversation if available
+      if conversation_data && conversation_data['channel']
+        channel_type = conversation_data['channel']
+      elsif webhook_data.dig('conversation', 'channel')
+        channel_type = webhook_data['conversation']['channel']
+      end
+      
+      # If we have an inbox ID and it's a WhatsApp channel, fetch the real data with cache
+      inbox_id = webhook_data[:id] || webhook_data['id']
+      if inbox_id && channel_type == 'Channel::Whatsapp'
+        provider_config = get_cached_provider_config(inbox_id)
+      end
       
       mock_channel = OpenStruct.new(
-        provider_config: channel_data[:provider_config] || channel_data['provider_config'] || {}
+        provider_config: provider_config
       )
       
       OpenStruct.new(
-        id: webhook_data[:id] || webhook_data['id'],
+        id: inbox_id,
         name: webhook_data[:name] || webhook_data['name'],
-        channel_type: webhook_data[:channel_type] || webhook_data['channel_type'],
+        channel_type: channel_type,
         channel: mock_channel
       )
+    end
+
+    # Get provider config with cache to avoid database hits
+    def get_cached_provider_config(inbox_id)
+      cache_key = "socialwise:provider_config:#{inbox_id}"
+      
+      # Try to get from cache first
+      cached_config = Rails.cache.read(cache_key)
+      return cached_config if cached_config
+      
+      # If not in cache, fetch from database
+      begin
+        real_inbox = Inbox.find(inbox_id)
+        if real_inbox&.channel&.provider_config
+          provider_config = real_inbox.channel.provider_config
+          # Cache for 1 hour to avoid repeated database hits
+          Rails.cache.write(cache_key, provider_config, expires_in: 1.hour)
+          Rails.logger.info "[SOCIALWISE] Cached provider_config for inbox #{inbox_id}"
+          return provider_config
+        end
+      rescue => e
+        Rails.logger.warn "[SOCIALWISE] Could not fetch real inbox #{inbox_id}: #{e.message}"
+      end
+      
+      # Return empty config if nothing found
+      {}
+    end
+
+    # Clear cache for a specific inbox (useful when inbox is updated)
+    def clear_provider_config_cache(inbox_id)
+      cache_key = "socialwise:provider_config:#{inbox_id}"
+      Rails.cache.delete(cache_key)
+      Rails.logger.info "[SOCIALWISE] Cleared cache for inbox #{inbox_id}"
     end
 
     def parse_timestamp(timestamp)
       return nil unless timestamp
       return timestamp if timestamp.is_a?(Time)
       
+      # Handle Unix timestamps (integers)
+      if timestamp.is_a?(Integer) || timestamp.is_a?(Float)
+        return Time.at(timestamp)
+      end
+      
+      # Handle string timestamps
       Time.parse(timestamp.to_s)
-    rescue
+    rescue => e
+      Rails.logger.warn "[SOCIALWISE] Could not parse timestamp #{timestamp}: #{e.message}"
       nil
     end
 
@@ -373,6 +476,15 @@ class Integrations::Socialwise::WebhookEnhancerService
       if inbox.respond_to?(:channel) && inbox.channel.respond_to?(:provider_config)
         inbox.channel.provider_config
       elsif inbox.is_a?(OpenStruct) && inbox.channel.is_a?(OpenStruct)
+        # For mock objects, try to fetch from database if we have an ID
+        if inbox.id && inbox.channel_type == 'Channel::Whatsapp'
+          begin
+            real_inbox = Inbox.find(inbox.id)
+            return real_inbox.channel.provider_config if real_inbox&.channel
+          rescue => e
+            Rails.logger.warn "[SOCIALWISE] Could not fetch real inbox #{inbox.id}: #{e.message}"
+          end
+        end
         inbox.channel.provider_config
       else
         nil

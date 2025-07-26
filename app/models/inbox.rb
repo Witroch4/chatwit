@@ -78,6 +78,7 @@ class Inbox < ApplicationRecord
 
   after_create_commit :dispatch_create_event
   after_update_commit :dispatch_update_event
+  after_update_commit :clear_socialwise_cache
 
   scope :order_by_name, -> { order('lower(name) ASC') }
 
@@ -196,6 +197,15 @@ class Inbox < ApplicationRecord
         .gsub(/\A[[:punct:]]+|[[:punct:]]+\z/, '')      # Remove leading/trailing punctuation
         .gsub(/\s+/, ' ')                               # Normalize spaces
         .strip
+  end
+
+  def clear_socialwise_cache
+    # Clear Socialwise cache when inbox is updated (especially for WhatsApp channels)
+    if channel_type == 'Channel::Whatsapp'
+      Integrations::Socialwise::WebhookEnhancerService.clear_provider_config_cache(id)
+    end
+  rescue => e
+    Rails.logger.warn "[SOCIALWISE] Failed to clear cache for inbox #{id}: #{e.message}"
   end
 
   def display_name_from_email

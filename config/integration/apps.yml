@@ -118,13 +118,20 @@ dialogflow:
         'type': 'select',
         'name': 'region',
         'default': 'global',
-        'options': [
-          { 'label': 'Global - Default', 'value': 'global' },
-          { 'label': 'AS-NE1 - Tokyo, Japan', 'value': 'asia-northeast1' },
-          { 'label': 'AU-SE1 - Sydney, Australia', 'value': 'australia-southeast1' },
-          { 'label': 'EU-W1 - St. Ghislain, Belgium', 'value': 'europe-west1' },
-          { 'label': 'EU-W2 - London, England', 'value': 'europe-west2' },
-        ],
+        'options':
+          [
+            { 'label': 'Global - Default', 'value': 'global' },
+            { 'label': 'AS-NE1 - Tokyo, Japan', 'value': 'asia-northeast1' },
+            {
+              'label': 'AU-SE1 - Sydney, Australia',
+              'value': 'australia-southeast1',
+            },
+            {
+              'label': 'EU-W1 - St. Ghislain, Belgium',
+              'value': 'europe-west1',
+            },
+            { 'label': 'EU-W2 - London, England', 'value': 'europe-west2' },
+          ],
       },
     ]
   visible_properties: ['project_id', 'region']
@@ -298,6 +305,7 @@ socialwise_chatwit:
       'properties':
         {
           'enabled': { 'type': 'boolean' },
+          'webhook_enhancement_enabled': { 'type': 'boolean' },
         },
       'required': [],
       'additionalProperties': false,
@@ -310,5 +318,11 @@ socialwise_chatwit:
         'name': 'enabled',
         'help': 'Ativa o envio de dados do WhatsApp (token, IDs de mensagem) no payload do Dialogflow para permitir manipulação avançada de mensagens',
       },
+      {
+        'label': 'Ativar Enhancement de Webhooks',
+        'type': 'checkbox',
+        'name': 'webhook_enhancement_enabled',
+        'help': 'Ativa o envio de dados enriquecidos nos webhooks comuns. ATENÇÃO: Pode aumentar a carga no banco de dados. Desative se houver problemas de performance.',
+      },
     ]
-  visible_properties: ['enabled']
+  visible_properties: ['enabled', 'webhook_enhancement_enabled']
