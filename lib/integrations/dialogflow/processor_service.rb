@@ -67,6 +67,15 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
       # Verificar se há payloads especiais como socialwiseResponse
       if content_params['socialwiseResponse'].present?
         Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse detectado: #{content_params['socialwiseResponse'].inspect}"
+        
+        # Processar socialwiseResponse com Instagram Response Processor
+        if process_socialwise_response(content_params['socialwiseResponse'], message)
+          Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse processado com sucesso, pulando mensagem normal"
+          next # Pular criação de mensagem normal quando socialwiseResponse é processado com sucesso
+        else
+          Rails.logger.warn "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse falhou, continuando com fluxo normal"
+          # Continua com fluxo normal se falhar (fallback automático)
+        end
       end
       
       if content_params['action'].present?
@@ -98,6 +107,53 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
     Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] CONTENT PARAMS FINAL: #{content_params.inspect}"
     
     content_params
+  end
+
+  # Process socialwiseResponse using Instagram Response Processor
+  # @param socialwise_data [Hash] The socialwiseResponse data from Dialogflow
+  # @param message [Message] The message object
+  # @return [Boolean] true if processing was successful, false otherwise
+  def process_socialwise_response(socialwise_data, message)
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] === STARTING SOCIALWISE RESPONSE PROCESSING ==="
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] SocialWise data: #{socialwise_data.inspect}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
+
+    # Validate Instagram channel before processing
+    conversation = message.conversation
+    unless conversation.inbox.channel_type == 'Channel::Instagram'
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse only supported for Instagram channels, got: #{conversation.inbox.channel_type}"
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Skipping socialwiseResponse processing, will continue with normal flow"
+      return false
+    end
+
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Instagram channel validated, processing socialwiseResponse"
+
+    # Process with Instagram Response Processor
+    begin
+      success = Integrations::Socialwise::InstagramResponseProcessor.process(socialwise_data, message)
+      
+      if success
+        Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse processed successfully by Instagram Response Processor"
+      else
+        Rails.logger.warn "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse processing failed, will fallback to normal flow"
+      end
+      
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] === SOCIALWISE RESPONSE PROCESSING COMPLETED ==="
+      success
+    rescue => e
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] === SOCIALWISE RESPONSE PROCESSING EXCEPTION ==="
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Exception class: #{e.class}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Exception message: #{e.message}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Message ID: #{message.id}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Conversation ID: #{message.conversation.id}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Account ID: #{message.conversation.account_id}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Inbox ID: #{message.conversation.inbox_id}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Channel type: #{message.conversation.inbox.channel_type}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] SocialWise data: #{socialwise_data.inspect}"
+      Rails.logger.error "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Backtrace: #{e.backtrace.join('\n')}"
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Will fallback to normal flow due to exception"
+      false
+    end
   end
 
   def create_conversation(message, content_params)
