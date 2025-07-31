@@ -29,21 +29,74 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
   end
 
   def process_response(message, response)
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] === INICIANDO PROCESSAMENTO DA RESPOSTA DO DIALOGFLOW ==="
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
+    
+    # Log da resposta integral do Dialogflow ANTES da conversão
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Resposta RAW do Dialogflow (objeto protobuf): #{response.inspect}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Query Result RAW: #{response.query_result.inspect}"
+    
+    # Converter toda a query_result para hash para ver a estrutura completa
+    query_result_hash = response.query_result.to_h
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] QUERY RESULT COMPLETO EM HASH: #{query_result_hash.inspect}"
+    
+    # Log de campos específicos importantes
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] fulfillmentText: #{query_result_hash[:fulfillment_text]}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] action: #{query_result_hash[:action]}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] parameters: #{query_result_hash[:parameters]}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] intent: #{query_result_hash[:intent]}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] webhookPayload: #{query_result_hash[:webhook_payload]}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] diagnosticInfo: #{query_result_hash[:diagnostic_info]}"
+    
     fulfillment_messages = response.query_result['fulfillment_messages']
-    fulfillment_messages.each do |fulfillment_message|
+    
+    # Log da resposta APÓS conversão para hash
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Fulfillment Messages (após conversão hash): #{fulfillment_messages.inspect}"
+    
+    fulfillment_messages.each_with_index do |fulfillment_message, index|
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Processando fulfillment_message[#{index}] RAW: #{fulfillment_message.inspect}"
+      
+      # Converter fulfillment_message completo para hash
+      fulfillment_message_hash = fulfillment_message.to_h
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] fulfillment_message[#{index}] COMPLETO EM HASH: #{fulfillment_message_hash.inspect}"
+      
       content_params = generate_content_params(fulfillment_message)
+      
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Content params gerados[#{index}]: #{content_params.inspect}"
+      
+      # Verificar se há payloads especiais como socialwiseResponse
+      if content_params['socialwiseResponse'].present?
+        Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] socialwiseResponse detectado: #{content_params['socialwiseResponse'].inspect}"
+      end
+      
       if content_params['action'].present?
+        Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Ação detectada: #{content_params['action']}"
         process_action(message, content_params['action'])
       else
+        Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Criando conversa com content_params: #{content_params.inspect}"
         create_conversation(message, content_params)
       end
     end
+    
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] === FINALIZANDO PROCESSAMENTO DA RESPOSTA DO DIALOGFLOW ==="
   end
 
   def generate_content_params(fulfillment_message)
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] === GERANDO CONTENT PARAMS ==="
+    
+    # Processar text response
     text_response = fulfillment_message['text'].to_h
     content_params = { content: text_response[:text].first } if text_response[:text].present?
-    content_params ||= fulfillment_message['payload'].to_h
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] Content params do TEXT: #{content_params.inspect}"
+    
+    # Processar payload
+    payload_hash = fulfillment_message['payload'].to_h
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] PAYLOAD HASH COMPLETO: #{payload_hash.inspect}"
+    
+    # Se não há text, usar o payload
+    content_params ||= payload_hash
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] CONTENT PARAMS FINAL: #{content_params.inspect}"
+    
     content_params
   end
 

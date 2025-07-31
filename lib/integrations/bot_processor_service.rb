@@ -53,11 +53,20 @@ class Integrations::BotProcessorService
   end
 
   def process_action(message, action)
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Processando ação: #{action.inspect}"
+    Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Conversa atual - ID: #{message.conversation.id}, Status: #{message.conversation.status}"
+    
     case action
     when 'handoff'
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Executando handoff - mudando conversa para bot_handoff!"
       message.conversation.bot_handoff!
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Handoff executado - novo status: #{message.conversation.reload.status}"
     when 'resolve'
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Executando resolve - mudando conversa para resolved!"
       message.conversation.resolved!
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Resolve executado - novo status: #{message.conversation.reload.status}"
+    else
+      Rails.logger.info "[SOCIALWISE-DIALOGFLOW-PRIMITIVE] BotProcessorService - Ação não reconhecida: #{action}"
     end
   end
 end
