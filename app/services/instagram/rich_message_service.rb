@@ -9,13 +9,53 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Channel::Instagram
   end
 
+  # Override perform method to add validation logging
+  def perform
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === STARTING PERFORM ==="
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message ID: #{message.id}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message type: #{message.message_type}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message outgoing?: #{message.outgoing?}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message template?: #{message.template?}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message private?: #{message.private?}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message source_id: #{message.source_id}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Channel class: #{channel.class}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Expected channel class: #{channel_class}"
+    
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call validate_target_channel"
+    validate_target_channel
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] validate_target_channel passed"
+    
+    unless outgoing_message?
+      Rails.logger.warn "[SOCIALWISE-INSTAGRAM-RICH] Returning early: not outgoing_message"
+      return
+    end
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] outgoing_message? check passed"
+    
+    if invalid_message?
+      Rails.logger.warn "[SOCIALWISE-INSTAGRAM-RICH] Returning early: invalid_message"
+      return
+    end
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] invalid_message? check passed"
+
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call perform_reply"
+    perform_reply
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === PERFORM COMPLETED ==="
+  end
+
   # Override perform_reply to handle rich message content instead of regular content
   def perform_reply
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === STARTING RICH MESSAGE SEND ==="
-    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message ID: #{message.id}, Rich payload: #{rich_payload.inspect}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message ID: #{message.id}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message class: #{message.class}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich payload: #{rich_payload.inspect}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich payload class: #{rich_payload.class}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Channel: #{channel.class}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Contact: #{contact.class}"
 
     # Send rich message content
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call send_rich_message"
     send_rich_message
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] send_rich_message completed"
     
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === RICH MESSAGE SEND COMPLETED ==="
   rescue StandardError => e
@@ -26,12 +66,18 @@ class Instagram::RichMessageService < Instagram::BaseSendService
 
   # Send rich message using the rich_payload
   def send_rich_message
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === STARTING send_rich_message ==="
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Sending rich message with payload: #{rich_payload.inspect}"
     
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call rich_message_params"
     rich_message_content = rich_message_params
-    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich message params: #{rich_message_content.inspect}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich message params generated: #{rich_message_content.inspect}"
     
-    send_message(rich_message_content)
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call send_message with content"
+    result = send_message(rich_message_content)
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] send_message returned: #{result.inspect}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === COMPLETED send_rich_message ==="
+    result
   end
 
   # Deliver a rich message with the given payload

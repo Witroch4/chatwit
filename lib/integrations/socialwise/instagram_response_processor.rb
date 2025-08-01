@@ -575,13 +575,18 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
         # Send using Instagram Rich Message Service
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating Instagram Rich Message Service with payload: #{instagram_payload.inspect}"
         rich_message_service = Instagram::RichMessageService.new(message: message, rich_payload: instagram_payload)
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service"
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service successfully"
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Service class: #{rich_message_service.class}"
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Service responds to perform: #{rich_message_service.respond_to?(:perform)}"
 
         # Perform the send operation
         send_start_time = Time.current
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] About to call rich_message_service.perform"
         rich_message_service.perform
         send_end_time = Time.current
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] rich_message_service.perform completed successfully"
         
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template sent successfully"
         
