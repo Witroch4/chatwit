@@ -3,12 +3,6 @@
 class Instagram::RichMessageService < Instagram::BaseSendService
   pattr_initialize [:message!, :rich_payload!]
 
-  private
-
-  def channel_class
-    Channel::Instagram
-  end
-
   # Override perform method to add validation logging
   def perform
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === STARTING PERFORM ==="
@@ -40,6 +34,12 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call perform_reply"
     perform_reply
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === PERFORM COMPLETED ==="
+  end
+
+  private
+
+  def channel_class
+    Channel::Instagram
   end
 
   # Override perform_reply to handle rich message content instead of regular content
@@ -130,9 +130,15 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building rich message params from payload: #{rich_payload.inspect}"
     
     params = {
-      recipient: { id: contact.get_source_id(inbox.id) },
-      message: build_message_content
+      "recipient" => { "id" => contact.get_source_id(inbox.id) },
+      "message" => build_message_content
     }
+
+    # Add messaging_type for Quick Replies (required by Instagram API)
+    unless template_format?
+      params["messaging_type"] = "RESPONSE"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Added messaging_type: RESPONSE for Quick Replies"
+    end
 
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Base params before human agent tag: #{params.inspect}"
     
@@ -187,11 +193,11 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building Generic Template with #{rich_payload['elements']&.length} elements"
     
     {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'generic',
-          elements: build_generic_elements
+      "attachment" => {
+        "type" => "template",
+        "payload" => {
+          "template_type" => "generic",
+          "elements" => build_generic_elements
         }
       }
     }
@@ -202,12 +208,12 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building Button Template with text: #{rich_payload['text']}"
     
     {
-      attachment: {
-        type: 'template',
-        payload: {
-          template_type: 'button',
-          text: rich_payload['text'],
-          buttons: build_buttons(rich_payload['buttons'])
+      "attachment" => {
+        "type" => "template",
+        "payload" => {
+          "template_type" => "button",
+          "text" => rich_payload['text'],
+          "buttons" => build_buttons(rich_payload['buttons'])
         }
       }
     }
@@ -218,8 +224,8 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building Quick Replies with #{rich_payload['quick_replies']&.length} options"
     
     {
-      text: rich_payload['text'],
-      quick_replies: build_quick_replies(rich_payload['quick_replies'])
+      "text" => rich_payload['text'],
+      "quick_replies" => build_quick_replies(rich_payload['quick_replies'])
     }
   end
 
@@ -306,8 +312,8 @@ class Instagram::RichMessageService < Instagram::BaseSendService
 
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Human agent tag enabled, adding MESSAGE_TAG and HUMAN_AGENT"
     
-    params[:messaging_type] = 'MESSAGE_TAG'
-    params[:tag] = 'HUMAN_AGENT'
+    params["messaging_type"] = "MESSAGE_TAG"
+    params["tag"] = "HUMAN_AGENT"
     
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Params after human agent tag: #{params.inspect}"
     params
