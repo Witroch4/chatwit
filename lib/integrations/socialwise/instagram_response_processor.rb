@@ -574,9 +574,20 @@ class Integrations::Socialwise::InstagramResponseProcessor
         instagram_payload = build_generic_template_payload(payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
+        # Create outgoing message for rich message service
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
+        conversation = message.conversation
+        outgoing_message = conversation.messages.create!(
+          content: extract_fallback_text({ 'payload' => payload }),
+          message_type: :outgoing,
+          account_id: conversation.account_id,
+          inbox_id: conversation.inbox_id
+        )
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id}"
+
         # Send using Instagram Rich Message Service
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating Instagram Rich Message Service with payload: #{instagram_payload.inspect}"
-        rich_message_service = Instagram::RichMessageService.new(message: message, rich_payload: instagram_payload)
+        rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service successfully"
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Service class: #{rich_message_service.class}"
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Service responds to perform: #{rich_message_service.respond_to?(:perform)}"
@@ -627,8 +638,19 @@ class Integrations::Socialwise::InstagramResponseProcessor
         instagram_payload = build_button_template_payload(payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
+        # Create outgoing message for rich message service
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
+        conversation = message.conversation
+        outgoing_message = conversation.messages.create!(
+          content: extract_fallback_text({ 'payload' => payload }),
+          message_type: :outgoing,
+          account_id: conversation.account_id,
+          inbox_id: conversation.inbox_id
+        )
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id}"
+
         # Send using Instagram Rich Message Service
-        rich_message_service = Instagram::RichMessageService.new(message: message, rich_payload: instagram_payload)
+        rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service"
 
         # Perform the send operation
@@ -716,8 +738,19 @@ class Integrations::Socialwise::InstagramResponseProcessor
         instagram_payload = build_quick_replies_payload(payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
+        # Create outgoing message for rich message service
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
+        conversation = message.conversation
+        outgoing_message = conversation.messages.create!(
+          content: extract_fallback_text({ 'payload' => payload }),
+          message_type: :outgoing,
+          account_id: conversation.account_id,
+          inbox_id: conversation.inbox_id
+        )
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id}"
+
         # Send using Instagram Rich Message Service
-        rich_message_service = Instagram::RichMessageService.new(message: message, rich_payload: instagram_payload)
+        rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service"
 
         # Perform the send operation

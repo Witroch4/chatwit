@@ -89,6 +89,7 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] API call started at: #{api_call_start_time.iso8601}"
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message content size: #{message_content.to_json.length} bytes"
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Calling Instagram API with content: #{message_content.inspect}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] JSON payload: #{message_content.to_json}"
     
     access_token = channel.access_token
     query = { access_token: access_token }
@@ -101,7 +102,8 @@ class Instagram::RichMessageService < Instagram::BaseSendService
 
     response = HTTParty.post(
       api_endpoint,
-      body: message_content,
+      body: message_content.to_json,
+      headers: { 'Content-Type' => 'application/json' },
       query: query
     )
 
@@ -234,14 +236,15 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     elements = rich_payload['elements'].map.with_index do |element, index|
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building element #{index}: #{element.inspect}"
       
+      # Use strings instead of symbols for Instagram API compatibility
       element_data = {
-        title: element['title']
+        "title" => element['title']
       }
       
       # Add optional fields
-      element_data[:subtitle] = element['subtitle'] if element['subtitle'].present?
-      element_data[:image_url] = element['image_url'] if element['image_url'].present?
-      element_data[:buttons] = build_buttons(element['buttons']) if element['buttons'].present?
+      element_data["subtitle"] = element['subtitle'] if element['subtitle'].present?
+      element_data["image_url"] = element['image_url'] if element['image_url'].present?
+      element_data["buttons"] = build_buttons(element['buttons']) if element['buttons'].present?
       
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Built element #{index}: #{element_data.inspect}"
       element_data
@@ -258,16 +261,17 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     buttons = buttons_data.map.with_index do |button, index|
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building button #{index}: #{button.inspect}"
       
+      # Use strings instead of symbols for Instagram API compatibility
       button_data = {
-        type: button['type'],
-        title: button['title']
+        "type" => button['type'],
+        "title" => button['title']
       }
       
       case button['type']
       when 'postback'
-        button_data[:payload] = button['payload']
+        button_data["payload"] = button['payload']
       when 'web_url'
-        button_data[:url] = button['url']
+        button_data["url"] = button['url']
       end
       
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Built button #{index}: #{button_data.inspect}"
@@ -285,10 +289,11 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     quick_replies = quick_replies_data.map.with_index do |quick_reply, index|
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Building quick reply #{index}: #{quick_reply.inspect}"
       
+      # Use strings instead of symbols for Instagram API compatibility
       quick_reply_data = {
-        content_type: quick_reply['content_type'],
-        title: quick_reply['title'],
-        payload: quick_reply['payload']
+        "content_type" => quick_reply['content_type'],
+        "title" => quick_reply['title'],
+        "payload" => quick_reply['payload']
       }
       
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Built quick reply #{index}: #{quick_reply_data.inspect}"
