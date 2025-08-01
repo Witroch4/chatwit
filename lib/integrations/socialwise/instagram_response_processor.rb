@@ -433,9 +433,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Generic Template payload"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original payload: #{payload.inspect}"
 
+      # Apply character limit validation and truncation for Generic Template
+      processed_payload = apply_character_limits(payload, 'GENERIC_TEMPLATE')
+
       instagram_payload = {
         'template_type' => 'generic',
-        'elements' => build_generic_template_elements(payload['elements'])
+        'elements' => build_generic_template_elements(processed_payload['elements'])
       }
 
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
@@ -517,10 +520,13 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Button Template payload"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original payload: #{payload.inspect}"
 
+      # Apply character limit validation and truncation for Button Template
+      processed_payload = apply_character_limits(payload, 'BUTTON_TEMPLATE')
+
       instagram_payload = {
         'template_type' => 'button',
-        'text' => payload['text'],
-        'buttons' => build_button_template_buttons(payload['buttons'])
+        'text' => processed_payload['text'],
+        'buttons' => build_button_template_buttons(processed_payload['buttons'])
       }
 
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
@@ -581,9 +587,10 @@ class Integrations::Socialwise::InstagramResponseProcessor
           content: extract_fallback_text({ 'payload' => payload }),
           message_type: :outgoing,
           account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id
+          inbox_id: conversation.inbox_id,
+          additional_attributes: { skip_send_reply: true }
         )
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id}"
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using Instagram Rich Message Service
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating Instagram Rich Message Service with payload: #{instagram_payload.inspect}"
@@ -645,9 +652,10 @@ class Integrations::Socialwise::InstagramResponseProcessor
           content: extract_fallback_text({ 'payload' => payload }),
           message_type: :outgoing,
           account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id
+          inbox_id: conversation.inbox_id,
+          additional_attributes: { skip_send_reply: true }
         )
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id}"
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using Instagram Rich Message Service
         rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
@@ -691,9 +699,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Quick Replies payload"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original payload: #{payload.inspect}"
 
+      # Apply character limit validation and truncation for Quick Replies
+      processed_payload = apply_character_limits(payload, 'QUICK_REPLIES')
+
       instagram_payload = {
-        'text' => payload['text'],
-        'quick_replies' => build_quick_replies_options(payload['quick_replies'])
+        'text' => processed_payload['text'],
+        'quick_replies' => build_quick_replies_options(processed_payload['quick_replies'])
       }
 
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
@@ -745,9 +756,10 @@ class Integrations::Socialwise::InstagramResponseProcessor
           content: extract_fallback_text({ 'payload' => payload }),
           message_type: :outgoing,
           account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id
+          inbox_id: conversation.inbox_id,
+          additional_attributes: { skip_send_reply: true }
         )
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id}"
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using Instagram Rich Message Service
         rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
@@ -972,6 +984,106 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback flow validation passed"
       true
+    end
+
+    # Applies character limits and truncation based on message format
+    # @param payload [Hash] The original payload
+    # @param message_format [String] The message format (GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES)
+    # @return [Hash] Processed payload with character limits applied
+    def apply_character_limits(payload, message_format)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying character limits for format: #{message_format}"
+      
+      processed_payload = Marshal.load(Marshal.dump(payload))
+      
+      case message_format
+      when 'GENERIC_TEMPLATE'
+        apply_generic_template_limits(processed_payload)
+      when 'BUTTON_TEMPLATE'
+        apply_button_template_limits(processed_payload)
+      when 'QUICK_REPLIES'
+        apply_quick_replies_limits(processed_payload)
+      else
+        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown format for character limits: #{message_format}"
+        processed_payload
+      end
+    end
+
+    # Applies character limits for Generic Template (80 characters for titles/subtitles)
+    # @param payload [Hash] The payload to process
+    # @return [Hash] Processed payload
+    def apply_generic_template_limits(payload)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Generic Template character limits (80 chars for titles/subtitles)"
+      
+      if payload['elements'].is_a?(Array)
+        payload['elements'].each_with_index do |element, index|
+          if element.is_a?(Hash)
+            # Truncate title if needed
+            if element['title'].present? && element['title'].length > 80
+              original_length = element['title'].length
+              element['title'] = truncate_text(element['title'], 80)
+              Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template element #{index} title truncated from #{original_length} to 80 characters"
+            end
+            
+            # Truncate subtitle if needed
+            if element['subtitle'].present? && element['subtitle'].length > 80
+              original_length = element['subtitle'].length
+              element['subtitle'] = truncate_text(element['subtitle'], 80)
+              Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template element #{index} subtitle truncated from #{original_length} to 80 characters"
+            end
+          end
+        end
+      end
+      
+      payload
+    end
+
+    # Applies character limits for Button Template (640 characters for text)
+    # @param payload [Hash] The payload to process
+    # @return [Hash] Processed payload
+    def apply_button_template_limits(payload)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Button Template character limits (640 chars for text)"
+      
+      if payload['text'].present? && payload['text'].length > 640
+        original_length = payload['text'].length
+        payload['text'] = truncate_text(payload['text'], 640)
+        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template text truncated from #{original_length} to 640 characters"
+      end
+      
+      payload
+    end
+
+    # Applies character limits for Quick Replies (1000 characters for text)
+    # @param payload [Hash] The payload to process
+    # @return [Hash] Processed payload
+    def apply_quick_replies_limits(payload)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Quick Replies character limits (1000 chars for text)"
+      
+      if payload['text'].present? && payload['text'].length > 1000
+        original_length = payload['text'].length
+        payload['text'] = truncate_text(payload['text'], 1000)
+        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies text truncated from #{original_length} to 1000 characters"
+      end
+      
+      payload
+    end
+
+    # Truncates text to specified limit and adds truncation notice
+    # @param text [String] The text to truncate
+    # @param limit [Integer] The character limit
+    # @return [String] Truncated text with notice
+    def truncate_text(text, limit)
+      return text if text.length <= limit
+      
+      truncation_notice = " (mensagem truncada)"
+      available_chars = limit - truncation_notice.length
+      
+      # Ensure we have enough space for the notice
+      if available_chars < 10
+        return text[0, limit]
+      end
+      
+      truncated_text = text[0, available_chars].strip
+      "#{truncated_text}#{truncation_notice}"
     end
 
     # Extracts meaningful text from failed rich message payloads
