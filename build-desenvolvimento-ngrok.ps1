@@ -34,16 +34,16 @@ function Get-NgrokStatus {
     }
 }
 
-# Verificar se o arquivo .env existe
-if (-not (Test-Path ".env")) {
-    Write-Host "[WARNING] Arquivo .env não encontrado!" -ForegroundColor Yellow
+# Verificar se o arquivo .env.ngrok existe
+if (-not (Test-Path ".env.ngrok")) {
+    Write-Host "[WARNING] Arquivo .env.ngrok não encontrado!" -ForegroundColor Yellow
     if (Test-Path ".env.example") {
-        Write-Host "[INFO] Copiando .env.example para .env..." -ForegroundColor Cyan
-        Copy-Item ".env.example" ".env"
-        Write-Host "[SUCCESS] Arquivo .env criado! Configure as variáveis antes de continuar." -ForegroundColor Green
-        Write-Host "[INFO] Editando .env..." -ForegroundColor Cyan
-        notepad .env
-        Write-Host "[INFO] Pressione Enter após configurar o .env..." -ForegroundColor Yellow
+        Write-Host "[INFO] Copiando .env.example para .env.ngrok..." -ForegroundColor Cyan
+        Copy-Item ".env.example" ".env.ngrok"
+        Write-Host "[SUCCESS] Arquivo .env.ngrok criado! Configure as variáveis antes de continuar." -ForegroundColor Green
+        Write-Host "[INFO] Editando .env.ngrok..." -ForegroundColor Cyan
+        notepad .env.ngrok
+        Write-Host "[INFO] Pressione Enter após configurar o .env.ngrok..." -ForegroundColor Yellow
         Read-Host
     } else {
         Write-Host "[ERROR] Arquivo .env.example não encontrado!" -ForegroundColor Red
@@ -96,7 +96,7 @@ if ($Action -eq "help" -or $Action -eq "-h" -or $Action -eq "--help") {
 }
 
 # Preparar comandos docker-compose
-$DockerComposeCmd = "docker-compose -f $ComposeFile -p $ProjectName"
+$DockerComposeCmd = "docker-compose -f $ComposeFile -p $ProjectName --env-file .env.ngrok"
 
 Write-Host "[INFO] Projeto: $ProjectName" -ForegroundColor Cyan
 Write-Host "[INFO] Arquivo: $ComposeFile" -ForegroundColor Cyan
@@ -179,8 +179,8 @@ puts 'Enterprise habilitado com sucesso!'
             Write-Host "  Vite Dev Server:      http://localhost:3036" -ForegroundColor White  
             Write-Host "  MailHog:              http://localhost:8025" -ForegroundColor White
             Write-Host "  Ngrok Interface:      http://localhost:4040" -ForegroundColor White
-            Write-Host "  PostgreSQL:           localhost:5432" -ForegroundColor White
-            Write-Host "  Redis:                localhost:6379" -ForegroundColor White
+            Write-Host "  PostgreSQL:           localhost:5433" -ForegroundColor White
+            Write-Host "  Redis:                localhost:6380" -ForegroundColor White
             Write-Host ""
             Write-Host "COMO ACESSAR:" -ForegroundColor Cyan
             Write-Host "  1. Abra https://$NgrokUrl (acesso público)" -ForegroundColor White

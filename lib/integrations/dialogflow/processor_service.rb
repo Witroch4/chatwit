@@ -334,6 +334,14 @@ class Integrations::Dialogflow::ProcessorService < Integrations::BotProcessorSer
         flat_payload['list_description'] = interactive_data['list_description']
         flat_payload['interaction_type'] = interactive_data['interaction_type']
       end
+
+      # Instagram postback/quick_reply data
+      if socialwise_data['message_data']['instagram_data']
+        instagram_data = socialwise_data['message_data']['instagram_data']
+        flat_payload['postback_payload'] = instagram_data['postback_payload']
+        flat_payload['quick_reply_payload'] = instagram_data['quick_reply_payload']
+        flat_payload['interaction_type'] = instagram_data['interaction_type']
+      end
     end
     
     # Inbox data

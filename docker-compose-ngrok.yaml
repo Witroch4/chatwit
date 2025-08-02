@@ -11,7 +11,7 @@ services:
     tty: true
     stdin_open: true
     image: chatwit:development
-    env_file: .env
+    env_file: .env.ngrok
 
   rails:
     <<: *base
@@ -30,7 +30,7 @@ services:
       - sidekiq
     ports:
       - 3000:3000
-    env_file: .env
+    env_file: .env.ngrok
     environment:
       - VITE_DEV_SERVER_HOST=vite
       - NODE_ENV=development
@@ -76,10 +76,10 @@ services:
     image: pgvector/pgvector:pg16
     restart: always
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres:/var/lib/postgresql/data
-    env_file: .env
+    env_file: .env.ngrok
     environment:
       - POSTGRES_DB=chatwoot
       - POSTGRES_USER=postgres
@@ -88,11 +88,11 @@ services:
     image: redis:alpine
     restart: always
     command: ["sh", "-c", "redis-server --requirepass \"$REDIS_PASSWORD\""]
-    env_file: .env
+    env_file: .env.ngrok
     volumes:
       - redis:/data
     ports:
-      - '6379:6379'
+      - '6380:6379'
 
   mailhog:
     image: mailhog/mailhog

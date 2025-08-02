@@ -35,11 +35,15 @@ class Instagram::BaseMessageText < Instagram::WebhooksBaseService
   end
 
   def agent_message_via_echo?
-    @messaging[:message][:is_echo].present?
+    msg = @messaging[:message]
+    return false unless msg.is_a?(Hash)
+    msg[:is_echo].present?
   end
 
   def message_is_deleted?
-    @messaging[:message][:is_deleted].present?
+    msg = @messaging[:message]
+    return false unless msg.is_a?(Hash)
+    msg[:is_deleted].present?
   end
 
   # if contact was present before find out contact_inbox to create message

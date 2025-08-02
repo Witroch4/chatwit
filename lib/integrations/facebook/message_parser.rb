@@ -19,7 +19,7 @@ class Integrations::Facebook::MessageParser
   end
 
   def content
-    @messaging.dig('message', 'text')
+    @messaging&.dig('message', 'text')
   end
 
   def sequence
@@ -66,6 +66,26 @@ class Integrations::Facebook::MessageParser
 
   def in_reply_to_external_id
     @messaging.dig('message', 'reply_to', 'mid')
+  end
+
+  def postback_payload
+    @messaging&.dig('postback', 'payload')
+  end
+
+  def postback_title
+    @messaging&.dig('postback', 'title')
+  end
+
+  def quick_reply_payload
+    @messaging&.dig('message', 'quick_reply', 'payload')
+  end
+
+  def postback?
+    @messaging&.key?('postback')
+  end
+
+  def quick_reply?
+    @messaging&.dig('message', 'quick_reply').present?
   end
 end
 

@@ -5,16 +5,16 @@
 # Table name: account_feature_flags
 #
 #  id         :bigint           not null, primary key
-#  account_id :bigint           not null
+#  enabled    :boolean          default(FALSE), not null
 #  flag_name  :string           not null
-#  enabled    :boolean          default(false), not null
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
+#  account_id :bigint           not null
 #
 # Indexes
 #
-#  index_account_feature_flags_on_account_id_and_flag_name  (account_id,flag_name) UNIQUE
 #  index_account_feature_flags_on_account_id                (account_id)
+#  index_account_feature_flags_on_account_id_and_flag_name  (account_id,flag_name) UNIQUE
 #  index_account_feature_flags_on_flag_name                 (flag_name)
 #
 # Foreign Keys

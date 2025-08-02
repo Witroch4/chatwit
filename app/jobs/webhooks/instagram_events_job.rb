@@ -3,7 +3,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   retry_on LockAcquisitionError, wait: 1.second, attempts: 8
 
   # @return [Array] We will support further events like reaction or seen in future
-  SUPPORTED_EVENTS = [:message, :read].freeze
+  SUPPORTED_EVENTS = [:message, :read, :postback].freeze
 
   def perform(entries)
     @entries = entries
@@ -93,7 +93,8 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   end
 
   def event_name(messaging)
-    @event_name ||= SUPPORTED_EVENTS.find { |key| messaging.key?(key) }
+    # compute every time (sem memoização para não vazar o evento anterior)
+    SUPPORTED_EVENTS.find { |key| messaging.key?(key) }
   end
 
   def message(messaging, channel)
@@ -107,6 +108,33 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   def read(messaging, channel)
     # Use a single service to handle read status for both channel types since the params are same
     ::Instagram::ReadStatusService.new(params: messaging, channel: channel).perform
+  end
+
+  def postback(messaging, channel)
+    pb = (messaging[:postback] || {})
+
+    # LOGAR EXATAMENTE O QUE VEIO NO POSTBACK
+    Rails.logger.info(
+      "[IG][POSTBACK] title=#{pb[:title].inspect} payload=#{pb[:payload].inspect} mid=#{pb[:mid].inspect}"
+    )
+
+    # Transformar postback em "message" sintético para reaproveitar MessageText
+    msg = messaging.deep_dup
+    msg[:message] ||= {}
+    msg[:message][:text]     = pb[:title].presence || '[postback]'
+    msg[:message][:mid]      = pb[:mid]
+    msg[:message][:is_echo]  = false
+    msg[:message][:metadata] = {
+      interaction_type: 'postback',
+      postback_title: pb[:title],
+      postback_payload: pb[:payload]
+    }
+
+    if channel.is_a?(Channel::Instagram)
+      ::Instagram::MessageText.new(msg, channel).perform
+    else
+      ::Instagram::Messenger::MessageText.new(msg, channel).perform
+    end
   end
 
   def messages(entry)

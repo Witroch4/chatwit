@@ -99,6 +99,14 @@ class Integrations::Socialwise::WebhookEnhancerService
           flat_payload['list_description'] = interactive_data['list_description']
           flat_payload['interaction_type'] = interactive_data['interaction_type']
         end
+
+        # Instagram postback/quick_reply data
+        if socialwise_data['message_data']['instagram_data']
+          instagram_data = socialwise_data['message_data']['instagram_data']
+          flat_payload['postback_payload'] = instagram_data['postback_payload']
+          flat_payload['quick_reply_payload'] = instagram_data['quick_reply_payload']
+          flat_payload['interaction_type'] = instagram_data['interaction_type']
+        end
       end
       
       # Inbox data
@@ -836,10 +844,12 @@ class Integrations::Socialwise::WebhookEnhancerService
         'content_type' => message.content_type,
         'message_type' => message.message_type,
         'created_at' => message.created_at&.iso8601,
-        'interactive_data' => extract_interactive_data_from_message(message)
+        'interactive_data' => extract_interactive_data_from_message(message),
+        'instagram_data' => extract_instagram_data_from_message(message)
       }
       
       Rails.logger.info "[SOCIALWISE] Message interactive data: #{message_data['interactive_data']}" if message_data['interactive_data'].any?
+      Rails.logger.info "[SOCIALWISE] Message instagram data: #{message_data['instagram_data']}" if message_data['instagram_data'].any?
       
       message_data
     rescue => e
@@ -885,6 +895,31 @@ class Integrations::Socialwise::WebhookEnhancerService
       interactive_data
     rescue => e
       Rails.logger.error "[SOCIALWISE] Error extracting interactive data from message: #{e.class}: #{e.message}"
+      {}
+    end
+
+    # Extract Instagram postback/quick_reply data from message content_attributes
+    def extract_instagram_data_from_message(message)
+      return {} unless message&.content_attributes.is_a?(Hash)
+      
+      instagram_data = {}
+      content_attrs = message.content_attributes.with_indifferent_access
+      
+      # Extract postback data
+      if content_attrs[:postback_payload]
+        instagram_data['postback_payload'] = content_attrs[:postback_payload]
+        instagram_data['interaction_type'] = 'postback'
+      end
+      
+      # Extract quick_reply data
+      if content_attrs[:quick_reply_payload]
+        instagram_data['quick_reply_payload'] = content_attrs[:quick_reply_payload]
+        instagram_data['interaction_type'] = 'quick_reply'
+      end
+      
+      instagram_data
+    rescue => e
+      Rails.logger.error "[SOCIALWISE] Error extracting Instagram data from message: #{e.class}: #{e.message}"
       {}
     end
 
