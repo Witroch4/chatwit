@@ -583,13 +583,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         # Create outgoing message for rich message service
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
         conversation = message.conversation
-        outgoing_message = conversation.messages.create!(
-          content: extract_fallback_text({ 'payload' => payload }),
-          message_type: :outgoing,
-          account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id,
-          additional_attributes: { skip_send_reply: true }
-        )
+        outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using Instagram Rich Message Service
@@ -648,13 +642,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         # Create outgoing message for rich message service
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
         conversation = message.conversation
-        outgoing_message = conversation.messages.create!(
-          content: extract_fallback_text({ 'payload' => payload }),
-          message_type: :outgoing,
-          account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id,
-          additional_attributes: { skip_send_reply: true }
-        )
+        outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using Instagram Rich Message Service
@@ -752,13 +740,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         # Create outgoing message for rich message service
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
         conversation = message.conversation
-        outgoing_message = conversation.messages.create!(
-          content: extract_fallback_text({ 'payload' => payload }),
-          message_type: :outgoing,
-          account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id,
-          additional_attributes: { skip_send_reply: true }
-        )
+        outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using Instagram Rich Message Service
@@ -1115,6 +1097,77 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # Generic fallback
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using generic fallback text"
       "Message received"
+    end
+
+    # Create outgoing message with rich content directly to avoid flash effect
+    # @param conversation [Conversation] The conversation to create the message in
+    # @param instagram_payload [Hash] The Instagram API payload
+    # @param original_payload [Hash] The original Dialogflow payload
+    # @return [Message] The created message
+    def create_rich_outgoing_message(conversation, instagram_payload, original_payload)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich outgoing message"
+      
+      # Check if rich dashboard is enabled for this account
+      account = conversation.account
+      rich_dashboard_enabled = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+      
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Rich dashboard enabled: #{rich_dashboard_enabled} for account #{account.id}"
+      
+      if rich_dashboard_enabled
+        # Create message directly as rich cards to avoid flash effect
+        create_rich_message_directly(conversation, instagram_payload, original_payload)
+      else
+        # Create regular text message (existing behavior)
+        create_text_message(conversation, original_payload)
+      end
+    end
+
+    # Create message directly as rich cards
+    # @param conversation [Conversation] The conversation to create the message in
+    # @param instagram_payload [Hash] The Instagram API payload
+    # @param original_payload [Hash] The original Dialogflow payload
+    # @return [Message] The created message
+    def create_rich_message_directly(conversation, instagram_payload, original_payload)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating message directly as rich cards"
+      
+      # Use the Instagram Renderer Mapper to convert payload to Chatwoot format
+      mapped_result = Messages::InstagramRendererMapper.map(instagram_payload)
+      
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped content_type: #{mapped_result.content_type}"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped fallback_text: #{mapped_result.fallback_text}"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped content_attributes keys: #{mapped_result.content_attributes.keys}"
+
+      # Create message directly with rich content
+      message = conversation.messages.create!(
+        content: mapped_result.fallback_text,
+        content_type: mapped_result.content_type,
+        content_attributes: mapped_result.content_attributes,
+        message_type: :outgoing,
+        account_id: conversation.account_id,
+        inbox_id: conversation.inbox_id,
+        additional_attributes: { skip_send_reply: true }
+      )
+
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created rich message directly with ID: #{message.id}"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message content_type: #{message.content_type}"
+      
+      message
+    end
+
+    # Create regular text message (existing behavior)
+    # @param conversation [Conversation] The conversation to create the message in
+    # @param original_payload [Hash] The original Dialogflow payload
+    # @return [Message] The created message
+    def create_text_message(conversation, original_payload)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating regular text message"
+      
+      conversation.messages.create!(
+        content: extract_fallback_text({ 'payload' => original_payload }),
+        message_type: :outgoing,
+        account_id: conversation.account_id,
+        inbox_id: conversation.inbox_id,
+        additional_attributes: { skip_send_reply: true }
+      )
     end
   end
 end

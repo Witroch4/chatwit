@@ -9,18 +9,14 @@ import BaseBubble from './Base.vue';
 
 const { contentAttributes, id, content } = useMessageContext();
 
-// Access feature flag from global config (with fallback to always enabled for now)
-const isRichDashboardEnabled = computed(() => {
-  // For now, always enable if we have items to render
-  // TODO: Implement proper feature flag checking when account features are exposed
-  return true;
-});
-
 const items = computed(() => {
   return contentAttributes.value?.items || [];
 });
 
 const shouldRenderRichCards = computed(() => {
+  // If this component is being called, it means the backend already verified
+  // that the feature flag is enabled and created the message as cards.
+  // We just need to check if we have items to render.
   return items.value.length > 0;
 });
 
@@ -32,21 +28,32 @@ const escapeHtml = (text) => {
   return div.innerHTML;
 };
 
+// Define development mode flag once in script
+const isDev = import.meta.env.MODE !== 'production';
+
 // Metrics tracking function
 function trackMetric(name, labels) {
   if (window.analytics) {
     window.analytics.track(name, labels);
   }
   // Also log to console for debugging
-  if (import.meta.env.MODE !== 'production') {
+  if (isDev) {
     // eslint-disable-next-line no-console
     console.log(`[RichCards] ${name}:`, labels);
   }
 }
 
+// Handle image loading success
+const handleImageLoad = (src) => {
+  if (isDev) {
+    // eslint-disable-next-line no-console
+    console.log('[RichCards] Image loaded successfully:', src);
+  }
+};
+
 // Handle image loading errors
 const handleImageError = (event) => {
-  if (import.meta.env.MODE !== 'production') {
+  if (isDev) {
     // eslint-disable-next-line no-console
     console.error('[RichCards] Image failed to load:', {
       src: event.target.src,
@@ -82,14 +89,13 @@ const handlePostback = (action) => {
 
 // Track successful render on mount
 onMounted(() => {
-  if (import.meta.env.MODE !== 'production') {
+  if (isDev) {
     // eslint-disable-next-line no-console
     console.log('[RichCards] Component mounted:', {
       messageId: id.value,
       contentAttributes: contentAttributes.value,
       items: items.value,
-      shouldRender: shouldRenderRichCards.value,
-      isEnabled: isRichDashboardEnabled.value
+      shouldRender: shouldRenderRichCards.value
     });
     
     // Log image URLs for debugging
@@ -115,7 +121,7 @@ onMounted(() => {
 
 // Handle component errors
 onErrorCaptured((err) => {
-  if (import.meta.env.MODE !== 'production') {
+  if (isDev) {
     // eslint-disable-next-line no-console
     console.error('RichCards error:', err);
   }
@@ -150,14 +156,7 @@ onErrorCaptured((err) => {
             decoding="async"
             class="w-full h-48 object-cover"
             @error="handleImageError"
-            @load="
-              () =>
-                import.meta.env.MODE !== 'production' &&
-                console.log(
-                  '[RichCards] Image loaded successfully:',
-                  item.media_url || item.mediaUrl
-                )
-            "
+            @load="handleImageLoad(item.media_url || item.mediaUrl)"
           />
         </div>
 

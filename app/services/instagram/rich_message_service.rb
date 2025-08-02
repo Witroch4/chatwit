@@ -333,7 +333,15 @@ class Instagram::RichMessageService < Instagram::BaseSendService
 
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === STARTING DASHBOARD MIRRORING ==="
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message ID: #{message.id}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Current message content_type: #{message.content_type}"
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich payload template_type: #{rich_payload['template_type']}"
+
+    # Check if message is already in rich format (created directly as cards)
+    if message_already_rich?
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message already created as rich cards, skipping mirroring"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === DASHBOARD MIRRORING SKIPPED ==="
+      return
+    end
 
     # Use the Instagram Renderer Mapper to convert payload to Chatwoot format
     mapped_result = Messages::InstagramRendererMapper.map(rich_payload)
@@ -371,5 +379,14 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich dashboard enabled check: #{enabled} for account #{account.id}"
     enabled
+  end
+
+  # Check if message is already in rich format (created directly as cards/input_select)
+  def message_already_rich?
+    rich_content_types = %w[cards input_select]
+    is_rich = rich_content_types.include?(message.content_type)
+    
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message already rich check: #{is_rich} (content_type: #{message.content_type})"
+    is_rich
   end
 end
