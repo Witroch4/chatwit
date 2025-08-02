@@ -176,3 +176,7 @@
 - name: notion_integration
   display_name: Notion Integration
   enabled: false
+- name: SOCIALWISE_RICH_DASHBOARD
+  display_name: SocialWise Rich Dashboard
+  enabled: true
+  help_url: https://docs.socialwise.com/rich-dashboard

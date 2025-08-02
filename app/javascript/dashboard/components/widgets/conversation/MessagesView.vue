@@ -47,6 +47,7 @@ export default {
     ConversationLabelSuggestion,
   },
   mixins: [inboxMixin],
+  emits: ['richPostback'],
   setup() {
     const isPopOutReplyBox = ref(false);
     const conversationPanelRef = ref(null);
@@ -302,6 +303,8 @@ export default {
     emitter.on(BUS_EVENTS.MESSAGE_SENT, () => {
       this.messageSentSinceOpened = true;
     });
+    // Handle rich message postback events for metrics and automation
+    emitter.on(BUS_EVENTS.RICH_POSTBACK, this.onRichPostback);
   },
 
   mounted() {
@@ -367,6 +370,7 @@ export default {
     },
     removeBusListeners() {
       emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
+      emitter.off(BUS_EVENTS.RICH_POSTBACK, this.onRichPostback);
     },
     onScrollToMessage({ messageId = '' } = {}) {
       this.$nextTick(() => {
@@ -380,6 +384,50 @@ export default {
         }
       });
       this.makeMessagesRead();
+    },
+    onRichPostback(postbackData) {
+      // Handle rich message postback events for metrics and automation
+      const { messageId, payload, text, type, timestamp } = postbackData;
+
+      // Track metrics for postback interaction
+      if (window.analytics) {
+        window.analytics.track('cw_rich_postback_interaction', {
+          conversation_id: this.currentChat.id,
+          message_id: messageId,
+          payload: payload,
+          text: text,
+          type: type || 'unknown',
+          timestamp: timestamp,
+          account_id: this.currentAccountId,
+          inbox_id: this.currentChat.inbox_id,
+        });
+      }
+
+      // Log for debugging and monitoring
+      if (import.meta.env.MODE !== 'production') {
+        // eslint-disable-next-line no-console
+        console.log('[RichPostback] Conversation-level event:', {
+          conversationId: this.currentChat.id,
+          messageId,
+          payload,
+          text,
+          type,
+        });
+      }
+
+      // Emit to parent components for further automation/integration
+      this.$emit('richPostback', {
+        conversationId: this.currentChat.id,
+        messageId,
+        payload,
+        text,
+        type,
+        timestamp,
+        chat: this.currentChat,
+      });
+
+      // Future: Could trigger automation rules, webhooks, or other integrations here
+      // Example: this.$store.dispatch('automation/triggerRichPostback', postbackData);
     },
     addScrollListener() {
       this.conversationPanel = this.$el.querySelector('.conversation-panel');

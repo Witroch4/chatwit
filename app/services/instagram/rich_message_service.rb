@@ -52,6 +52,9 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Channel: #{channel.class}"
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Contact: #{contact.class}"
 
+    # Mirror rich payload to dashboard before sending to Instagram API
+    mirror_rich_payload_to_dashboard
+
     # Send rich message content
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] About to call send_rich_message"
     send_rich_message
@@ -322,5 +325,51 @@ class Instagram::RichMessageService < Instagram::BaseSendService
     
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Params after human agent tag: #{params.inspect}"
     params
+  end
+
+  # Mirror rich payload to dashboard for visualization
+  def mirror_rich_payload_to_dashboard
+    return unless rich_dashboard_enabled?
+
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === STARTING DASHBOARD MIRRORING ==="
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message ID: #{message.id}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich payload template_type: #{rich_payload['template_type']}"
+
+    # Use the Instagram Renderer Mapper to convert payload to Chatwoot format
+    mapped_result = Messages::InstagramRendererMapper.map(rich_payload)
+    
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Mapped content_type: #{mapped_result.content_type}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Mapped fallback_text: #{mapped_result.fallback_text}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Mapped content_attributes keys: #{mapped_result.content_attributes.keys}"
+
+    # Update message with rich content using update_columns for performance
+    # This bypasses callbacks and validations for better performance
+    message.update_columns(
+      content_type: Message.content_types[mapped_result.content_type],
+      content_attributes: mapped_result.content_attributes,
+      content: mapped_result.fallback_text,
+      updated_at: Time.current
+    )
+
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Message updated successfully"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Final content_type (enum): #{message.content_type}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Final content_type (string): #{message.content_type}"
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] === DASHBOARD MIRRORING COMPLETED ==="
+
+  rescue StandardError => e
+    Rails.logger.error "[SOCIALWISE-INSTAGRAM-RICH] Dashboard mirroring failed for message #{message.id}: #{e.class}: #{e.message}"
+    Rails.logger.error "[SOCIALWISE-INSTAGRAM-RICH] Mirroring error backtrace: #{e.backtrace.first(5).join('\n')}"
+    
+    # Continue with normal flow even if mirroring fails
+    # This ensures Instagram API sending is not affected by dashboard issues
+  end
+
+  # Check if rich dashboard feature is enabled
+  def rich_dashboard_enabled?
+    account = message.conversation.account
+    enabled = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+    
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich dashboard enabled check: #{enabled} for account #{account.id}"
+    enabled
   end
 end

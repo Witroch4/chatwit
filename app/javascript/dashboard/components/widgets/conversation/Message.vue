@@ -355,6 +355,23 @@ export default {
     isEmailContentType() {
       return this.contentType === CONTENT_TYPES.INCOMING_EMAIL;
     },
+    isQuickRepliesContentType() {
+      return (
+        this.contentType === 'input_select' &&
+        this.contentAttributes.items &&
+        this.contentAttributes.items.length > 0 &&
+        !this.contentAttributes.submitted_values
+      );
+    },
+    quickRepliesItems() {
+      return this.contentAttributes.items || [];
+    },
+    isRichDashboardEnabled() {
+      // Check for SOCIALWISE_RICH_DASHBOARD feature flag
+      return (
+        this.$store.getters.getGlobalConfig?.SOCIALWISE_RICH_DASHBOARD || false
+      );
+    },
   },
   watch: {
     data() {

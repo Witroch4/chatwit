@@ -31,6 +31,7 @@ export default {
       default: true,
     },
   },
+  emits: ['richPostback'],
   data() {
     return { activeIndex: 0 };
   },
@@ -85,6 +86,18 @@ export default {
     onDashboardAppTabChange(index) {
       this.activeIndex = index;
     },
+    onRichPostback(postbackData) {
+      // Bubble up rich postback events to parent components for further processing
+      this.$emit('richPostback', postbackData);
+
+      // Log conversation-level postback for debugging
+      if (import.meta.env.MODE !== 'production') {
+        // eslint-disable-next-line no-console
+        console.log('[ConversationBox] Rich postback event:', postbackData);
+      }
+
+      // Future: Could integrate with conversation-level automation or webhooks here
+    },
   },
 };
 </script>
@@ -120,6 +133,7 @@ export default {
         v-if="currentChat.id"
         :inbox-id="inboxId"
         :is-inbox-view="isInboxView"
+        @rich-postback="onRichPostback"
       />
       <EmptyState
         v-if="!currentChat.id && !isInboxView"

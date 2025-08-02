@@ -395,5 +395,9 @@
   },
   "GALLERY_VIEW": {
     "ERROR_DOWNLOADING": "Unable to download attachment. Please try again"
+  },
+  "RICH_MESSAGE": {
+    "RICH_MESSAGE_FALLBACK_TITLE": "Rich message (fallback view)",
+    "DEBUG_INFO": "Debug Info"
   }
 }

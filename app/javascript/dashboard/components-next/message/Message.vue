@@ -36,6 +36,8 @@ import DyteBubble from './bubbles/Dyte.vue';
 import LocationBubble from './bubbles/Location.vue';
 import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
+import RichCards from './bubbles/RichCards.vue';
+import QuickReplies from './bubbles/QuickReplies.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -274,9 +276,29 @@ const componentToRender = computed(() => {
     return CSATBubble;
   }
 
-  if (
-    [CONTENT_TYPES.INPUT_SELECT, CONTENT_TYPES.FORM].includes(props.contentType)
-  ) {
+  if (props.contentType === CONTENT_TYPES.CARDS) {
+    return RichCards;
+  }
+
+  if (props.contentType === CONTENT_TYPES.INPUT_SELECT) {
+    // Check if this is QuickReplies (no submitted values) or Form (has submitted values)
+    const hasSubmittedValues =
+      props.contentAttributes?.submittedValues &&
+      props.contentAttributes.submittedValues.length > 0;
+
+    if (
+      !hasSubmittedValues &&
+      props.contentAttributes?.items &&
+      props.contentAttributes.items.length > 0
+    ) {
+      // This is QuickReplies - show available options
+      return QuickReplies;
+    }
+    // This is a submitted form - show submitted values
+    return FormBubble;
+  }
+
+  if (props.contentType === CONTENT_TYPES.FORM) {
     return FormBubble;
   }
 
