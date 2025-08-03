@@ -64,12 +64,15 @@ class Integrations::Socialwise::InstagramResponseProcessor
     def route_message(message_format, payload, message)
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Routing message with format: #{message_format}"
 
-      # Validate Instagram channel
-      conversation = message.conversation
-      unless conversation.inbox.channel_type == 'Channel::Instagram'
-        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Rich messages only supported for Instagram channels, got: #{conversation.inbox.channel_type}"
+      # Validate Instagram channel using comprehensive validator
+      validator = InstagramChannelValidator.new(message)
+      unless validator.valid_for_rich_messages?
+        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation failed: #{validator.error_messages}"
+        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation status: #{validator.validation_status.inspect}"
         return fallback_to_text_message(message, { 'payload' => payload })
       end
+
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation passed successfully"
 
       case message_format
       when 'GENERIC_TEMPLATE'

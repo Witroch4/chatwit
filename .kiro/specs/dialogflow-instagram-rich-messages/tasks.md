@@ -72,7 +72,6 @@
 
 - [x] 8. Implement fallback mechanisms
 
-
   - Create `fallback_to_text_message` method in SocialWise Instagram Response Processor
   - Implement `extract_fallback_text` method to extract meaningful text from failed rich message payloads
   - Add fallback logic for unknown message formats with proper logging
@@ -83,9 +82,6 @@
 
 - [x] 9. Add comprehensive logging and monitoring
 
-
-
-
   - Implement detailed logging for all socialwiseResponse processing steps
   - Add logging for payload validation results and failure reasons
   - Log Instagram API call details and response status for rich messages
@@ -94,17 +90,18 @@
   - Add success logging with message format and recipient details
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 10. Create unit tests for SocialWise Instagram Response Processor
+- [x] 10. Create unit tests for SocialWise Instagram Response Processor
 
   - Write tests for `process` method with valid socialwiseResponse data
   - Write tests for `route_message` method with each supported message format
   - Write tests for payload validation methods with valid and invalid payloads
+
   - Write tests for error handling scenarios and fallback behavior
   - Write tests for unknown message format handling
   - Write tests for Instagram channel validation logic
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.1, 5.2_
 
-- [ ] 11. Create unit tests for Instagram Rich Message Service
+- [x] 11. Create unit tests for Instagram Rich Message Service
 
   - Write tests for service initialization with message and rich_payload
   - Write tests for `rich_message_params` method with different payload formats
@@ -112,19 +109,29 @@
   - Write tests for Instagram API integration using existing infrastructure
   - Write tests for error handling and integration with parent class error handling
   - Write tests for authentication and rate limiting behavior
+    **Referências no Requirements:** Req 7 (AC1–AC4)
+  - **Como testar (Docker):**
+    ```bash
+    docker-compose -f docker-compose.yaml -p chatwit-dev run --rm rails \
+      bundle exec rspec spec/services/instagram/rich_message_service_spec.rb
+    ```
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 12. Create integration tests for rich message formats
+- [x] 12. Create integration tests for rich message formats
 
   - Write tests for complete Generic Template flow from socialwiseResponse to Instagram API
   - Write tests for complete Button Template flow with different button types
+
   - Write tests for complete Quick Replies flow with multiple options
   - Write tests for payload validation integration with message sending
   - Write tests for error scenarios and fallback to text messages
   - Write tests for Instagram channel validation and non-Instagram channel handling
+  - **Como testar (Docker):**
+    docker-compose -f docker-compose.yaml -p chatwit-dev run --rm rails \
+     bundle exec rspec spec/integration/instagram/rich_message_flow_spec.rb
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 13. Create integration tests for Dialogflow processor enhancement
+- [x] 13. Create integration tests for Dialogflow processor enhancement
 
   - Write tests for socialwiseResponse detection in Dialogflow responses
   - Write tests for priority rule implementation (socialwiseResponse over text messages)
@@ -132,9 +139,18 @@
   - Write tests ensuring existing Dialogflow functionality remains unaffected
   - Write tests for mixed scenarios (some messages with socialwiseResponse, others without)
   - Write tests for error handling when rich message processing fails
+
+- **Referências no Requirements:** Req 2/3/4 (AC1), Req 5 (AC4), Req 7 (AC1)
+
+  - **Como testar (Docker):**
+    ```bash
+    docker-compose -f docker-compose.yaml -p chatwit-dev run --rm rails \
+      bundle exec rspec spec/e2e/instagram_rich_templates_spec.rb
+    ```
   - _Requirements: 1.1, 1.2, 1.4, 5.1, 5.3, 5.4_
 
-- [ ] 14. Create end-to-end tests for complete rich message flow
+- [x] 14. Create end-to-end tests for complete rich message flow
+
 
   - Write tests simulating complete user interaction flow with Generic Templates
   - Write tests simulating complete user interaction flow with Button Templates
@@ -142,13 +158,30 @@
   - Write tests for error scenarios and recovery mechanisms
   - Write tests for performance under load with multiple rich messages
   - Write tests for backward compatibility with existing Instagram messaging
+  - **Referências no Requirements:** Req 2/3/4 (AC1), Req 5 (AC4), Req 7 (AC1)
+  - **Como testar (Docker):**
+    ```bash
+    docker-compose -f docker-compose.yaml -p chatwit-dev run --rm rails \
+      bundle exec rspec spec/e2e/instagram_rich_templates_spec.rb
+    ```
   - _Requirements: 2.1, 3.1, 4.1, 5.4, 7.1_
 
-- [ ] 15. Implement Instagram channel validation and compatibility checks
+- [x] 15. Implement Instagram channel validation and compatibility checks
+
+
+
+
   - Add method to verify message conversation is on Instagram channel before processing rich messages
   - Implement graceful handling for non-Instagram channels that receive socialwiseResponse
+
   - Add validation for Instagram channel configuration and access token availability
   - Ensure rich message processing only occurs for properly configured Instagram inboxes
   - Add logging for channel validation results and compatibility issues
   - Test compatibility with existing Instagram channel functionality
+
+- **Como testar (Docker):**
+  ```bash
+  docker-compose -f docker-compose.yaml -p chatwit-dev run --rm rails \
+    bundle exec rspec spec/validators/instagram_channel_validator_spec.rb
+  ```
   - _Requirements: 5.1, 7.1, 7.2_
