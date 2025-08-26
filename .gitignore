@@ -84,3 +84,13 @@ chatwit-enterprise.yaml
 chatwit-enterprise-nfs.yaml
 build-producao.ps1
 build-and-push.ps1
+
+# Google Cloud Service Account credentials
+*.json
+!package.json
+!package-lock.json
+!yarn.lock
+!pnpm-lock.yaml
+
+# Docker compose files with sensitive data
+compose de produção portainer chatwoot.yaml
