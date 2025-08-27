@@ -145,29 +145,7 @@ RSpec.describe Whatsapp::RichMessageService do
       end
     end
 
-    context 'when rich dashboard is disabled' do
-      before do
-        account.disable_features('SOCIALWISE_RICH_DASHBOARD')
-        account.save!
-      end
-
-      it 'skips dashboard mirroring' do
-        expect(Messages::WhatsappRendererMapper).not_to receive(:map)
-
-        service.perform
-
-        message.reload
-        expect(message.content_type).not_to eq('cards')
-      end
-
-      it 'still sends WhatsApp message' do
-        provider_double = double('WhatsappCloudService')
-        expect(Whatsapp::Providers::WhatsappCloudService).to receive(:new).and_return(provider_double)
-        expect(provider_double).to receive(:send_interactive_text_message)
-
-        service.perform
-      end
-    end
+    # Feature flag dependency removed - dashboard mirroring always happens for interactive messages
 
     context 'when message is already rich' do
       before do
@@ -305,18 +283,7 @@ RSpec.describe Whatsapp::RichMessageService do
       end
     end
 
-    describe '#rich_dashboard_enabled?' do
-      it 'returns true when feature is enabled' do
-        expect(service.send(:rich_dashboard_enabled?)).to be true
-      end
-
-      it 'returns false when feature is disabled' do
-        account.disable_features('SOCIALWISE_RICH_DASHBOARD')
-        account.save!
-
-        expect(service.send(:rich_dashboard_enabled?)).to be false
-      end
-    end
+    # Feature flag dependency removed - interactive messages are always displayed as core functionality
 
     describe '#message_already_rich?' do
       it 'returns false for text messages' do

@@ -403,6 +403,8 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     Rails.logger.info "[SOCIALWISE-FLOW] Generic reaction text message created: #{text_message.id}"
   end
 
+
+
   def create_conversation(message, content_params)
     # Requirement 7.1, 7.2: Create outgoing messages with proper message_type and tracking
     Rails.logger.info "[SOCIALWISE-FLOW] Creating conversation message"
@@ -509,24 +511,48 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       # Create message for dashboard display (Requirement 7.1, 7.2)
       outgoing_message = nil
       begin
-        # Criar mensagem básica primeiro
-        outgoing_message = conversation.messages.create!(
-          message_type: :outgoing,
-          content: text_content,
-          content_type: is_interactive ? 'integrations' : 'text',
-          content_attributes: is_interactive ? {
-            'interactive' => whatsapp_payload['interactive'],
-            'type' => whatsapp_payload['type'],
-            'whatsapp_interactive_payload' => whatsapp_payload['interactive']
-          } : {},
-          additional_attributes: is_interactive ? { 'skip_send_reply' => true } : {},
-          account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id
-        )
+        # Criar mensagem básica primeiro - SEMPRE como integrations para mensagens interativas
+        if is_interactive
+          # COPIAR A RECEITA DO SUCESSO DO INSTAGRAM: criar mensagem diretamente com formato correto
+          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Creating interactive message directly with correct format (Instagram pattern)"
+          
+          # Usar o WhatsApp Renderer Mapper para converter payload para formato Chatwoot
+          mapped_result = Messages::WhatsappRendererMapper.map(whatsapp_payload['interactive'])
+          
+          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Mapped content_type: #{mapped_result.content_type}"
+          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Mapped fallback_text: #{mapped_result.fallback_text}"
+          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Mapped content_attributes keys: #{mapped_result.content_attributes.keys}"
+
+          # Criar mensagem diretamente com conteúdo rico (padrão Instagram)
+          outgoing_message = conversation.messages.create!(
+            message_type: :outgoing,
+            content: mapped_result.fallback_text,
+            content_type: mapped_result.content_type,
+            content_attributes: mapped_result.content_attributes,
+            additional_attributes: { 
+              'skip_send_reply' => true,
+              'socialwise_flow_message' => true
+            },
+            account_id: conversation.account_id,
+            inbox_id: conversation.inbox_id
+          )
+          
+          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Created interactive message directly with ID: #{outgoing_message.id}"
+        else
+          # Mensagem de texto simples
+          outgoing_message = conversation.messages.create!(
+            message_type: :outgoing,
+            content: text_content,
+            content_type: 'text',
+            account_id: conversation.account_id,
+            inbox_id: conversation.inbox_id
+          )
+        end
         
         Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Message created: #{outgoing_message.id} (interactive: #{is_interactive})"
         Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Skip send reply flag: #{outgoing_message.additional_attributes['skip_send_reply']}" if is_interactive
         Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Message created successfully: #{outgoing_message.id} (content_type: #{outgoing_message.content_type})"
+        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] SocialWise Flow flag: #{outgoing_message.additional_attributes['socialwise_flow_message']}" if is_interactive
         
       rescue StandardError => message_creation_error
         # Requirement 6.2: Continue processing even if message creation fails
@@ -555,11 +581,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       if outgoing_message
         begin
           if is_interactive
-            # Para mensagens interativas, usar o método send_interactive_payload diretamente
+            # Para mensagens interativas (tanto cards quanto interactive), usar o método send_interactive_payload
             contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
             channel = conversation.inbox.channel
             
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Sending interactive message via Whatsapp::RichMessageService"
+            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Sending interactive message via Whatsapp::RichMessageService (content_type: #{outgoing_message.content_type})"
             
             # Usar o novo serviço de mensagens ricas do WhatsApp
             rich_service = Whatsapp::RichMessageService.new(
@@ -587,6 +613,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
           Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Message sending failed: #{sending_error.class}: #{sending_error.message}"
           Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Message ID: #{outgoing_message.id}"
           Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Is interactive: #{is_interactive}"
+          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Content type: #{outgoing_message.content_type}"
           Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Contact source ID: #{conversation.contact.get_source_id(conversation.inbox.id) rescue 'unknown'}"
           Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Backtrace: #{sending_error.backtrace.first(5).join('\n')}"
           # Message is created in dashboard, sending failure doesn't affect that
@@ -644,9 +671,19 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       
       Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Channel validation passed, processing with InstagramResponseProcessor"
       
+      # Reestruturar payload para formato esperado pelo InstagramResponseProcessor
+      # O processor espera: { message_format: 'X', payload: { template_type: 'Y', ... } }
+      # Mas SocialWise Flow envia: { message_format: 'X', template_type: 'Y', ... }
+      restructured_payload = {
+        'message_format' => instagram_payload['message_format'],
+        'payload' => instagram_payload.except('message_format')
+      }
+      
+      Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Restructured payload for processor: #{restructured_payload.inspect}"
+      
       # Usar o InstagramResponseProcessor do Socialwise (mesmo usado pelo Dialogflow)
       begin
-        success = Integrations::Socialwise::InstagramResponseProcessor.process(instagram_payload, message)
+        success = Integrations::Socialwise::InstagramResponseProcessor.process(restructured_payload, message)
         
         if success
           Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response processed successfully by InstagramResponseProcessor"

@@ -1,24 +1,35 @@
 #!/usr/bin/env ruby
-# Script para habilitar SOCIALWISE_RICH_DASHBOARD para a conta 3
+# Enable SOCIALWISE_RICH_DASHBOARD feature for account 3
+# This can be run in Rails console or as a script
 
-# Encontrar a conta 3
-account = Account.find(3)
+puts "=== Enabling SOCIALWISE_RICH_DASHBOARD for Account 3 ==="
 
-puts "=== Habilitando SOCIALWISE_RICH_DASHBOARD para conta #{account.id} ==="
-puts "Estado atual: #{account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')}"
-
-# Habilitar a feature
-account.enable_features!('SOCIALWISE_RICH_DASHBOARD')
-
-puts "Estado após habilitação: #{account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')}"
-
-# Verificar todas as features habilitadas
-puts "\n=== Features habilitadas para conta #{account.id} ==="
-account.enabled_features.each do |feature_name, enabled|
-  puts "  #{feature_name}: #{enabled}"
+begin
+  account = Account.find(3)
+  puts "Found account: #{account.name} (ID: #{account.id})"
+  
+  # Check current status
+  current_status = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+  puts "Current status: #{current_status}"
+  
+  unless current_status
+    # Enable the feature
+    account_feature = account.account_features.find_or_create_by(feature_name: 'SOCIALWISE_RICH_DASHBOARD')
+    account_feature.update!(enabled: true)
+    
+    puts "✅ Feature enabled successfully!"
+    
+    # Verify
+    new_status = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+    puts "New status: #{new_status}"
+  else
+    puts "✅ Feature is already enabled!"
+  end
+  
+rescue ActiveRecord::RecordNotFound
+  puts "❌ Account 3 not found"
+rescue StandardError => e
+  puts "❌ Error: #{e.message}"
 end
 
-puts "\n=== Teste do Instagram Rich Message Service ==="
-puts "Feature check: #{account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')}"
-
-puts "\n✅ Script concluído!"
+puts "=== Script completed ==="

@@ -187,7 +187,25 @@ export const mutations = {
 
     const pendingMessageIndex = findPendingMessageIndex(chat, message);
     if (pendingMessageIndex !== -1) {
-      chat.messages[pendingMessageIndex] = message;
+      const existingMessage = chat.messages[pendingMessageIndex];
+
+      // Preserve rich content during message confirmation updates
+      if (
+        existingMessage &&
+        existingMessage.content_type === 'integrations' &&
+        message.content_type === 'text' &&
+        existingMessage.content_attributes?.whatsapp_interactive_payload
+      ) {
+        // Keep the rich content but update other fields (like source_id, status)
+        chat.messages[pendingMessageIndex] = {
+          ...message,
+          content_type: existingMessage.content_type,
+          content: existingMessage.content,
+          content_attributes: existingMessage.content_attributes,
+        };
+      } else {
+        chat.messages[pendingMessageIndex] = message;
+      }
     } else {
       chat.messages.push(message);
       chat.timestamp = message.created_at;

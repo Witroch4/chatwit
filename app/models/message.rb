@@ -402,6 +402,7 @@ class Message < ApplicationRecord
     conversation.update_columns(last_activity_at: created_at)
     # rubocop:enable Rails/SkipsModelValidations
   end
+
 end
 
 Message.prepend_mod_with('Message')

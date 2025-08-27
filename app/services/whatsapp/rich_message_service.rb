@@ -66,7 +66,7 @@ class Whatsapp::RichMessageService
 
   # Mirror interactive payload to dashboard for visualization (like Instagram)
   def mirror_interactive_payload_to_dashboard
-    return unless rich_dashboard_enabled?
+    # Always mirror interactive messages - this is core functionality
 
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] === STARTING DASHBOARD MIRRORING ==="
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message ID: #{message.id}"
@@ -144,9 +144,14 @@ class Whatsapp::RichMessageService
       raise ArgumentError, "Phone number is required"
     end
 
-    # Store interactive payload in message for provider to use
-    message.content_attributes['interactive_payload'] = interactive_payload
-    message.save!
+    # Store interactive payload in message for provider to use (only if not already present)
+    unless message.content_attributes['interactive_payload'] == interactive_payload
+      message.content_attributes['interactive_payload'] = interactive_payload
+      message.save!
+      Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Interactive payload stored in message"
+    else
+      Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Interactive payload already present, skipping save"
+    end
 
     # Use existing WhatsApp provider infrastructure
     provider = provider_service(@channel)
@@ -170,14 +175,7 @@ class Whatsapp::RichMessageService
     end
   end
 
-  # Check if rich dashboard feature is enabled
-  def rich_dashboard_enabled?
-    account = message.conversation.account
-    enabled = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
-    
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Rich dashboard enabled check: #{enabled} for account #{account.id}"
-    enabled
-  end
+
 
   # Check if message is already in rich format
   def message_already_rich?
@@ -187,6 +185,7 @@ class Whatsapp::RichMessageService
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message already rich check: #{is_rich} (content_type: #{message.content_type})"
     is_rich
   end
+
 
   def handle_error(error)
     Rails.logger.error "[SOCIALWISE-WHATSAPP-RICH] Error in WhatsApp rich message service: #{error.class}: #{error.message}"
@@ -207,5 +206,4 @@ class Whatsapp::RichMessageService
     end
   end
 end
-  
   
