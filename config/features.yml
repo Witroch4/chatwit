@@ -176,6 +176,51 @@
 - name: notion_integration
   display_name: Notion Integration
   enabled: false
+- name: hide_all_chats_for_agent
+  display_name: Hide All Chats for Agent
+  enabled: false
+- name: hide_contacts_for_agent
+  display_name: Hide Contacts for Agent
+  enabled: false
+- name: hide_filters_for_agent
+  display_name: Hide Filters for Agent
+  enabled: false
+- name: send_agent_name_in_whatsapp_message
+  display_name: Send Agent Name in WhatsApp Message
+  enabled: true
+- name: read_message
+  display_name: Read Message
+  enabled: true
+- name: disable_whatsapp_messaging_window
+  display_name: Disable WhatsApp Messaging Window
+  enabled: false
+- name: agent_conversation_viewed
+  display_name: Agent Conversation Viewed
+  enabled: true
+- name: hide_unassigned_for_agent
+  display_name: Hide Unassigned for Agent
+  enabled: false
+- name: hide_all_inbox_for_agent
+  display_name: Hide All Inbox for Agent
+  enabled: false
+- name: channel_sms
+  display_name: SMS Channel
+  enabled: false
+- name: channel_whatsapp
+  display_name: WhatsApp Channel
+  enabled: true
+- name: channel_telegram
+  display_name: Telegram Channel
+  enabled: false
+- name: channel_line
+  display_name: Line Channel
+  enabled: false
+- name: channel_api
+  display_name: API Channel
+  enabled: true
+- name: wavoip
+  display_name: WaVoIP
+  enabled: false
 - name: SOCIALWISE_RICH_DASHBOARD
   display_name: SocialWise Rich Dashboard
   enabled: true
