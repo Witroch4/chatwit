@@ -83,6 +83,12 @@ class Whatsapp::Providers::BaseService
   end
 
   def create_payload_based_on_items(message)
+    # Se há um payload interativo pronto (do SocialWise Flow), usar ele diretamente
+    if message.content_attributes['interactive_payload'].present?
+      return message.content_attributes['interactive_payload']
+    end
+    
+    # Caso contrário, usar a lógica original do Chatwoot
     if message.content_attributes['items'].length <= 3
       create_button_payload(message)
     else

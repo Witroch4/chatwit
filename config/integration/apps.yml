@@ -135,6 +135,46 @@ dialogflow:
       },
     ]
   visible_properties: ['project_id', 'region']
+socialwise_flow:
+  id: socialwise_flow
+  logo: socialwise-flow.png
+  i18n_key: socialwise_flow
+  action: /socialwise_flow
+  hook_type: inbox
+  allow_multiple_hooks: true
+  settings_json_schema:
+    {
+      'type': 'object',
+      'properties':
+        {
+          'endpoint': { 'type': 'string' },
+          'access_token': { 'type': 'string' },
+          'language': { 'type': 'string' }
+        },
+      'required': [],
+      'additionalProperties': false,
+    }
+  settings_form_schema:
+    [
+      {
+        'label': 'Endpoint',
+        'type': 'text',
+        'name': 'endpoint',
+        'help': 'Ex.: https://socialwise.witdev.com.br/api/integrations/webhooks/socialwiseflow',
+      },
+      {
+        'label': 'Access Token (opcional)',
+        'type': 'text',
+        'name': 'access_token',
+      },
+      {
+        'label': 'Idioma',
+        'type': 'text',
+        'name': 'language',
+        'default': 'pt-BR',
+      },
+    ]
+  visible_properties: ['endpoint', 'language']
 google_translate:
   id: google_translate
   logo: google-translate.png

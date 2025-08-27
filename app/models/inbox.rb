@@ -154,7 +154,7 @@ class Inbox < ApplicationRecord
   end
 
   def active_bot?
-    agent_bot_inbox&.active? || hooks.where(app_id: %w[dialogflow],
+    agent_bot_inbox&.active? || hooks.where(app_id: %w[dialogflow socialwise_flow],
                                             status: 'enabled').count.positive?
   end
 

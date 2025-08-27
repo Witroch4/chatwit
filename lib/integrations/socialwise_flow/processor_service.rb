@@ -509,34 +509,23 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       # Create message for dashboard display (Requirement 7.1, 7.2)
       outgoing_message = nil
       begin
-        if is_interactive
-          # Para mensagens interativas, usar content_type 'integrations' com payload completo
-          # O WhatsApp service pode usar send_interactive_payload para payloads prontos
-          outgoing_message = conversation.messages.create!(
-            message_type: :outgoing,
-            content: text_content,
-            content_type: 'integrations',
-            content_attributes: {
-              'interactive' => whatsapp_payload['interactive'],
-              'type' => whatsapp_payload['type'],
-              'whatsapp_interactive_payload' => whatsapp_payload['interactive']
-            },
-            account_id: conversation.account_id,
-            inbox_id: conversation.inbox_id
-          )
-          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Interactive message created: #{outgoing_message.id}"
-        else
-          # Para mensagens de texto simples
-          outgoing_message = conversation.messages.create!(
-            message_type: :outgoing,
-            content: text_content,
-            content_type: 'text',
-            account_id: conversation.account_id,
-            inbox_id: conversation.inbox_id
-          )
-          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Text message created: #{outgoing_message.id}"
-        end
+        # Criar mensagem básica primeiro
+        outgoing_message = conversation.messages.create!(
+          message_type: :outgoing,
+          content: text_content,
+          content_type: is_interactive ? 'integrations' : 'text',
+          content_attributes: is_interactive ? {
+            'interactive' => whatsapp_payload['interactive'],
+            'type' => whatsapp_payload['type'],
+            'whatsapp_interactive_payload' => whatsapp_payload['interactive']
+          } : {},
+          additional_attributes: is_interactive ? { 'skip_send_reply' => true } : {},
+          account_id: conversation.account_id,
+          inbox_id: conversation.inbox_id
+        )
         
+        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Message created: #{outgoing_message.id} (interactive: #{is_interactive})"
+        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Skip send reply flag: #{outgoing_message.additional_attributes['skip_send_reply']}" if is_interactive
         Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Message created successfully: #{outgoing_message.id} (content_type: #{outgoing_message.content_type})"
         
       rescue StandardError => message_creation_error
@@ -570,10 +559,15 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
             contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
             channel = conversation.inbox.channel
             
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Sending interactive message via send_interactive_payload"
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Contact source ID: #{contact_source_id}"
+            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Sending interactive message via Whatsapp::RichMessageService"
             
-            message_id = channel.provider_service.send_interactive_payload(contact_source_id, outgoing_message, whatsapp_payload['interactive'])
+            # Usar o novo serviço de mensagens ricas do WhatsApp
+            rich_service = Whatsapp::RichMessageService.new(
+              message: outgoing_message,
+              interactive_payload: whatsapp_payload['interactive']
+            )
+            
+            message_id = rich_service.perform
             
             if message_id.present?
               outgoing_message.update!(source_id: message_id)

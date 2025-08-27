@@ -245,6 +245,10 @@ en:
       name: 'Dialogflow'
       short_description: 'Build chatbots to handle initial queries before transferring to agents.'
       description: 'Build chatbots with Dialogflow and easily integrate them into your inbox. These bots can handle initial queries before transferring them to a customer service agent.'
+    socialwise_flow:
+      name: 'Socialwise Flow'
+      short_description: 'Automate with rich messages across Meta channels.'
+      description: 'Connect Socialwise Flow as a bot to automate responses with prebuilt rich messages (buttons, headers, footers, images) on WhatsApp, Instagram, and Facebook.'
     google_translate:
       name: 'Google Translate'
       short_description: 'Automatically translate customer messages for agents.'

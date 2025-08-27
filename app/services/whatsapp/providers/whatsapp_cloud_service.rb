@@ -157,4 +157,6 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
     process_response(response)
   end
+
+
 end

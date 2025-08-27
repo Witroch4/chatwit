@@ -38,6 +38,7 @@ import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import RichCards from './bubbles/RichCards.vue';
 import QuickReplies from './bubbles/QuickReplies.vue';
+import WhatsAppInteractive from './bubbles/WhatsAppInteractive.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -278,6 +279,17 @@ const componentToRender = computed(() => {
 
   if (props.contentType === CONTENT_TYPES.CARDS) {
     return RichCards;
+  }
+
+  // Check for WhatsApp Interactive Messages
+  if (props.contentType === CONTENT_TYPES.INTEGRATIONS) {
+    const hasWhatsAppInteractive =
+      props.contentAttributes?.whatsapp_interactive_payload ||
+      props.contentAttributes?.interactive;
+
+    if (hasWhatsAppInteractive) {
+      return WhatsAppInteractive;
+    }
   }
 
   if (props.contentType === CONTENT_TYPES.INPUT_SELECT) {
