@@ -99,14 +99,14 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         else
           Rails.logger.warn "[SOCIALWISE-FLOW] WhatsApp channel but no whatsapp payload in response"
         end
-      when 'Channel::FacebookPage'
-        # Instagram usa Channel::FacebookPage
+      when 'Channel::FacebookPage', 'Channel::Instagram'
+        # Instagram pode usar Channel::FacebookPage ou Channel::Instagram
         if response['instagram'].present?
           process_instagram_response(message, response['instagram'])
         elsif response['facebook'].present?
           process_facebook_response(message, response['facebook'])
         else
-          Rails.logger.warn "[SOCIALWISE-FLOW] FacebookPage channel but no instagram/facebook payload in response"
+          Rails.logger.warn "[SOCIALWISE-FLOW] Instagram/FacebookPage channel but no instagram/facebook payload in response"
         end
       else
         # Fallback para texto simples
@@ -488,6 +488,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   # ===== WhatsApp =====
   def process_whatsapp_response(message, whatsapp_payload)
     Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING WHATSAPP RESPONSE ==="
+    Rails.logger.info "[SOCIALWISE-FLOW] Delegating to WhatsappResponseProcessor"
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp payload: #{whatsapp_payload.inspect}"
     
     # Requirement 6.1: Log detailed error information when payload is blank
@@ -499,110 +500,19 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     end
     
     begin
-      conversation = message.conversation
+      # Delegate to dedicated WhatsApp processor
+      success = Integrations::SocialwiseFlow::WhatsappResponseProcessor.process(whatsapp_payload, message)
       
-      # Extrair texto principal para exibir no dashboard
-      text_content = extract_whatsapp_text(whatsapp_payload)
-      Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Extracted text content: #{text_content}"
-      
-      # Determinar se é mensagem interativa
-      is_interactive = whatsapp_payload['type'] == 'interactive' && whatsapp_payload['interactive'].present?
-      Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Is interactive: #{is_interactive}"
-      
-      # Create message for dashboard display (Requirement 7.1, 7.2)
-      outgoing_message = nil
-      begin
-        if is_interactive
-          # Para mensagens interativas, usar content_type 'integrations' com payload completo
-          # O WhatsApp service pode usar send_interactive_payload para payloads prontos
-          outgoing_message = conversation.messages.create!(
-            message_type: :outgoing,
-            content: text_content,
-            content_type: 'integrations',
-            content_attributes: {
-              'interactive' => whatsapp_payload['interactive'],
-              'type' => whatsapp_payload['type'],
-              'whatsapp_interactive_payload' => whatsapp_payload['interactive']
-            },
-            account_id: conversation.account_id,
-            inbox_id: conversation.inbox_id,
-            additional_attributes: { skip_send_reply: true }
-          )
-          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Interactive message created: #{outgoing_message.id}"
-        else
-          # Para mensagens de texto simples
-          outgoing_message = conversation.messages.create!(
-            message_type: :outgoing,
-            content: text_content,
-            content_type: 'text',
-            account_id: conversation.account_id,
-            inbox_id: conversation.inbox_id,
-            additional_attributes: { skip_send_reply: true }
-          )
-          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Text message created: #{outgoing_message.id}"
-        end
+      if success
+        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] WhatsApp response processed successfully by WhatsappResponseProcessor"
+      else
+        # Requirement 6.2: Continue processing other response elements when WhatsApp processing fails
+        Rails.logger.warn "[SOCIALWISE-FLOW][WHATSAPP] WhatsApp response processing returned false, creating fallback message"
         
-        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Message created successfully: #{outgoing_message.id} (content_type: #{outgoing_message.content_type})"
-        
-      rescue StandardError => message_creation_error
-        # Requirement 6.2: Continue processing even if message creation fails
-        Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Message creation failed: #{message_creation_error.class}: #{message_creation_error.message}"
-        Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Text content: #{text_content}"
-        Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Is interactive: #{is_interactive}"
-        Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Backtrace: #{message_creation_error.backtrace.first(3).join('\n')}"
-        
-        # Try to create a simple fallback message
-        begin
-          outgoing_message = conversation.messages.create!(
-            message_type: :outgoing,
-            content: text_content || "WhatsApp message",
-            content_type: 'text',
-            account_id: conversation.account_id,
-            inbox_id: conversation.inbox_id,
-            additional_attributes: { skip_send_reply: true }
-          )
-          Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Fallback message created: #{outgoing_message.id}"
-        rescue StandardError => fallback_error
-          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Fallback message creation also failed: #{fallback_error.class}: #{fallback_error.message}"
-          return # Can't create message, abort processing
-        end
-      end
-      
-      # Send message using native WhatsApp service
-      if outgoing_message
-        begin
-          if is_interactive
-            # Para mensagens interativas, usar o método send_interactive_payload diretamente
-            contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
-            channel = conversation.inbox.channel
-            
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Sending interactive message via send_interactive_payload"
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Contact source ID: #{contact_source_id}"
-            
-            message_id = channel.provider_service.send_interactive_payload(contact_source_id, outgoing_message, whatsapp_payload['interactive'])
-            
-            if message_id.present?
-              outgoing_message.update!(source_id: message_id)
-              Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Interactive message sent successfully, source_id: #{message_id}"
-            else
-              Rails.logger.warn "[SOCIALWISE-FLOW][WHATSAPP] Interactive message sent but no message_id returned"
-            end
-          else
-            # Para mensagens de texto, usar o serviço padrão
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Sending text message via SendOnWhatsappService"
-            Whatsapp::SendOnWhatsappService.new(message: outgoing_message).perform
-            Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Text message sent successfully"
-          end
-          
-        rescue StandardError => sending_error
-          # Requirement 6.2: Log rich message sending failures but continue processing
-          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Message sending failed: #{sending_error.class}: #{sending_error.message}"
-          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Message ID: #{outgoing_message.id}"
-          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Is interactive: #{is_interactive}"
-          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Contact source ID: #{conversation.contact.get_source_id(conversation.inbox.id) rescue 'unknown'}"
-          Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Backtrace: #{sending_error.backtrace.first(5).join('\n')}"
-          # Message is created in dashboard, sending failure doesn't affect that
-        end
+        # Fallback: criar mensagem de texto simples
+        fallback_text = extract_whatsapp_text(whatsapp_payload) || "WhatsApp message processing failed"
+        create_conversation(message, { content: fallback_text })
+        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Created fallback message: #{fallback_text}"
       end
       
       Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] === WHATSAPP PROCESSING COMPLETED ==="
@@ -644,9 +554,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     begin
       conversation = message.conversation
       
-      # Verificar se é canal Instagram (FacebookPage)
-      unless conversation.inbox.channel_type == 'Channel::FacebookPage'
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response received but channel is not FacebookPage"
+      # Verificar se é canal Instagram (FacebookPage ou Instagram)
+      valid_instagram_channels = ['Channel::FacebookPage', 'Channel::Instagram']
+      unless valid_instagram_channels.include?(conversation.inbox.channel_type)
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response received but channel is not Instagram compatible"
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Expected: #{valid_instagram_channels.join(' or ')}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Actual channel type: #{conversation.inbox.channel_type}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Message ID: #{message.id}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Conversation ID: #{conversation.id}"

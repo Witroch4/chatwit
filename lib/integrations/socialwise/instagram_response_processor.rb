@@ -3,7 +3,7 @@
 class Integrations::Socialwise::InstagramResponseProcessor
   class << self
     # Main entry point for processing socialwiseResponse payloads
-    # @param socialwise_data [Hash] The socialwiseResponse data from Dialogflow
+    # @param socialwise_data [Hash] The socialwiseResponse data from Dialogflow OR SocialWise Flow
     # @param message [Message] The message object from the conversation
     # @return [Boolean] true if processing was successful, false otherwise
     def process(socialwise_data, message)
@@ -21,11 +21,14 @@ class Integrations::Socialwise::InstagramResponseProcessor
         return fallback_to_text_message(message, socialwise_data)
       end
 
-      message_format = socialwise_data['message_format']
-      payload = socialwise_data['payload']
+      # ADAPTAÇÃO: Suportar tanto formato Dialogflow quanto SocialWise Flow
+      normalized_data = normalize_payload_structure(socialwise_data)
+      
+      message_format = normalized_data['message_format']
+      payload = normalized_data['payload']
 
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message format: #{message_format}"
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload: #{payload.inspect}"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized message format: #{message_format}"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized payload: #{payload.inspect}"
 
       # Validate payload structure
       unless validate_payload(message_format, payload)
@@ -56,6 +59,55 @@ class Integrations::Socialwise::InstagramResponseProcessor
     end
 
     private
+
+    # ADAPTAÇÃO: Normaliza payload para funcionar com ambos os formatos
+    # @param socialwise_data [Hash] Payload original (Dialogflow ou SocialWise Flow)
+    # @return [Hash] Payload normalizado no formato esperado
+    def normalize_payload_structure(socialwise_data)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalizing payload structure"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original data keys: #{socialwise_data.keys.inspect}"
+      
+      # Verificar se é formato SocialWise Flow (tem 'instagram' wrapper)
+      if socialwise_data['instagram'].present?
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected SocialWise Flow format (instagram wrapper)"
+        
+        instagram_data = socialwise_data['instagram']
+        
+        # Extrair message_format e payload do wrapper instagram
+        normalized = {
+          'message_format' => instagram_data['message_format'],
+          'payload' => {
+            'template_type' => instagram_data['template_type']
+          }
+        }
+        
+        # Adicionar elementos específicos baseado no formato
+        case instagram_data['message_format']
+        when 'GENERIC_TEMPLATE'
+          normalized['payload']['elements'] = instagram_data['elements']
+        when 'BUTTON_TEMPLATE'
+          normalized['payload']['text'] = instagram_data['text']
+          normalized['payload']['buttons'] = instagram_data['buttons']
+        when 'QUICK_REPLIES'
+          normalized['payload']['text'] = instagram_data['text']
+          normalized['payload']['quick_replies'] = instagram_data['quick_replies']
+        end
+        
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized to Dialogflow format: #{normalized.inspect}"
+        return normalized
+        
+      # Verificar se é formato Dialogflow (tem message_format e payload direto)
+      elsif socialwise_data['message_format'].present? && socialwise_data['payload'].present?
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected Dialogflow format (direct message_format and payload)"
+        return socialwise_data
+        
+      else
+        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown payload format"
+        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Expected either 'instagram' wrapper or direct 'message_format'/'payload'"
+        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Received keys: #{socialwise_data.keys.inspect}"
+        raise ArgumentError, "Unknown payload format: expected SocialWise Flow or Dialogflow format"
+      end
+    end
 
     # Routes message to appropriate handler based on message_format
     # @param message_format [String] The format type (GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES)
