@@ -268,6 +268,11 @@ const shouldShowAvatar = computed(() => {
 });
 
 const componentToRender = computed(() => {
+  // Debug log for WhatsApp messages
+  if (props.messageType === MESSAGE_TYPES.OUTGOING) {
+    // Removed console.log for production
+  }
+
   if (props.isEmailInbox && !props.private) {
     const emailInboxTypes = [MESSAGE_TYPES.INCOMING, MESSAGE_TYPES.OUTGOING];
     if (emailInboxTypes.includes(props.messageType)) return EmailBubble;
@@ -286,6 +291,8 @@ const componentToRender = computed(() => {
     const hasWhatsAppInteractive =
       props.contentAttributes?.whatsapp_interactive_payload ||
       props.contentAttributes?.interactive;
+
+    // Removed debug console.log for production
 
     if (hasWhatsAppInteractive) {
       return WhatsAppInteractive;

@@ -64,62 +64,67 @@ class Whatsapp::RichMessageService
     @phone_number ||= contact.get_source_id(@inbox.id)
   end
 
-  # Mirror interactive payload to dashboard for visualization (like Instagram)
+  # Mirror interactive payload to dashboard for visualization (EXACT Instagram pattern)
   def mirror_interactive_payload_to_dashboard
-    # Always mirror interactive messages - this is core functionality
+    # ALWAYS mirror - NO FEATURE FLAG DEPENDENCY
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mirroring enabled (feature flag dependency removed)"
 
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] === STARTING DASHBOARD MIRRORING ==="
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message ID: #{message.id}"
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Current message content_type: #{message.content_type}"
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Interactive payload type: #{interactive_payload['type']}"
 
-    # Check if message is already in rich format
+    # Check if message is already in rich format (created directly as integrations) - EXACT INSTAGRAM PATTERN
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Checking if message is already rich..."
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message content_type: #{message.content_type} (class: #{message.content_type.class})"
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message content_attributes keys: #{message.content_attributes.keys}"
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message has interactive payload: #{!!(message.content_attributes['interactive'] || message.content_attributes['whatsapp_interactive_payload'])}"
+    
     if message_already_rich?
-      Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message already created as rich content, skipping mirroring"
+      Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] ✅ Message already created as rich content, skipping mirroring"
+      Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] === DASHBOARD MIRRORING SKIPPED ==="
       return
+    else
+      Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] ⚠️ Message NOT detected as rich, will do mirroring (THIS MIGHT CAUSE FLASH EFFECT)"
     end
 
-    # Convert WhatsApp interactive payload to Chatwoot format
-    mapped_result = map_whatsapp_to_chatwoot_format
+    # Use the WhatsApp Renderer Mapper to convert payload to Chatwoot format - EXACT INSTAGRAM PATTERN
+    mapped_result = Messages::WhatsappRendererMapper.map(interactive_payload)
+    
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped content_type: #{mapped_result.content_type}"
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped fallback_text: #{mapped_result.fallback_text}"
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped content_attributes keys: #{mapped_result.content_attributes.keys}"
 
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped content_type: #{mapped_result[:content_type]}"
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped fallback_text: #{mapped_result[:fallback_text]}"
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped content_attributes keys: #{mapped_result[:content_attributes].keys}"
-
-    # Update message with rich content for dashboard visualization
+    # Update message with rich content using update_columns for performance - EXACT INSTAGRAM PATTERN
+    # This bypasses callbacks and validations for better performance
+    Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] 🚨 ABOUT TO UPDATE MESSAGE - THIS MIGHT CAUSE FLASH EFFECT"
+    Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] Current content_type: #{message.content_type}"
+    Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] New content_type: #{mapped_result.content_type}"
+    Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] Current content_attributes: #{message.content_attributes.keys}"
+    Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] New content_attributes: #{mapped_result.content_attributes.keys}"
+    
     message.update_columns(
-      content_type: Message.content_types[mapped_result[:content_type]],
-      content_attributes: mapped_result[:content_attributes],
-      content: mapped_result[:fallback_text],
+      content_type: Message.content_types[mapped_result.content_type],
+      content_attributes: mapped_result.content_attributes,
+      content: mapped_result.fallback_text,
       updated_at: Time.current
     )
+    
+    Rails.logger.warn "[SOCIALWISE-WHATSAPP-RICH] 🚨 MESSAGE UPDATED - Frontend should receive this update via WebSocket"
 
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message updated successfully for dashboard"
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message updated successfully"
+    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Final content_type (enum): #{message.content_type}"
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] === DASHBOARD MIRRORING COMPLETED ==="
 
   rescue StandardError => e
     Rails.logger.error "[SOCIALWISE-WHATSAPP-RICH] Dashboard mirroring failed for message #{message.id}: #{e.class}: #{e.message}"
     Rails.logger.error "[SOCIALWISE-WHATSAPP-RICH] Mirroring error backtrace: #{e.backtrace.first(5).join('\n')}"
+    
     # Continue with normal flow even if mirroring fails
+    # This ensures WhatsApp API sending is not affected by dashboard issues
   end
 
-  # Convert WhatsApp interactive payload to Chatwoot rich format
-  def map_whatsapp_to_chatwoot_format
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapping WhatsApp payload to Chatwoot format"
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Interactive type: #{interactive_payload['type']}"
 
-    # Use the WhatsApp Renderer Mapper to convert payload to Chatwoot format
-    mapped_result = Messages::WhatsappRendererMapper.map(interactive_payload)
-    
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped content_type: #{mapped_result.content_type}"
-    Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Mapped fallback_text: #{mapped_result.fallback_text}"
-    
-    {
-      content_type: mapped_result.content_type,
-      content_attributes: mapped_result.content_attributes,
-      fallback_text: mapped_result.fallback_text
-    }
-  end
 
 
 
@@ -179,12 +184,14 @@ class Whatsapp::RichMessageService
 
   # Check if message is already in rich format
   def message_already_rich?
-    rich_content_types = %w[cards input_select]
+    rich_content_types = %w[cards input_select integrations]
     is_rich = rich_content_types.include?(message.content_type)
     
     Rails.logger.info "[SOCIALWISE-WHATSAPP-RICH] Message already rich check: #{is_rich} (content_type: #{message.content_type})"
     is_rich
   end
+
+
 
 
   def handle_error(error)

@@ -92,9 +92,10 @@ class InstagramChannelValidator
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-VALIDATOR] Inbox channel_type: #{inbox.channel_type}"
     Rails.logger.info "[SOCIALWISE-INSTAGRAM-VALIDATOR] Channel class: #{channel&.class}"
     
-    # Instagram uses Channel::FacebookPage as channel_type but Channel::Instagram as channel class
-    unless inbox.channel_type == 'Channel::FacebookPage'
-      error_msg = "Rich messages only supported for FacebookPage channels (Instagram), got: #{inbox.channel_type}"
+    # Instagram can use Channel::FacebookPage or Channel::Instagram as channel_type
+    valid_instagram_channel_types = ['Channel::FacebookPage', 'Channel::Instagram']
+    unless valid_instagram_channel_types.include?(inbox.channel_type)
+      error_msg = "Rich messages only supported for Instagram channels, got: #{inbox.channel_type}"
       Rails.logger.warn "[SOCIALWISE-INSTAGRAM-VALIDATOR] #{error_msg}"
       add_error(error_msg)
       return false

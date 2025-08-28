@@ -107,7 +107,7 @@ services:
     image: ngrok/ngrok:latest
     container_name: chatwit_dev_ngrok
     environment:
-      NGROK_AUTHTOKEN: "2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi"
+      NGROK_AUTHTOKEN: "31A71USAsfWBPiCJZc9Dw39a35k_2fUqtFQChZSDBMvwS1bxw"
     command: http rails:3000 --domain=beagle-great-awfully.ngrok-free.app
     ports:
       - "4040:4040"  # Interface web do ngrok

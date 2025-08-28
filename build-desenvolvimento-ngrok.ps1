@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 # Configurações
 $ComposeFile = "docker-compose-ngrok.yaml"
 $ProjectName = "chatwit-dev"
-$NgrokAuthToken = "2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi"
+$NgrokAuthToken = "31A71USAsfWBPiCJZc9Dw39a35k_2fUqtFQChZSDBMvwS1bxw"
 $NgrokUrl = "beagle-great-awfully.ngrok-free.app"
 
 Write-Host "==========================================" -ForegroundColor Cyan

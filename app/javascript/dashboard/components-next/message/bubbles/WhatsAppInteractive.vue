@@ -1,16 +1,22 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, onErrorCaptured, watch } from 'vue';
 import { useMessageContext } from '../provider.js';
 import BaseBubble from './Base.vue';
 
-const { contentAttributes, content } = useMessageContext();
+const { contentAttributes, content, id } = useMessageContext();
+
+// Define development mode flag
+const isDev = import.meta.env.MODE !== 'production';
 
 const interactivePayload = computed(() => {
-  return (
+  const payload =
     contentAttributes.value?.whatsapp_interactive_payload ||
     contentAttributes.value?.interactive ||
-    {}
-  );
+    {};
+
+  // Debug logging removed for production
+
+  return payload;
 });
 
 const interactiveType = computed(() => {
@@ -53,6 +59,17 @@ const isListTemplate = computed(() => {
   return interactiveType.value === 'list';
 });
 
+const shouldRenderInteractive = computed(() => {
+  const shouldRender =
+    interactivePayload.value &&
+    Object.keys(interactivePayload.value).length > 0 &&
+    (isButtonTemplate.value || isListTemplate.value);
+
+  // Debug logging removed for production
+
+  return shouldRender;
+});
+
 // Format button text for display
 const formatButtonTitle = button => {
   return button?.reply?.title || button?.title || 'Botão';
@@ -66,10 +83,49 @@ const formatListRow = row => {
   }
   return text;
 };
+
+// Debug lifecycle hooks
+onMounted(() => {});
+
+// Watch for changes in contentAttributes
+watch(
+  contentAttributes,
+  (newVal, oldVal) => {
+    // Check if interactive data was lost
+    const hadInteractive = !!(
+      oldVal?.whatsapp_interactive_payload || oldVal?.interactive
+    );
+    const hasInteractive = !!(
+      newVal?.whatsapp_interactive_payload || newVal?.interactive
+    );
+
+    if (hadInteractive && !hasInteractive) {
+      // Interactive data was lost
+    }
+  },
+  { deep: true }
+);
+
+// Watch for changes in shouldRenderInteractive
+watch(shouldRenderInteractive, () => {
+  // Watch logic removed for production
+});
+
+// Handle component unmount
+onUnmounted(() => {});
+
+// Handle component errors
+onErrorCaptured(() => {
+  // Removed console.error for production
+  return false;
+});
 </script>
 
 <template>
-  <BaseBubble class="whatsapp-interactive-bubble">
+  <BaseBubble
+    v-if="shouldRenderInteractive"
+    class="whatsapp-interactive-bubble"
+  >
     <!-- Header Image -->
     <div v-if="headerImage" class="whatsapp-header mb-3">
       <img
@@ -165,11 +221,74 @@ const formatListRow = row => {
       </div>
     </div>
   </BaseBubble>
+
+  <!-- Fallback for when interactive content can't be rendered -->
+  <BaseBubble v-else class="p-4">
+    <div class="whatsapp-interactive-fallback">
+      <p class="text-sm text-n-slate-11 mb-2">
+        {{
+          $t('CONVERSATION.WHATSAPP_INTERACTIVE_FALLBACK_TITLE') ||
+          'WhatsApp Interactive Message'
+        }}
+      </p>
+      <div class="text-sm">
+        {{
+          content.value ||
+          contentAttributes.value?.fallback_text ||
+          'Interactive message content'
+        }}
+      </div>
+
+      <!-- Debug info (development only) -->
+      <details v-if="isDev" class="mt-2 text-xs text-n-slate-10">
+        <summary>{{ $t('DEBUG_INFO') }}</summary>
+        <pre class="mt-1 p-2 bg-n-slate-2 rounded text-xs overflow-auto">{{
+          JSON.stringify(
+            {
+              messageId: id.value,
+              hasContentAttributes: !!contentAttributes.value,
+              contentAttributesKeys: Object.keys(contentAttributes.value || {}),
+              hasInteractivePayload: !!interactivePayload.value,
+              interactivePayloadKeys: Object.keys(
+                interactivePayload.value || {}
+              ),
+              interactiveType: interactiveType.value,
+              isButton: isButtonTemplate.value,
+              isList: isListTemplate.value,
+              shouldRender: shouldRenderInteractive.value,
+            },
+            null,
+            2
+          )
+        }}</pre>
+      </details>
+    </div>
+  </BaseBubble>
 </template>
 
 <style scoped>
 .whatsapp-interactive-bubble {
   @apply px-4 py-3;
+  /* DEBUG: Tornar muito visível */
+  background-color: #e3f2fd !important;
+  border: 3px solid #2196f3 !important;
+  border-radius: 8px !important;
+  margin: 10px 0 !important;
+  min-height: 100px !important;
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
+.whatsapp-interactive-bubble::before {
+  content: '🔍 WhatsApp Interactive Component - DEBUG MODE';
+  display: block;
+  background: #ff9800;
+  color: white;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  margin: -16px -16px 10px -16px;
+  border-radius: 4px 4px 0 0;
 }
 
 .whatsapp-button:hover {

@@ -186,16 +186,61 @@ export const mutations = {
     if (!chat) return;
 
     const pendingMessageIndex = findPendingMessageIndex(chat, message);
+
+    // Store basic debug info for rich messages
+    if (
+      message.content_type === 'integrations' &&
+      message.content_attributes?.whatsapp_interactive_payload
+    ) {
+      window.whatsappRichDebugBasic = {
+        messageId: message.id,
+        pendingMessageIndex,
+        existingMessagesCount: chat.messages.length,
+        foundExisting: pendingMessageIndex !== -1,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     if (pendingMessageIndex !== -1) {
       const existingMessage = chat.messages[pendingMessageIndex];
 
-      // Preserve rich content during message confirmation updates
+      // Debug log for WhatsApp rich messages
       if (
         existingMessage &&
         existingMessage.content_type === 'integrations' &&
-        message.content_type === 'text' &&
         existingMessage.content_attributes?.whatsapp_interactive_payload
       ) {
+        // Store debug info in window for inspection
+        window.whatsappRichDebug = {
+          messageId: message.id,
+          existingContentType: existingMessage.content_type,
+          newContentType: message.content_type,
+          existingSourceId: existingMessage.source_id,
+          newSourceId: message.source_id,
+          sourceIdChanged: existingMessage.source_id !== message.source_id,
+          hasPayload:
+            !!existingMessage.content_attributes?.whatsapp_interactive_payload,
+          willPreserve:
+            message.content_type === 'text' ||
+            (message.content_type === 'integrations' &&
+              existingMessage.source_id !== message.source_id),
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Preserve rich content during WhatsApp interactive message updates
+      if (
+        existingMessage &&
+        existingMessage.content_type === 'integrations' &&
+        existingMessage.content_attributes?.whatsapp_interactive_payload &&
+        // Case 1: content_type changed from integrations to text (original problem)
+        (message.content_type === 'text' ||
+          // Case 2: both are integrations but this is a confirmation update (source_id change)
+          (message.content_type === 'integrations' &&
+            existingMessage.source_id !== message.source_id))
+      ) {
+        window.whatsappRichDebug.preserved = true;
+
         // Keep the rich content but update other fields (like source_id, status)
         chat.messages[pendingMessageIndex] = {
           ...message,
@@ -204,9 +249,22 @@ export const mutations = {
           content_attributes: existingMessage.content_attributes,
         };
       } else {
+        if (
+          message.content_type === 'integrations' &&
+          message.content_attributes?.whatsapp_interactive_payload
+        ) {
+          window.whatsappRichDebug.preserved = false;
+          window.whatsappRichDebug.reason = 'conditions_not_met';
+        }
         chat.messages[pendingMessageIndex] = message;
       }
     } else {
+      if (
+        message.content_type === 'integrations' &&
+        message.content_attributes?.whatsapp_interactive_payload
+      ) {
+        window.whatsappRichDebugBasic.reason = 'no_existing_message_found';
+      }
       chat.messages.push(message);
       chat.timestamp = message.created_at;
       const { conversation: { unread_count: unreadCount = 0 } = {} } = message;
