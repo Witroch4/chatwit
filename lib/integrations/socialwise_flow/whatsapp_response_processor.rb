@@ -98,20 +98,31 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         outgoing_message = create_rich_outgoing_message(conversation, interactive_payload, whatsapp_data)
         Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
-        # Send using WhatsApp Rich Message Service - EXACT INSTAGRAM PATTERN
-        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Creating WhatsApp Rich Message Service with payload: #{interactive_payload.inspect}"
-        rich_message_service = Whatsapp::RichMessageService.new(
-          message: outgoing_message, 
-          interactive_payload: interactive_payload
-        )
-        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Created WhatsApp Rich Message Service successfully"
+        # Send using WhatsApp provider directly - EXACT INSTAGRAM PATTERN
+        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Sending interactive message directly via provider"
+        contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
+        channel = conversation.inbox.channel
+        
+        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Contact source ID: #{contact_source_id}"
+        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Channel provider: #{channel.provider}"
+
+        # Get provider service
+        provider_service = case channel.provider
+        when 'whatsapp_cloud'
+          Whatsapp::Providers::WhatsappCloudService.new(whatsapp_channel: channel)
+        when 'unoapi'
+          Whatsapp::Providers::Whatsapp360DialogService.new(whatsapp_channel: channel)
+        else
+          Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Unknown provider #{channel.provider}, defaulting to whatsapp_cloud"
+          Whatsapp::Providers::WhatsappCloudService.new(whatsapp_channel: channel)
+        end
 
         # Perform the send operation
         send_start_time = Time.current
-        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] About to call rich_message_service.perform"
-        message_id = rich_message_service.perform
+        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] About to call provider_service.send_interactive_payload"
+        message_id = provider_service.send_interactive_payload(contact_source_id, outgoing_message, interactive_payload)
         send_end_time = Time.current
-        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] rich_message_service.perform completed successfully"
+        Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] provider_service.send_interactive_payload completed successfully"
         
         if message_id.present?
           # Use update_columns to avoid triggering callbacks and WebSocket updates (prevents flash effect)

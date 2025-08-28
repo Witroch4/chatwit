@@ -158,5 +158,21 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     process_response(response)
   end
 
+  # Envia payload interativo completo, pronto do backend (Socialwise Flow)
+  def send_interactive_payload(phone_number, message, interactive_payload)
+    @message = message
+    response = HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: {
+        messaging_product: 'whatsapp',
+        to: phone_number,
+        interactive: interactive_payload,
+        type: 'interactive'
+      }.to_json
+    )
+
+    process_response(response)
+  end
 
 end
