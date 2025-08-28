@@ -20,6 +20,22 @@ const shouldRenderRichCards = computed(() => {
   return items.value.length > 0;
 });
 
+// Detect if this is a QuickReplies message (converted to cards)
+const isQuickReplies = computed(() => {
+  // QuickReplies converted to cards have specific characteristics:
+  // 1. Single card with multiple postback actions
+  // 2. No image, no description, just title and many buttons
+  if (items.value.length !== 1) return false;
+  
+  const card = items.value[0];
+  const hasOnlyPostbackActions = card.actions?.every(action => action.type === 'postback');
+  const hasNoImage = !card.media_url && !card.mediaUrl;
+  const hasNoDescription = !card.description;
+  const hasManyActions = (card.actions?.length || 0) > 3;
+  
+  return hasOnlyPostbackActions && hasNoImage && hasNoDescription && hasManyActions;
+});
+
 // HTML escaping function for security
 const escapeHtml = (text) => {
   if (!text) return '';
@@ -95,8 +111,23 @@ onMounted(() => {
       messageId: id.value,
       contentAttributes: contentAttributes.value,
       items: items.value,
-      shouldRender: shouldRenderRichCards.value
+      shouldRender: shouldRenderRichCards.value,
+      isQuickReplies: isQuickReplies.value
     });
+    
+    // Log QuickReplies detection details
+    if (items.value.length === 1) {
+      const card = items.value[0];
+      // eslint-disable-next-line no-console
+      console.log('[RichCards] QuickReplies detection:', {
+        hasOnlyPostbackActions: card.actions?.every(action => action.type === 'postback'),
+        hasNoImage: !card.media_url && !card.mediaUrl,
+        hasNoDescription: !card.description,
+        hasManyActions: (card.actions?.length || 0) > 3,
+        actionsCount: card.actions?.length || 0,
+        isQuickReplies: isQuickReplies.value
+      });
+    }
     
     // Log image URLs for debugging
     items.value.forEach((item, index) => {
@@ -138,7 +169,7 @@ onErrorCaptured((err) => {
 </script>
 
 <template>
-  <BaseBubble v-if="shouldRenderRichCards" class="p-0 overflow-hidden">
+  <BaseBubble v-if="shouldRenderRichCards" class="rich-cards-bubble">
     <div class="rich-cards-container">
       <div
         v-for="(item, index) in items"
@@ -178,7 +209,10 @@ onErrorCaptured((err) => {
           <!-- Action Buttons -->
           <div
             v-if="item.actions && item.actions.length"
-            class="card-actions flex flex-wrap gap-2"
+            class="card-actions"
+            :class="[
+              isQuickReplies ? 'quick-replies-scroll' : 'flex flex-col gap-2',
+            ]"
           >
             <template
               v-for="(action, actionIndex) in item.actions"
@@ -190,7 +224,7 @@ onErrorCaptured((err) => {
                 :href="action.uri"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="card-button card-button--link inline-flex items-center px-3 py-2 text-xs font-medium rounded-md bg-n-slate-3 text-n-slate-12 hover:bg-n-slate-4 transition-colors duration-200"
+                class="card-button card-button--link border border-n-slate-6 rounded-lg px-3 py-2 text-center bg-n-slate-1 hover:bg-n-slate-2 transition-colors text-sm font-medium text-n-slate-12 inline-flex items-center justify-center"
               >
                 {{ action.text }}
                 <svg
@@ -211,7 +245,7 @@ onErrorCaptured((err) => {
               <!-- Postback Button -->
               <button
                 v-else-if="action.type === 'postback'"
-                class="card-button card-button--postback inline-flex items-center px-3 py-2 text-xs font-medium rounded-md bg-n-solid-blue text-n-slate-12 hover:bg-n-solid-blue/80 transition-colors duration-200"
+                class="card-button card-button--postback border border-n-slate-6 rounded-lg px-3 py-2 text-center bg-n-slate-1 hover:bg-n-slate-2 transition-colors text-sm font-medium text-n-slate-12 w-full"
                 @click="handlePostback(action)"
               >
                 {{ action.text }}
@@ -259,6 +293,10 @@ onErrorCaptured((err) => {
 </template>
 
 <style scoped>
+.rich-cards-bubble {
+  @apply px-4 py-3;
+}
+
 .rich-cards-container {
   @apply max-w-sm;
 }
@@ -283,5 +321,101 @@ onErrorCaptured((err) => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* QuickReplies horizontal scroll styles */
+.quick-replies-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.quick-replies-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.quick-replies-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 2px;
+}
+
+.quick-replies-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.quick-replies-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* QuickReplies buttons styling - consistent with WhatsAppInteractive */
+.quick-replies-scroll .card-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-width: fit-content;
+  max-width: 150px;
+  /* Use same style as WhatsAppInteractive */
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.quick-replies-scroll .card-button:hover {
+  background-color: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+/* Hover effect for normal cards too */
+.card-actions:not(.quick-replies-scroll) .card-button:hover {
+  transform: translateY(-1px);
+}
+
+.quick-replies-scroll .card-button:active {
+  transform: translateY(0);
+}
+
+/* Normal cards keep flex-wrap for vertical stacking */
+.card-actions:not(.quick-replies-scroll) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Ensure buttons in normal cards take full width */
+.card-actions:not(.quick-replies-scroll) .card-button {
+  width: 100%;
+}
+
+/* Add subtle gradient fade at edges to indicate scrollability */
+.quick-replies-scroll::before,
+.quick-replies-scroll::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.quick-replies-scroll::before {
+  left: 0;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.9), transparent);
+}
+
+.quick-replies-scroll::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0.9), transparent);
 }
 </style>

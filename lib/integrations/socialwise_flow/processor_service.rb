@@ -267,11 +267,13 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     when 'Channel::Whatsapp'
       # WhatsApp: Send both emoji reaction and contextual response (Requirement 3.2)
       send_whatsapp_emoji_reaction(conversation, emoji, response)
-    when 'Channel::FacebookPage'
+    when 'Channel::FacebookPage', 'Channel::Instagram'
       # Instagram: Send emoji reaction and simple response (Requirement 3.3)
+      Rails.logger.info "[SOCIALWISE-FLOW] Routing to Instagram emoji reaction handler for #{channel_type}"
       send_instagram_emoji_reaction(conversation, emoji, response)
     else
       # Generic emoji reaction for other channels
+      Rails.logger.warn "[SOCIALWISE-FLOW] Using generic emoji reaction for unsupported channel: #{channel_type}"
       send_generic_emoji_reaction(conversation, emoji, response)
     end
   end
@@ -286,16 +288,31 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     when 'Channel::Whatsapp'
       # WhatsApp: Send contextual response text (Requirement 3.2)
       send_whatsapp_reaction_text(conversation, text, response)
-    when 'Channel::FacebookPage'
+    when 'Channel::FacebookPage', 'Channel::Instagram'
       # Instagram: Send simple response text (Requirement 3.3)
+      Rails.logger.info "[SOCIALWISE-FLOW] Routing to Instagram text reaction handler for #{channel_type}"
       send_instagram_reaction_text(conversation, text, response)
     else
       # Generic text response for other channels
+      Rails.logger.warn "[SOCIALWISE-FLOW] Using generic text reaction for unsupported channel: #{channel_type}"
       send_generic_reaction_text(conversation, text, response)
     end
   end
 
   def send_whatsapp_emoji_reaction(conversation, emoji, response)
+    # Send emoji reaction to WhatsApp API
+    begin
+      whatsapp_payload = response['whatsapp']
+      if whatsapp_payload && whatsapp_payload['message_id'].present?
+        send_whatsapp_reaction_to_api(conversation, whatsapp_payload['message_id'], emoji)
+        Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp emoji reaction sent to API successfully"
+      else
+        Rails.logger.warn "[SOCIALWISE-FLOW] Missing WhatsApp message_id for emoji reaction"
+      end
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp emoji reaction API call failed: #{e.class}: #{e.message}"
+    end
+
     # Create activity message indicating emoji reaction
     emoji_message = conversation.messages.create!(
       message_type: :activity,
@@ -316,6 +333,34 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def send_instagram_emoji_reaction(conversation, emoji, response)
+    Rails.logger.info "[SOCIALWISE-FLOW] === INSTAGRAM EMOJI REACTION START ==="
+    Rails.logger.info "[SOCIALWISE-FLOW] Original emoji: #{emoji} -> Converting to: love"
+    Rails.logger.info "[SOCIALWISE-FLOW] Response data: #{response.inspect}"
+    
+    # Send emoji reaction to Instagram API (only supports 'love')
+    begin
+      # Instagram only accepts 'love' as reaction
+      instagram_reaction = 'love'
+      
+      # Look for message_id in various places
+      message_id = response.dig('instagram', 'message_id') || 
+                  response.dig('whatsapp', 'message_id') ||
+                  response['message_id']
+                  
+      Rails.logger.info "[SOCIALWISE-FLOW] Instagram message_id found: #{message_id}"
+      
+      if message_id.present?
+        send_instagram_reaction_to_api(conversation, message_id, instagram_reaction)
+        Rails.logger.info "[SOCIALWISE-FLOW] Instagram emoji reaction sent to API successfully"
+      else
+        Rails.logger.error "[SOCIALWISE-FLOW] CRITICAL: Missing message_id for Instagram emoji reaction"
+        Rails.logger.error "[SOCIALWISE-FLOW] Available response keys: #{response.keys.inspect}"
+      end
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW] Instagram emoji reaction API call failed: #{e.class}: #{e.message}"
+      Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(3).join('\n')}"
+    end
+
     # Create activity message indicating emoji reaction for Instagram
     emoji_message = conversation.messages.create!(
       message_type: :activity,
@@ -354,6 +399,19 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def send_whatsapp_reaction_text(conversation, text, response)
+    # Send contextual text to WhatsApp API
+    begin
+      whatsapp_payload = response['whatsapp']
+      if whatsapp_payload && whatsapp_payload['message_id'].present?
+        send_whatsapp_contextual_message_to_api(conversation, whatsapp_payload['message_id'], text)
+        Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual text sent to API successfully"
+      else
+        Rails.logger.warn "[SOCIALWISE-FLOW] Missing WhatsApp message_id for contextual text"
+      end
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp contextual text API call failed: #{e.class}: #{e.message}"
+    end
+
     # WhatsApp contextual response text
     text_message = conversation.messages.create!(
       message_type: :outgoing,
@@ -372,6 +430,14 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def send_instagram_reaction_text(conversation, text, response)
+    # Send simple text message to Instagram API
+    begin
+      send_instagram_text_message_to_api(conversation, text)
+      Rails.logger.info "[SOCIALWISE-FLOW] Instagram text message sent to API successfully"
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW] Instagram text message API call failed: #{e.class}: #{e.message}"
+    end
+
     # Instagram simple response text
     text_message = conversation.messages.create!(
       message_type: :outgoing,
@@ -382,7 +448,8 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         'button_reaction_response' => true,
         'button_id' => response['buttonId'],
         'channel_type' => 'instagram'
-      }
+      },
+      additional_attributes: { skip_send_reply: true }
     )
     
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram reaction text message created: #{text_message.id}"
@@ -885,6 +952,193 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         account_id: conversation.account_id,
         inbox_id: inbox.id
       }
+    }
+  end
+
+  private
+
+  # API call methods for WhatsApp reactions and messages
+  def send_whatsapp_reaction_to_api(conversation, message_id, emoji)
+    inbox = conversation.inbox
+    contact_phone = conversation.contact.get_source_id(inbox.id)
+    
+    payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: contact_phone,
+      type: 'reaction',
+      reaction: {
+        message_id: message_id,
+        emoji: emoji
+      }
+    }
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction payload: #{payload.inspect}"
+    
+    response = HTTParty.post(
+      "#{whatsapp_api_base_url(inbox)}/#{inbox.channel.provider_config['phone_number_id']}/messages",
+      headers: whatsapp_api_headers(inbox),
+      body: payload.to_json
+    )
+    
+    if response.success?
+      Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction API response: #{response.parsed_response}"
+    else
+      Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp reaction API error: #{response.code} - #{response.body}"
+    end
+    
+    response
+  end
+
+  def send_whatsapp_contextual_message_to_api(conversation, reply_to_message_id, text)
+    inbox = conversation.inbox
+    contact_phone = conversation.contact.get_source_id(inbox.id)
+    
+    payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: contact_phone,
+      context: {
+        message_id: reply_to_message_id
+      },
+      type: 'text',
+      text: {
+        body: text
+      }
+    }
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual message payload: #{payload.inspect}"
+    
+    response = HTTParty.post(
+      "#{whatsapp_api_base_url(inbox)}/#{inbox.channel.provider_config['phone_number_id']}/messages",
+      headers: whatsapp_api_headers(inbox),
+      body: payload.to_json
+    )
+    
+    if response.success?
+      Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual message API response: #{response.parsed_response}"
+    else
+      Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp contextual message API error: #{response.code} - #{response.body}"
+    end
+    
+    response
+  end
+
+  # API call methods for Instagram reactions and messages
+  def send_instagram_reaction_to_api(conversation, message_id, reaction)
+    Rails.logger.info "[SOCIALWISE-FLOW] === INSTAGRAM API CALL START ==="
+    
+    inbox = conversation.inbox
+    contact_source_id = conversation.contact.get_source_id(inbox.id)
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] Inbox ID: #{inbox.id}, Channel type: #{inbox.channel_type}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Contact source ID: #{contact_source_id}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Instagram channel class: #{inbox.channel.class}"
+    
+    # Check if we have the required configuration
+    instagram_id = inbox.channel.instagram_id.presence || 'me'
+    page_access_token = inbox.channel.access_token
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] Instagram ID: #{instagram_id}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Has access token: #{page_access_token.present?}"
+    
+    if instagram_id.blank?
+      Rails.logger.error "[SOCIALWISE-FLOW] CRITICAL: Missing instagram_id in channel"
+      return
+    end
+    
+    if page_access_token.blank?
+      Rails.logger.error "[SOCIALWISE-FLOW] CRITICAL: Missing access_token in channel"
+      return
+    end
+    
+    payload = {
+      recipient: {
+        id: contact_source_id
+      },
+      sender_action: 'react',
+      payload: {
+        message_id: message_id,
+        reaction: reaction  # 'love' for Instagram
+      }
+    }
+    
+    api_url = "#{instagram_api_base_url}/#{instagram_id}/messages"
+    Rails.logger.info "[SOCIALWISE-FLOW] API URL: #{api_url}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Instagram reaction payload: #{payload.inspect}"
+    
+    response = HTTParty.post(
+      api_url,
+      headers: instagram_api_headers(inbox),
+      body: payload.to_json
+    )
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] API Response Code: #{response.code}"
+    
+    if response.success?
+      Rails.logger.info "[SOCIALWISE-FLOW] Instagram reaction API SUCCESS: #{response.parsed_response}"
+    else
+      Rails.logger.error "[SOCIALWISE-FLOW] Instagram reaction API ERROR: #{response.code} - #{response.body}"
+    end
+    
+    response
+  end
+
+  def send_instagram_text_message_to_api(conversation, text)
+    inbox = conversation.inbox
+    contact_source_id = conversation.contact.get_source_id(inbox.id)
+    
+    payload = {
+      recipient: {
+        id: contact_source_id
+      },
+      message: {
+        text: text
+      }
+    }
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] Instagram text message payload: #{payload.inspect}"
+    
+    instagram_id = inbox.channel.instagram_id.presence || 'me'
+    api_url = "#{instagram_api_base_url}/#{instagram_id}/messages"
+    
+    Rails.logger.info "[SOCIALWISE-FLOW] Instagram text API URL: #{api_url}"
+    
+    response = HTTParty.post(
+      api_url,
+      headers: instagram_api_headers(inbox),
+      body: payload.to_json
+    )
+    
+    if response.success?
+      Rails.logger.info "[SOCIALWISE-FLOW] Instagram text message API response: #{response.parsed_response}"
+    else
+      Rails.logger.error "[SOCIALWISE-FLOW] Instagram text message API error: #{response.code} - #{response.body}"
+    end
+    
+    response
+  end
+
+  # Helper methods for API configuration
+  def whatsapp_api_base_url(inbox)
+    ENV.fetch('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com/v23.0')
+  end
+
+  def whatsapp_api_headers(inbox)
+    {
+      'Authorization' => "Bearer #{inbox.channel.provider_config['api_key']}",
+      'Content-Type' => 'application/json'
+    }
+  end
+
+  def instagram_api_base_url
+    ENV.fetch('INSTAGRAM_API_BASE_URL', 'https://graph.instagram.com/v23.0')
+  end
+
+  def instagram_api_headers(inbox)
+    {
+      'Authorization' => "Bearer #{inbox.channel.access_token}",
+      'Content-Type' => 'application/json'
     }
   end
 end

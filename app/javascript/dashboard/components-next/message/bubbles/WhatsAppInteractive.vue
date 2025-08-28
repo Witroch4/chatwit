@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, onErrorCaptured, watch } from 'vue';
 import { useMessageContext } from '../provider.js';
 import BaseBubble from './Base.vue';
+import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 
 const { contentAttributes, content, id } = useMessageContext();
 
@@ -24,7 +25,8 @@ const interactiveType = computed(() => {
 });
 
 const bodyText = computed(() => {
-  return interactivePayload.value?.body?.text || content.value || '';
+  const text = interactivePayload.value?.body?.text || content.value || '';
+  return new MessageFormatter(text).formattedMessage;
 });
 
 const headerImage = computed(() => {
@@ -36,7 +38,8 @@ const headerImage = computed(() => {
 });
 
 const footerText = computed(() => {
-  return interactivePayload.value?.footer?.text || '';
+  const text = interactivePayload.value?.footer?.text || '';
+  return text ? new MessageFormatter(text).formattedMessage : '';
 });
 
 const buttons = computed(() => {
@@ -72,7 +75,8 @@ const shouldRenderInteractive = computed(() => {
 
 // Format button text for display
 const formatButtonTitle = button => {
-  return button?.reply?.title || button?.title || 'Botão';
+  const text = button?.reply?.title || button?.title || 'Botão';
+  return new MessageFormatter(text).formattedMessage;
 };
 
 // Format list row for display
@@ -81,7 +85,7 @@ const formatListRow = row => {
   if (row.description) {
     text += ` - ${row.description}`;
   }
-  return text;
+  return new MessageFormatter(text).formattedMessage;
 };
 
 // Debug lifecycle hooks
@@ -152,9 +156,10 @@ onErrorCaptured(() => {
           <div
             class="border border-n-slate-6 rounded-lg px-3 py-2 text-center bg-n-slate-1 hover:bg-n-slate-2 transition-colors"
           >
-            <span class="text-sm font-medium text-n-slate-12">
-              {{ formatButtonTitle(button) }}
-            </span>
+            <span
+              v-dompurify-html="formatButtonTitle(button)"
+              class="text-sm font-medium text-n-slate-12"
+            />
           </div>
         </div>
       </div>
@@ -190,10 +195,9 @@ onErrorCaptured(() => {
             <div
               v-for="(row, rowIndex) in section.rows"
               :key="rowIndex"
+              v-dompurify-html="formatListRow(row)"
               class="text-sm text-n-slate-12 py-1 px-2 bg-n-slate-1 rounded border-l-2 border-n-slate-6"
-            >
-              {{ formatListRow(row) }}
-            </div>
+            />
           </div>
         </div>
       </div>
@@ -204,9 +208,10 @@ onErrorCaptured(() => {
       v-if="footerText"
       class="whatsapp-footer mt-3 pt-2 border-t border-n-slate-4"
     >
-      <div class="text-xs text-n-slate-11 italic">
-        {{ footerText }}
-      </div>
+      <div
+        v-dompurify-html="footerText"
+        class="text-xs text-n-slate-11 italic"
+      />
     </div>
 
     <!-- WhatsApp Interactive Badge -->
