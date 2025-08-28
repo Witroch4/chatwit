@@ -24,6 +24,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # ADAPTAÇÃO: Suportar tanto formato Dialogflow quanto SocialWise Flow
       normalized_data = normalize_payload_structure(socialwise_data)
       
+      # Se a normalização falhou, usar fallback
+      unless normalized_data
+        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload normalization failed, using fallback"
+        return fallback_to_text_message(message, socialwise_data)
+      end
+      
       message_format = normalized_data['message_format']
       payload = normalized_data['payload']
 
@@ -62,50 +68,111 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
     # ADAPTAÇÃO: Normaliza payload para funcionar com ambos os formatos
     # @param socialwise_data [Hash] Payload original (Dialogflow ou SocialWise Flow)
-    # @return [Hash] Payload normalizado no formato esperado
+    # @return [Hash, nil] Payload normalizado no formato esperado ou nil se falhar
     def normalize_payload_structure(socialwise_data)
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalizing payload structure"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original data keys: #{socialwise_data.keys.inspect}"
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Full socialwise_data: #{socialwise_data.inspect}"
       
-      # Verificar se é formato SocialWise Flow (tem 'instagram' wrapper)
-      if socialwise_data['instagram'].present?
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected SocialWise Flow format (instagram wrapper)"
-        
-        instagram_data = socialwise_data['instagram']
-        
-        # Extrair message_format e payload do wrapper instagram
-        normalized = {
-          'message_format' => instagram_data['message_format'],
-          'payload' => {
-            'template_type' => instagram_data['template_type']
+      begin
+        # Verificar se é formato SocialWise Flow (tem 'instagram' wrapper)
+        if socialwise_data.is_a?(Hash) && socialwise_data['instagram'].present?
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected SocialWise Flow format (instagram wrapper)"
+          
+          instagram_data = socialwise_data['instagram']
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram data: #{instagram_data.inspect}"
+          
+          # Validar se instagram_data tem os campos necessários
+          unless instagram_data.is_a?(Hash) && instagram_data['message_format'].present?
+            Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid instagram data structure"
+            Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram data: #{instagram_data.inspect}"
+            return nil
+          end
+          
+          # Extrair message_format e construir payload normalizado
+          message_format = instagram_data['message_format']
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message format: #{message_format}"
+          
+          normalized = {
+            'message_format' => message_format,
+            'payload' => {}
           }
-        }
-        
-        # Adicionar elementos específicos baseado no formato
-        case instagram_data['message_format']
-        when 'GENERIC_TEMPLATE'
-          normalized['payload']['elements'] = instagram_data['elements']
-        when 'BUTTON_TEMPLATE'
-          normalized['payload']['text'] = instagram_data['text']
-          normalized['payload']['buttons'] = instagram_data['buttons']
-        when 'QUICK_REPLIES'
-          normalized['payload']['text'] = instagram_data['text']
-          normalized['payload']['quick_replies'] = instagram_data['quick_replies']
+          
+          # Adicionar template_type se presente
+          if instagram_data['template_type'].present?
+            normalized['payload']['template_type'] = instagram_data['template_type']
+          end
+          
+          # Adicionar elementos específicos baseado no formato
+          case message_format
+          when 'GENERIC_TEMPLATE'
+            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing GENERIC_TEMPLATE format"
+            normalized['payload']['template_type'] = 'generic'
+            normalized['payload']['elements'] = instagram_data['elements'] if instagram_data['elements'].present?
+            
+          when 'BUTTON_TEMPLATE'
+            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing BUTTON_TEMPLATE format"
+            normalized['payload']['template_type'] = 'button'
+            normalized['payload']['text'] = instagram_data['text'] if instagram_data['text'].present?
+            normalized['payload']['buttons'] = instagram_data['buttons'] if instagram_data['buttons'].present?
+            
+          when 'QUICK_REPLIES'
+            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing QUICK_REPLIES format"
+            normalized['payload']['text'] = instagram_data['text'] if instagram_data['text'].present?
+            normalized['payload']['quick_replies'] = instagram_data['quick_replies'] if instagram_data['quick_replies'].present?
+            
+          else
+            Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown message format in SocialWise Flow: #{message_format}"
+            # Ainda assim, tenta processar copiando todos os campos
+            instagram_data.each do |key, value|
+              next if key == 'message_format'
+              normalized['payload'][key] = value
+            end
+          end
+          
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized to Dialogflow format: #{normalized.inspect}"
+          return normalized
+          
+        # Verificar se é formato Dialogflow (tem message_format e payload direto)
+        elsif socialwise_data.is_a?(Hash) && socialwise_data['message_format'].present? && socialwise_data['payload'].present?
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected Dialogflow format (direct message_format and payload)"
+          return socialwise_data
+          
+        # Verificar se é formato direto do SocialWise Flow (sem wrapper 'instagram')
+        elsif socialwise_data.is_a?(Hash) && socialwise_data['message_format'].present?
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected direct SocialWise Flow format (no instagram wrapper)"
+          
+          # Construir payload normalizado
+          normalized = {
+            'message_format' => socialwise_data['message_format'],
+            'payload' => {}
+          }
+          
+          # Copiar todos os campos exceto message_format para o payload
+          socialwise_data.each do |key, value|
+            next if key == 'message_format'
+            normalized['payload'][key] = value
+          end
+          
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized direct format: #{normalized.inspect}"
+          return normalized
+          
+        else
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown payload format"
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Expected formats:"
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] 1. SocialWise Flow: {'instagram': {'message_format': '...', ...}}"
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] 2. Dialogflow: {'message_format': '...', 'payload': {...}}"
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] 3. Direct SocialWise: {'message_format': '...', 'elements': [...], ...}"
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Received keys: #{socialwise_data.keys.inspect}"
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Received data: #{socialwise_data.inspect}"
+          
+          return nil
         end
         
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized to Dialogflow format: #{normalized.inspect}"
-        return normalized
-        
-      # Verificar se é formato Dialogflow (tem message_format e payload direto)
-      elsif socialwise_data['message_format'].present? && socialwise_data['payload'].present?
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected Dialogflow format (direct message_format and payload)"
-        return socialwise_data
-        
-      else
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown payload format"
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Expected either 'instagram' wrapper or direct 'message_format'/'payload'"
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Received keys: #{socialwise_data.keys.inspect}"
-        raise ArgumentError, "Unknown payload format: expected SocialWise Flow or Dialogflow format"
+      rescue StandardError => e
+        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload normalization failed: #{e.class}: #{e.message}"
+        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.first(5).join('\n')}"
+        return nil
       end
     end
 
@@ -1131,20 +1198,59 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
       return "Message received" unless socialwise_data.is_a?(Hash)
 
-      payload = socialwise_data['payload']
-      return "Message received" unless payload.is_a?(Hash)
-
-      # Try to extract text from different payload types
-      if payload['text'].present?
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using text field for fallback"
-        return payload['text']
+      # Try SocialWise Flow format first (instagram wrapper)
+      if socialwise_data['instagram'].present?
+        instagram_data = socialwise_data['instagram']
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting from SocialWise Flow format"
+        
+        # Try text field first
+        if instagram_data['text'].present?
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using instagram.text field for fallback"
+          return instagram_data['text']
+        end
+        
+        # For Generic Template, try to extract from first element
+        if instagram_data['elements'].is_a?(Array) && instagram_data['elements'].first.is_a?(Hash)
+          element = instagram_data['elements'].first
+          if element['title'].present?
+            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback"
+            return element['title']
+          end
+        end
       end
 
-      # For Generic Template, try to extract from first element
-      if payload['elements'].is_a?(Array) && payload['elements'].first.is_a?(Hash)
-        element = payload['elements'].first
+      # Try Dialogflow format (payload wrapper)
+      payload = socialwise_data['payload']
+      if payload.is_a?(Hash)
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting from Dialogflow format"
+        
+        # Try to extract text from different payload types
+        if payload['text'].present?
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using payload.text field for fallback"
+          return payload['text']
+        end
+
+        # For Generic Template, try to extract from first element
+        if payload['elements'].is_a?(Array) && payload['elements'].first.is_a?(Hash)
+          element = payload['elements'].first
+          if element['title'].present?
+            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback"
+            return element['title']
+          end
+        end
+      end
+
+      # Try direct format (no wrapper)
+      if socialwise_data['text'].present?
+        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using direct text field for fallback"
+        return socialwise_data['text']
+      end
+
+      # For direct Generic Template format
+      if socialwise_data['elements'].is_a?(Array) && socialwise_data['elements'].first.is_a?(Hash)
+        element = socialwise_data['elements'].first
         if element['title'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback"
+          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using direct element title for fallback"
           return element['title']
         end
       end
