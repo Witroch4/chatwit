@@ -5,14 +5,16 @@
 This design completes the SocialWise Flow integration by implementing response processing capabilities. The system already sends webhooks to SocialWise Flow via `Integrations::SocialwiseFlow::ProcessorService` and receives responses, but needs to process the returned payloads to deliver rich messages and handle bot handoff.
 
 The solution leverages existing Chatwoot native services:
+
 - `Whatsapp::RichMessageService` for WhatsApp interactive messages
-- `Instagram::RichMessageService` for Instagram rich messages  
+- `Instagram::RichMessageService` for Instagram rich messages
 - `Facebook::RawDeliverService` for Facebook Messenger messages
 - Native conversation handoff mechanisms
 
 ## Architecture
 
 ### Current Flow
+
 ```
 Message Event → SocialwiseFlow::ProcessorService → HTTP Request to SocialWise Flow
                                                         ↓
@@ -22,6 +24,7 @@ Message Event → SocialwiseFlow::ProcessorService → HTTP Request to SocialWis
 ```
 
 ### Enhanced Flow
+
 ```
 Message Event → SocialwiseFlow::ProcessorService → HTTP Request to SocialWise Flow
                                                         ↓
@@ -52,6 +55,7 @@ Message Event → SocialwiseFlow::ProcessorService → HTTP Request to SocialWis
 **Enhancement Needed**: Complete the response processing methods
 
 **Key Methods**:
+
 ```ruby
 def process_response(message, response)
   # Route response by channel type
@@ -65,7 +69,7 @@ def process_whatsapp_response(message, whatsapp_payload)
 end
 
 def process_instagram_response(message, instagram_payload)
-  # Create mirror message for dashboard  
+  # Create mirror message for dashboard
   # Call Instagram::RichMessageService
 end
 
@@ -82,6 +86,7 @@ end
 **Implementation**: Extend existing response processing methods
 
 **WhatsApp Button Click Flow**:
+
 ```ruby
 # Response format from SocialWise Flow:
 {
@@ -101,6 +106,7 @@ end
 ```
 
 **Instagram Button Click Flow**:
+
 ```ruby
 # Response format from SocialWise Flow:
 {
@@ -139,6 +145,7 @@ end
 ### 4. Rich Message Services Integration
 
 **WhatsApp Integration**:
+
 ```ruby
 # Use existing Whatsapp::RichMessageService
 service = Whatsapp::RichMessageService.new(
@@ -149,8 +156,9 @@ service.perform
 ```
 
 **Instagram Integration**:
+
 ```ruby
-# Use existing Instagram::RichMessageService  
+# Use existing Instagram::RichMessageService
 service = Instagram::RichMessageService.new(
   message: outgoing_message,
   rich_payload: instagram_payload
@@ -159,6 +167,7 @@ service.perform
 ```
 
 **Facebook Integration**:
+
 ```ruby
 # Use existing Facebook::RawDeliverService
 service = Facebook::RawDeliverService.new(
@@ -173,6 +182,7 @@ service.perform
 ### SocialWise Flow Response Formats
 
 **WhatsApp Interactive Message**:
+
 ```json
 {
   "whatsapp": {
@@ -209,7 +219,8 @@ service.perform
 
 **Instagram Rich Messages**:
 
-*Generic Template*:
+_Generic Template_:
+
 ```json
 {
   "instagram": {
@@ -232,7 +243,8 @@ service.perform
 }
 ```
 
-*Button Template*:
+_Button Template_:
+
 ```json
 {
   "instagram": {
@@ -260,7 +272,8 @@ service.perform
 }
 ```
 
-*Quick Replies*:
+_Quick Replies_:
+
 ```json
 {
   "instagram": {
@@ -295,13 +308,14 @@ service.perform
 ### Message Creation Structure
 
 **Outgoing Message for Dashboard**:
+
 ```ruby
 {
   content_type: 'integrations',
   content: nil,
   content_attributes: {
     'whatsapp_interactive' => whatsapp_payload,  # or
-    'instagram_rich' => instagram_payload,       # or  
+    'instagram_rich' => instagram_payload,       # or
     'facebook_rich' => facebook_payload
   },
   message_type: :outgoing,
@@ -319,20 +333,20 @@ service.perform
 ```ruby
 def process_response(message, response)
   return if response.blank?
-  
+
   # Process actions first (handoff)
   if (action = response['action']).present?
     process_action(message, action)
     return
   end
-  
+
   # Route by channel with error handling
   channel_type = message.conversation.inbox.channel_type
-  
+
   case channel_type
   when 'Channel::Whatsapp'
     process_whatsapp_response(message, response['whatsapp'])
-  when 'Channel::Instagram'  
+  when 'Channel::Instagram'
     process_instagram_response(message, response['instagram'])
   when 'Channel::FacebookPage'
     process_facebook_response(message, response['facebook'])
@@ -385,14 +399,14 @@ end
 def process_button_reaction(message, reaction_data)
   # Send emoji reaction and text
   send_reaction_response(message, reaction_data)
-  
+
   # Process handoff if specified
   if reaction_data['action'] == 'handoff'
     process_action(message, 'handoff')
   end
 rescue StandardError => e
   Rails.logger.error("[SOCIALWISE-FLOW] Button reaction failed: #{e.class}: #{e.message}")
-  
+
   # Still process handoff even if reaction failed
   if reaction_data['action'] == 'handoff'
     process_action(message, 'handoff')
@@ -405,6 +419,7 @@ end
 ### 1. Unit Tests
 
 **SocialwiseFlow::ProcessorService Tests**:
+
 - Test `process_response` method with different response formats
 - Test channel-specific processing methods
 - Test handoff action processing
@@ -412,14 +427,16 @@ end
 - Test error handling and fallback scenarios
 
 **Rich Message Service Integration Tests**:
+
 - Test WhatsApp interactive message processing
-- Test Instagram rich message processing  
+- Test Instagram rich message processing
 - Test Facebook raw payload processing
 - Test message creation and dashboard mirroring
 
 ### 2. Integration Tests
 
 **End-to-End Flow Tests**:
+
 - Test complete flow from SocialWise Flow response to message delivery
 - Test button click processing with handoff
 - Test conversation status changes during handoff
@@ -428,17 +445,20 @@ end
 ### 3. Channel-Specific Tests
 
 **WhatsApp Tests**:
+
 - Test interactive button messages (≤3 buttons)
 - Test interactive list messages (>3 buttons)
 - Test button click responses with emoji reactions
 
 **Instagram Tests**:
+
 - Test Generic Template messages
 - Test Button Template messages
 - Test Quick Replies messages
 - Test postback processing with emoji reactions
 
 **Facebook Tests**:
+
 - Test raw payload delivery
 - Test recipient ID handling
 - Test text message fallbacks
@@ -490,21 +510,25 @@ service.new(message: outgoing_message, payload: payload).perform
 ## Migration Strategy
 
 ### Phase 1: Complete Response Processing
+
 1. Implement missing methods in `SocialwiseFlow::ProcessorService`
 2. Add comprehensive error handling
 3. Test with existing SocialWise Flow integration
 
 ### Phase 2: Button Click Enhancement
+
 1. Add button_reaction processing
 2. Implement emoji reaction sending
 3. Test handoff functionality
 
 ### Phase 3: Testing and Validation
+
 1. Comprehensive test suite implementation
 2. Integration testing with real SocialWise Flow responses
 3. Performance testing and optimization
 
 ### Phase 4: Documentation and Deployment
+
 1. Update integration documentation
 2. Create troubleshooting guide
 3. Deploy with monitoring and logging
@@ -512,16 +536,19 @@ service.new(message: outgoing_message, payload: payload).perform
 ## Backward Compatibility
 
 ### Existing SocialWise Flow Integration
+
 - Maintain current webhook sending functionality
 - Preserve existing processor service structure
 - Keep current error handling patterns
 
 ### Message Creation Patterns
+
 - Use existing message creation methods
 - Maintain current content_attributes structure
 - Preserve dashboard display compatibility
 
 ### Service Integration
+
 - Use existing rich message services without modification
 - Maintain current service interfaces
 - Preserve existing error handling in services

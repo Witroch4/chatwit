@@ -374,11 +374,10 @@ class Instagram::RichMessageService < Instagram::BaseSendService
 
   # Check if rich dashboard feature is enabled
   def rich_dashboard_enabled?
-    account = message.conversation.account
-    enabled = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
-    
-    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich dashboard enabled check: #{enabled} for account #{account.id}"
-    enabled
+    # ALWAYS return true - feature flag dependency removed
+    # This is a core system feature and should always be enabled
+    Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] Rich dashboard always enabled (feature flag dependency removed)"
+    true
   end
 
   # Check if message is already in rich format (created directly as cards/input_select)

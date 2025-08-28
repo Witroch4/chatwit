@@ -37,7 +37,6 @@ import LocationBubble from './bubbles/Location.vue';
 import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import RichCards from './bubbles/RichCards.vue';
-import QuickReplies from './bubbles/QuickReplies.vue';
 import WhatsAppInteractive from './bubbles/WhatsAppInteractive.vue';
 
 import MessageError from './MessageError.vue';
@@ -268,9 +267,18 @@ const shouldShowAvatar = computed(() => {
 });
 
 const componentToRender = computed(() => {
-  // Debug log for WhatsApp messages
+  // Debug log for all outgoing messages
   if (props.messageType === MESSAGE_TYPES.OUTGOING) {
-    // Removed console.log for production
+    // eslint-disable-next-line no-console
+    console.log('[Message.vue] 🔍 Outgoing message debug:', {
+      messageId: props.id,
+      contentType: props.contentType,
+      contentAttributes: props.contentAttributes,
+      hasItems: !!props.contentAttributes?.items,
+      itemsLength: props.contentAttributes?.items?.length,
+      isInputSelect: props.contentType === CONTENT_TYPES.INPUT_SELECT,
+      isCards: props.contentType === CONTENT_TYPES.CARDS,
+    });
   }
 
   if (props.isEmailInbox && !props.private) {
@@ -283,6 +291,8 @@ const componentToRender = computed(() => {
   }
 
   if (props.contentType === CONTENT_TYPES.CARDS) {
+    // eslint-disable-next-line no-console
+    console.log('[Message.vue] ✅ RENDERING RichCards for message:', props.id);
     return RichCards;
   }
 
@@ -305,15 +315,40 @@ const componentToRender = computed(() => {
       props.contentAttributes?.submittedValues &&
       props.contentAttributes.submittedValues.length > 0;
 
-    if (
-      !hasSubmittedValues &&
-      props.contentAttributes?.items &&
-      props.contentAttributes.items.length > 0
-    ) {
-      // This is QuickReplies - show available options
-      return QuickReplies;
+    // Debug logs for INPUT_SELECT component selection
+    if (import.meta.env.MODE !== 'production') {
+      // eslint-disable-next-line no-console
+      console.log('[Message.vue] INPUT_SELECT Debug:', {
+        messageId: props.id,
+        contentType: props.contentType,
+        hasSubmittedValues,
+        submittedValues: props.contentAttributes?.submittedValues,
+        items: props.contentAttributes?.items,
+        itemsLength: props.contentAttributes?.items?.length,
+        contentAttributes: props.contentAttributes,
+        willRenderRichCards: !hasSubmittedValues,
+      });
     }
+
+    if (!hasSubmittedValues) {
+      // This is QuickReplies converted to RichCards - show available options
+      // eslint-disable-next-line no-console
+      console.log(
+        '[Message.vue] ✅ RENDERING RichCards (QuickReplies) for message:',
+        {
+          messageId: props.id,
+          itemsCount: props.contentAttributes?.items?.length || 0,
+          items: props.contentAttributes?.items,
+        }
+      );
+      return RichCards;
+    }
+
     // This is a submitted form - show submitted values
+    if (import.meta.env.MODE !== 'production') {
+      // eslint-disable-next-line no-console
+      console.log('[Message.vue] Rendering FormBubble for message:', props.id);
+    }
     return FormBubble;
   }
 
@@ -352,6 +387,13 @@ const componentToRender = computed(() => {
     if (fileType === ATTACHMENT_TYPES.CONTACT) return ContactBubble;
   }
 
+  // eslint-disable-next-line no-console
+  console.log('[Message.vue] ⚠️  FALLBACK to TextBubble for message:', {
+    messageId: props.id,
+    contentType: props.contentType,
+    messageType: props.messageType,
+    hasAttachments: props.attachments?.length > 0,
+  });
   return TextBubble;
 });
 

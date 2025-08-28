@@ -1268,19 +1268,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
     def create_rich_outgoing_message(conversation, instagram_payload, original_payload)
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich outgoing message"
       
-      # Check if rich dashboard is enabled for this account
-      account = conversation.account
-      rich_dashboard_enabled = account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+      # ALWAYS create rich messages - feature flag dependency removed
+      # This is a core system feature and should always be enabled
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich message directly (feature flag dependency removed)"
       
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Rich dashboard enabled: #{rich_dashboard_enabled} for account #{account.id}"
-      
-      if rich_dashboard_enabled
-        # Create message directly as rich cards to avoid flash effect
-        create_rich_message_directly(conversation, instagram_payload, original_payload)
-      else
-        # Create regular text message (existing behavior)
-        create_text_message(conversation, original_payload)
-      end
+      # Create message directly as rich cards to avoid flash effect
+      create_rich_message_directly(conversation, instagram_payload, original_payload)
     end
 
     # Create message directly as rich cards

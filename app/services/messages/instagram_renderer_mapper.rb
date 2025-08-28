@@ -102,29 +102,39 @@ class Messages::InstagramRendererMapper
       Mapped.new('cards', { 'items' => [card_item] }, fallback)
     end
 
-    # Convert Quick Replies to input_select structure
+    # Convert Quick Replies to cards structure (using RichCards component)
     def to_input_select_from_quick_replies(payload)
       quick_replies = Array(payload['quick_replies'])
       return default_text_mapping(payload) if quick_replies.empty?
 
-      items = quick_replies.map do |quick_reply|
+      # Convert quick replies to postback buttons for RichCards
+      buttons = quick_replies.map do |quick_reply|
         title = quick_reply['title'].to_s.strip
         payload_value = quick_reply['payload'].to_s.strip
 
         next if title.blank? || payload_value.blank?
 
         {
-          'title' => title.truncate(TITLE_LIMIT),
-          'value' => payload_value
+          'type' => 'postback',
+          'text' => title.truncate(50),
+          'payload' => payload_value
         }
       end.compact
 
-      return default_text_mapping(payload) if items.empty?
+      return default_text_mapping(payload) if buttons.empty?
 
       text = payload['text'].to_s.strip.presence || 'Select an option'
-      fallback = "#{text} (#{items.length} options)"
+      
+      # Create a single card with the text and quick reply buttons
+      card_item = {
+        'title' => text.truncate(TITLE_LIMIT),
+        'actions' => buttons
+      }
 
-      Mapped.new('input_select', { 'items' => items }, fallback)
+      fallback = "#{text} (#{buttons.length} options)"
+
+      # Use 'cards' content_type to render with RichCards component
+      Mapped.new('cards', { 'items' => [card_item] }, fallback)
     end
 
     # Build individual card item from element
