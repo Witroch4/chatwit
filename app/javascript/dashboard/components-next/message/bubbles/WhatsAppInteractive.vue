@@ -283,26 +283,6 @@ onErrorCaptured(() => {
 <style scoped>
 .whatsapp-interactive-bubble {
   @apply px-4 py-3;
-  /* DEBUG: Tornar muito visível */
-  background-color: #e3f2fd !important;
-  border: 3px solid #2196f3 !important;
-  border-radius: 8px !important;
-  margin: 10px 0 !important;
-  min-height: 100px !important;
-  position: relative !important;
-  z-index: 1000 !important;
-}
-
-.whatsapp-interactive-bubble::before {
-  content: '🔍 WhatsApp Interactive Component - DEBUG MODE';
-  display: block;
-  background: #ff9800;
-  color: white;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: bold;
-  margin: -16px -16px 10px -16px;
-  border-radius: 4px 4px 0 0;
 }
 
 .whatsapp-button:hover {
