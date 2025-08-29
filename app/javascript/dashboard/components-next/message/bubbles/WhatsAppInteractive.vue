@@ -51,7 +51,8 @@ const listSections = computed(() => {
 });
 
 const listButtonText = computed(() => {
-  return interactivePayload.value?.action?.button || 'Ver opções';
+  const text = interactivePayload.value?.action?.button || 'Ver opções';
+  return new MessageFormatter(text).formattedMessage;
 });
 
 const isButtonTemplate = computed(() => {
@@ -85,6 +86,12 @@ const formatListRow = row => {
   if (row.description) {
     text += ` - ${row.description}`;
   }
+  return new MessageFormatter(text).formattedMessage;
+};
+
+// Format section title for display
+const formatSectionTitle = section => {
+  const text = section.title || '';
   return new MessageFormatter(text).formattedMessage;
 };
 
@@ -172,9 +179,10 @@ onErrorCaptured(() => {
         <div
           class="border border-n-slate-6 rounded-lg px-3 py-2 text-center bg-n-slate-1 hover:bg-n-slate-2 transition-colors"
         >
-          <span class="text-sm font-medium text-n-slate-12">
-            {{ listButtonText }}
-          </span>
+          <span
+            v-dompurify-html="listButtonText"
+            class="text-sm font-medium text-n-slate-12"
+          />
         </div>
       </div>
 
@@ -187,10 +195,9 @@ onErrorCaptured(() => {
         >
           <div
             v-if="section.title"
+            v-dompurify-html="formatSectionTitle(section)"
             class="text-xs font-semibold text-n-slate-11 mb-2 uppercase tracking-wide"
-          >
-            {{ section.title }}
-          </div>
+          />
           <div class="space-y-1">
             <div
               v-for="(row, rowIndex) in section.rows"
@@ -236,14 +243,16 @@ onErrorCaptured(() => {
           'WhatsApp Interactive Message'
         }}
       </p>
-      <div class="text-sm">
-        {{
-          content.value ||
-          contentAttributes.value?.fallback_text ||
-          'Interactive message content'
-        }}
-      </div>
-
+      <div
+        v-dompurify-html="
+          new MessageFormatter(
+            content.value ||
+              contentAttributes.value?.fallback_text ||
+              'Interactive message content'
+          ).formattedMessage
+        "
+        class="text-sm prose prose-bubble"
+      />
       <!-- Debug info (development only) -->
       <details v-if="isDev" class="mt-2 text-xs text-n-slate-10">
         <summary>{{ $t('DEBUG_INFO') }}</summary>
