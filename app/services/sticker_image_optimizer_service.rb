@@ -7,7 +7,9 @@ class StickerImageOptimizerService
   include ActiveModel::Model
   include ActiveModel::Attributes
 
-  MAX_FILE_SIZE = 100.kilobytes
+  # WhatsApp sticker size limits
+  MAX_STATIC_FILE_SIZE = 100.kilobytes
+  MAX_ANIMATED_FILE_SIZE = 500.kilobytes
   TARGET_DIMENSIONS = [512, 512].freeze
   SUPPORTED_FORMATS = %w[image/jpeg image/png image/gif image/webp].freeze
   OUTPUT_FORMAT = 'webp'
@@ -48,7 +50,9 @@ class StickerImageOptimizerService
         original_size: result[:original_size],
         final_size: result[:final_size],
         compression_ratio: result[:compression_ratio],
-        processing_time: processing_time.round(2)
+        processing_time: processing_time.round(2),
+        is_animated: result[:is_animated],
+        has_transparency: result[:has_transparency]
       }
       
     rescue StandardError => e
@@ -81,46 +85,51 @@ class StickerImageOptimizerService
       # Load image
       image = MiniMagick::Image.open(input_path)
       
+      # Detect animation and transparency
+      is_animated = animated?(image)
+      has_transparency = has_transparency?(image)
+      
+      Rails.logger.info "StickerImageOptimizerService: WhatsApp optimization - animated: #{is_animated}, transparent: #{has_transparency}"
+      
       # WhatsApp sticker requirements:
       # - WebP format
       # - Max 512x512 pixels
       # - Max 100KB for static, 500KB for animated
       # - Square aspect ratio preferred
+      # - Preserve animation and transparency
       
-      # Resize to 512x512 maintaining aspect ratio
-      image.resize "512x512^"
-      image.gravity 'center'
-      image.extent "512x512"
-      
-      # Convert to WebP
-      image.format 'webp'
+      max_file_size = is_animated ? MAX_ANIMATED_FILE_SIZE : MAX_STATIC_FILE_SIZE
       
       # Start with high quality and reduce if needed
       QUALITY_LEVELS.each do |quality|
-        image.quality quality
-        image.define 'webp:method=6' # Best compression
-        image.strip # Remove metadata
+        # Create a copy for processing
+        working_image = image.dup
+        
+        # Apply optimization with preservation
+        optimized_image = process_image_with_quality_and_preservation(working_image, quality, is_animated, has_transparency)
         
         # Write temporary file to check size
         temp_output = "#{output_path}.tmp"
-        image.write(temp_output)
+        optimized_image.write(temp_output)
         
         file_size = File.size(temp_output)
         
-        if file_size <= 500.kilobytes # WhatsApp limit for stickers
+        if file_size <= max_file_size
           File.rename(temp_output, output_path)
-          Rails.logger.info "StickerImageOptimizerService: Optimized to #{file_size} bytes at quality #{quality}"
+          Rails.logger.info "StickerImageOptimizerService: Optimized to #{file_size} bytes at quality #{quality} (limit: #{max_file_size})"
           return output_path
         else
           File.delete(temp_output) if File.exist?(temp_output)
         end
       end
       
-      # If still too large, use lowest quality
-      image.quality QUALITY_LEVELS.last
-      image.write(output_path)
+      # If still too large, use lowest quality with preservation
+      working_image = image.dup
+      optimized_image = process_image_with_quality_and_preservation(working_image, QUALITY_LEVELS.last, is_animated, has_transparency)
+      optimized_image.write(output_path)
       
-      Rails.logger.warn "StickerImageOptimizerService: Using lowest quality, size may exceed WhatsApp limits"
+      final_size = File.size(output_path)
+      Rails.logger.warn "StickerImageOptimizerService: Using lowest quality, final size: #{final_size} bytes (limit: #{max_file_size})"
       output_path
       
     rescue StandardError => e
@@ -168,8 +177,14 @@ class StickerImageOptimizerService
       # Validate image
       validate_image!(image)
       
-      # Optimize image with progressive quality reduction
-      optimized_image = optimize_with_quality_levels(image)
+      # Detect animation and transparency
+      is_animated = animated?(image)
+      has_transparency = has_transparency?(image)
+      
+      Rails.logger.info "StickerImageOptimizer: Processing sticker - animated: #{is_animated}, transparent: #{has_transparency}"
+      
+      # Optimize image preserving animation and transparency
+      optimized_image = optimize_with_preservation(image, is_animated, has_transparency)
       
       # Write to temporary file
       optimized_image.write(temp_file.path)
@@ -180,16 +195,18 @@ class StickerImageOptimizerService
       # Create ActionDispatch::Http::UploadedFile compatible object
       processed_file = ActionDispatch::Http::UploadedFile.new(
         tempfile: temp_file,
-        filename: generate_filename,
+        filename: generate_filename(is_animated),
         type: 'image/webp',
-        head: "Content-Disposition: form-data; name=\"file\"; filename=\"#{generate_filename}\"\r\nContent-Type: image/webp\r\n"
+        head: "Content-Disposition: form-data; name=\"file\"; filename=\"#{generate_filename(is_animated)}\"\r\nContent-Type: image/webp\r\n"
       )
       
       {
         processed_file: processed_file,
         original_size: original_size,
         final_size: final_size,
-        compression_ratio: compression_ratio
+        compression_ratio: compression_ratio,
+        is_animated: is_animated,
+        has_transparency: has_transparency
       }
       
     rescue StandardError => e
@@ -210,10 +227,36 @@ class StickerImageOptimizerService
     raise ArgumentError, 'Image dimensions too large (maximum 2048x2048)' if width > 2048 || height > 2048
   end
 
-  def optimize_with_quality_levels(image)
+  # Detect if image is animated (has multiple frames)
+  def animated?(image)
+    image.frames.count > 1
+  rescue StandardError => e
+    Rails.logger.debug "StickerImageOptimizer: Error detecting animation: #{e.message}"
+    false
+  end
+
+  # Detect if image has transparency (alpha channel)
+  def has_transparency?(image)
+    # Check if image has alpha channel using identify command
+    result = image.identify do |b|
+      b.format '%A'
+    end
+    result.strip.downcase == 'true'
+  rescue StandardError => e
+    Rails.logger.debug "StickerImageOptimizer: Error detecting transparency: #{e.message}"
+    # Fallback: check if format typically supports transparency
+    %w[png gif webp].include?(image.type.downcase)
+  end
+
+  # Optimize preserving animation and transparency
+  def optimize_with_preservation(image, is_animated, has_transparency)
+    max_file_size = is_animated ? MAX_ANIMATED_FILE_SIZE : MAX_STATIC_FILE_SIZE
+    
+    Rails.logger.info "StickerImageOptimizer: Using #{is_animated ? 'animated' : 'static'} size limit: #{max_file_size} bytes"
+    
     # Start with highest quality and reduce until file size is acceptable
     QUALITY_LEVELS.each do |quality|
-      optimized = process_image_with_quality(image.dup, quality)
+      optimized = process_image_with_quality_and_preservation(image.dup, quality, is_animated, has_transparency)
       
       # Check file size by writing to a temporary location
       temp_check = Tempfile.new(['size_check', '.webp'])
@@ -221,7 +264,7 @@ class StickerImageOptimizerService
         optimized.write(temp_check.path)
         file_size = File.size(temp_check.path)
         
-        if file_size <= MAX_FILE_SIZE
+        if file_size <= max_file_size
           Rails.logger.debug "Sticker optimized at quality #{quality}, size: #{file_size} bytes"
           return optimized
         end
@@ -232,10 +275,17 @@ class StickerImageOptimizerService
     
     # If we can't get under the size limit, use the lowest quality
     Rails.logger.warn "Sticker optimization: using lowest quality, may exceed size limit"
-    process_image_with_quality(image, QUALITY_LEVELS.last)
+    process_image_with_quality_and_preservation(image, QUALITY_LEVELS.last, is_animated, has_transparency)
   end
 
-  def process_image_with_quality(image, quality)
+  def optimize_with_quality_levels(image)
+    # Legacy method - redirect to new preservation method
+    is_animated = animated?(image)
+    has_transparency = has_transparency?(image)
+    optimize_with_preservation(image, is_animated, has_transparency)
+  end
+
+  def process_image_with_quality_and_preservation(image, quality, is_animated, has_transparency)
     # Resize to target dimensions maintaining aspect ratio
     image.resize "#{TARGET_DIMENSIONS[0]}x#{TARGET_DIMENSIONS[1]}^"
     image.gravity 'center'
@@ -245,21 +295,65 @@ class StickerImageOptimizerService
     image.format OUTPUT_FORMAT
     image.quality quality
     
-    # Additional optimizations
-    image.strip # Remove metadata
-    image.interlace 'none' # Disable interlacing for smaller file size
+    # Preserve animation for animated stickers
+    if is_animated
+      Rails.logger.debug "StickerImageOptimizer: Preserving animation with WebP animated format"
+      # Keep all frames for animation
+      image.define 'webp:method=6' # Best compression for animated WebP
+      image.define 'webp:minimize-size=1' # Minimize file size
+      # Don't strip metadata for animated images as it may break animation
+    else
+      # Static image optimizations
+      image.strip # Remove metadata for static images
+      image.interlace 'none' # Disable interlacing for smaller file size
+      image.define 'webp:method=6' # Highest compression method
+    end
     
-    # WebP specific optimizations
-    image.define 'webp:method=6' # Highest compression method
-    image.define 'webp:target-size=' + MAX_FILE_SIZE.to_s if quality < 75
+    # Preserve transparency
+    if has_transparency
+      Rails.logger.debug "StickerImageOptimizer: Preserving transparency with alpha channel"
+      # Ensure alpha channel is preserved
+      begin
+        image.alpha 'set' # Ensure alpha channel exists
+      rescue StandardError => e
+        Rails.logger.debug "StickerImageOptimizer: Could not set alpha channel: #{e.message}"
+      end
+      image.define 'webp:alpha-compression=1' # Enable alpha compression
+      image.define 'webp:alpha-filtering=2' # Best alpha filtering
+      image.define 'webp:alpha-quality=100' # Preserve alpha quality
+      # Don't add background color to preserve transparency
+    else
+      # For non-transparent images, we can optimize alpha channel away
+      begin
+        # Check if image has alpha before trying to remove it
+        alpha_info = image.identify { |b| b.format '%A' }
+        if alpha_info.strip.downcase == 'true'
+          image.alpha 'remove'
+        end
+      rescue StandardError => e
+        Rails.logger.debug "StickerImageOptimizer: Could not remove alpha channel: #{e.message}"
+      end
+    end
+    
+    # Set target size based on animation status
+    max_size = is_animated ? MAX_ANIMATED_FILE_SIZE : MAX_STATIC_FILE_SIZE
+    image.define 'webp:target-size=' + max_size.to_s if quality < 75
     
     image
   end
 
-  def generate_filename
+  def process_image_with_quality(image, quality)
+    # Legacy method - redirect to new preservation method
+    is_animated = animated?(image)
+    has_transparency = has_transparency?(image)
+    process_image_with_quality_and_preservation(image, quality, is_animated, has_transparency)
+  end
+
+  def generate_filename(is_animated = false)
     timestamp = Time.current.strftime('%Y%m%d_%H%M%S')
     random_suffix = SecureRandom.hex(4)
-    "sticker_#{timestamp}_#{random_suffix}.webp"
+    animation_suffix = is_animated ? '_animated' : ''
+    "sticker_#{timestamp}_#{random_suffix}#{animation_suffix}.webp"
   end
 
   # Class method for batch processing

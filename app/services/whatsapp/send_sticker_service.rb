@@ -1,4 +1,11 @@
 class Whatsapp::SendStickerService
+  # 🎯 OPTIMISTIC FLOW IMPLEMENTATION
+  # This service implements the native Chatwoot optimistic message flow:
+  # 1. Create message immediately with MessageBuilder (status: 'sent' - shows clock icon)
+  # 2. Process sticker and send to WhatsApp API
+  # 3. Update to 'delivered' on success (shows check mark) or 'failed' on error (shows error icon)
+  # 4. Uses skip_send_reply: true to prevent duplicate sending via native message flow
+  
   MEDIA_CACHE_TTL = 30.days
   MEDIA_CACHE_PREFIX = 'whatsapp_media_id'
   
@@ -16,46 +23,41 @@ class Whatsapp::SendStickerService
     @channel = conversation.inbox.channel
     @metrics_service = StickerPerformanceMetricsService.instance
     
-    # CRITICAL DEBUG: Log initialization details
-    Rails.logger.info "WhatsApp SendStickerService: Initialized with conversation #{@conversation.id}"
-    Rails.logger.info "  - Account ID: #{@conversation.account_id}"
-    Rails.logger.info "  - Inbox ID: #{@conversation.inbox_id}"
-    Rails.logger.info "  - Contact ID: #{@conversation.contact.id}"
-    Rails.logger.info "  - User ID: #{@user.id}"
-    Rails.logger.info "  - Sticker URL: #{@sticker_data[:url]}"
+    Rails.logger.info "WhatsApp SendStickerService: Initialized for conversation #{@conversation.id}, user #{@user.id}"
   end
 
   def perform
     start_time = Time.current
     
-    Rails.logger.info "WhatsApp SendStickerService: Starting sticker send process for sticker ID #{@sticker_data[:id]} (#{@sticker_data[:provider]})"
-    Rails.logger.info "WhatsApp SendStickerService: Sticker URL: #{@sticker_data[:url]}"
+    Rails.logger.info "WhatsApp SendStickerService: Starting optimistic sticker send for #{@sticker_data[:provider]} sticker"
     
     begin
       validate_inputs!
       
+      # 🎯 OPTIMISTIC FLOW: Create message immediately with 'sent' status (shows clock icon in UI)
+      message = create_sticker_message
+      Rails.logger.info "WhatsApp SendStickerService: Message created immediately with ID #{message.id}, status: #{message.status}"
+      
       # 1. Obtain media_id (with 30-day cache)
       media_id = fetch_or_upload_media
-      return build_error_response('MEDIA_UPLOAD_FAILED', 'Failed to upload sticker to WhatsApp') unless media_id
+      unless media_id
+        # Update message to failed status
+        message.update!(status: 'failed')
+        return build_error_response('MEDIA_UPLOAD_FAILED', 'Failed to upload sticker to WhatsApp')
+      end
 
-      # 2. Create message using existing enum
-      message = create_sticker_message
-
-      # 3. Send via WhatsApp
+      # 2. Send via WhatsApp
       whatsapp_start_time = Time.current
       response = send_to_whatsapp(media_id)
       whatsapp_response_time = (Time.current - whatsapp_start_time) * 1000
 
       if response[:success]
-        # 🎯 UPDATE SOURCE_ID FOR STATUS CHECKS (follows native SendOnWhatsappService pattern)
-        if response[:message_id].present?
-          message.update!(source_id: response[:message_id])
-          Rails.logger.info "WhatsApp SendStickerService: Updated message #{message.id} with source_id: #{response[:message_id]}"
-          Rails.logger.info "WhatsApp SendStickerService: Message status after update: #{message.reload.status}"
-          Rails.logger.info "WhatsApp SendStickerService: Message source_id after update: #{message.reload.source_id}"
-        else
-          Rails.logger.warn "WhatsApp SendStickerService: No message_id returned from WhatsApp API"
-        end
+        # 🎯 UPDATE TO 'DELIVERED' STATUS AND SET SOURCE_ID (shows check mark in UI)
+        message.update!(
+          source_id: response[:message_id], # For status tracking
+          status: 'delivered'  # Native enum: delivered = 1 (shows check mark)
+        )
+        Rails.logger.info "WhatsApp SendStickerService: Updated message #{message.id} to delivered with source_id: #{response[:message_id]}"
         
         # Track successful sticker usage
         total_response_time = (Time.current - start_time) * 1000
@@ -73,10 +75,14 @@ class Whatsapp::SendStickerService
           success: true
         )
         
-        # 4. Record as recent sticker for user
+        # 3. Record as recent sticker for user
         record_recent_sticker
         { success: true, message_id: message.id, source_id: response[:message_id] }
       else
+        # 🎯 UPDATE TO 'FAILED' STATUS (shows error icon in UI)
+        message.update!(status: 'failed')  # Native enum: failed = 3 (shows error icon)
+        Rails.logger.error "WhatsApp SendStickerService: Updated message #{message.id} to failed status"
+        
         # Track failed WhatsApp API call
         @metrics_service.track_api_performance(
           api_name: 'whatsapp_send_sticker',
@@ -84,10 +90,15 @@ class Whatsapp::SendStickerService
           success: false
         )
         
-        message.destroy # Remove message if sending failed
         build_error_response_from_whatsapp(response)
       end
     rescue StandardError => e
+      # 🎯 UPDATE MESSAGE TO FAILED STATUS ON ANY ERROR
+      if defined?(message) && message&.persisted?
+        message.update!(status: 'failed')  # Native enum: failed = 3 (shows error icon)
+        Rails.logger.error "WhatsApp SendStickerService: Updated message #{message.id} to failed status due to exception"
+      end
+      
       # Track failed sticker usage
       total_response_time = (Time.current - start_time) * 1000
       @metrics_service.track_api_performance(
@@ -267,54 +278,28 @@ class Whatsapp::SendStickerService
   end
 
   def create_sticker_message
-    # CRITICAL DEBUG: Log conversation details before creating message
-    Rails.logger.info "WhatsApp SendStickerService: Creating message for conversation #{@conversation.id}"
-    Rails.logger.info "  - Account ID: #{@conversation.account_id}"
-    Rails.logger.info "  - Inbox ID: #{@conversation.inbox_id}"
-    Rails.logger.info "  - Contact ID: #{@conversation.contact.id}"
-    Rails.logger.info "  - Contact Phone: #{@conversation.contact.phone_number}"
-    Rails.logger.info "  - ContactInbox Source ID: #{@conversation.contact_inbox.source_id}"
-    Rails.logger.info "  - User ID: #{@user.id} (#{@user.name})"
+    Rails.logger.info "WhatsApp SendStickerService: Creating optimistic message for conversation #{@conversation.id}"
     
-    # 🎯 USE NATIVE MESSAGEBUILDER PATTERN - This ensures correct sender attribution
+    # 🎯 USE NATIVE MESSAGEBUILDER PATTERN WITH OPTIMISTIC STATUS
     message_params = ActionController::Parameters.new({
-      content: "Sticker: #{@sticker_data[:alt]}",
-      content_type: 'sticker', # Uses existing enum
+      content: "Sticker: #{@sticker_data[:alt] || 'Sticker'}",
+      content_type: 'sticker', # Uses existing enum: sticker = 11
       content_attributes: {
         sticker_data: @sticker_data
       },
-      message_type: 'outgoing', # String, not symbol for MessageBuilder
+      message_type: 'outgoing', # String for MessageBuilder compatibility
       additional_attributes: { 
-        skip_send_reply: true # Prevents duplicate sending - CRITICAL FLAG!
+        skip_send_reply: true # CRITICAL: Prevents duplicate sending via native flow
       }
     })
     
-    # Use MessageBuilder to ensure proper sender attribution (follows native pattern)
+    # Use MessageBuilder to ensure proper message creation following native patterns
     builder = Messages::MessageBuilder.new(@user, @conversation, message_params)
     message = builder.perform
     
-    # CRITICAL DEBUG: Verify the message was created correctly with proper sender
-    Rails.logger.info "WhatsApp SendStickerService: Message created with ID #{message.id}"
-    Rails.logger.info "  - Message conversation_id: #{message.conversation_id}"
-    Rails.logger.info "  - Expected conversation_id: #{@conversation.id}"
-    Rails.logger.info "  - Match: #{message.conversation_id == @conversation.id}"
-    Rails.logger.info "  - Sender: #{message.sender.class.name} ID #{message.sender.id} (#{message.sender.try(:name) || message.sender.try(:display_name)})"
-    Rails.logger.info "  - Expected sender: User ID #{@user.id} (#{@user.name})"
-    
-    if message.conversation_id != @conversation.id
-      Rails.logger.error "CRITICAL ERROR: Message created in wrong conversation!"
-      Rails.logger.error "  - Expected: #{@conversation.id}"
-      Rails.logger.error "  - Actual: #{message.conversation_id}"
-      raise ConversationNotFoundError, "Message created in wrong conversation (#{message.conversation_id} instead of #{@conversation.id})"
-    end
-    
-    # Verify sender is correct (should be the user, not a bot)
-    if message.sender != @user
-      Rails.logger.error "CRITICAL ERROR: Message has wrong sender!"
-      Rails.logger.error "  - Expected: User ID #{@user.id} (#{@user.name})"
-      Rails.logger.error "  - Actual: #{message.sender.class.name} ID #{message.sender.id}"
-      # Don't raise error, but log for debugging
-    end
+    # 🎯 OPTIMISTIC FLOW: Message starts with default status, update to 'sent' (shows clock icon)
+    message.update!(status: 'sent')
+    Rails.logger.info "WhatsApp SendStickerService: Message #{message.id} created with 'sent' status for optimistic UI"
     
     message
   end
