@@ -241,6 +241,10 @@ export default {
       this.error = null;
     },
     async selectSticker(sticker) {
+      // Close modal immediately for optimistic UI
+      this.closeModal();
+      this.$emit('stickerSelected', sticker);
+
       try {
         const response = await window.axios.post(
           `/api/v1/accounts/${this.currentAccount.id}/stickers/send_sticker`,
@@ -256,14 +260,13 @@ export default {
         );
 
         if (response.data.success) {
-          this.$emit('stickerSelected', sticker);
-          this.closeModal();
-          useAlert(this.$t('CONVERSATION.STICKER_PICKER.SUCCESS.SENT'));
+          // Success is handled by backend message status updates via websocket
+          // No need to show success alert as the message will appear with proper status
         } else {
           this.handleSendStickerError(response.data);
         }
       } catch (error) {
-        // Failed to send sticker
+        // Failed to send sticker - show error to user
         this.handleSendStickerError(
           error.response?.data || { error: 'UNKNOWN_ERROR' }
         );
@@ -379,6 +382,16 @@ export default {
         case 'WHATSAPP_AUTH_ERROR':
           alertMessage = this.$t(
             'CONVERSATION.STICKER_PICKER.ERRORS.WHATSAPP_AUTH_ERROR'
+          );
+          break;
+        case 'NETWORK_ERROR':
+          alertMessage = this.$t(
+            'CONVERSATION.STICKER_PICKER.ERRORS.NETWORK_ERROR'
+          );
+          break;
+        case 'TIMEOUT_ERROR':
+          alertMessage = this.$t(
+            'CONVERSATION.STICKER_PICKER.ERRORS.TIMEOUT_ERROR'
           );
           break;
         default:

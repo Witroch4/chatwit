@@ -679,10 +679,49 @@ export default {
     closeStickerPicker() {
       this.showStickerPicker = false;
     },
-    onStickerSelected() {
-      // Sticker is already sent by the StickerPicker component
-      // Just close the picker
+    onStickerSelected(sticker) {
+      // Sticker picker already closed itself for optimistic UI
+      // The sticker message will be created by the backend service
+      // and appear via websocket with proper status indicators
       this.closeStickerPicker();
+
+      // Store recent sticker for user
+      this.addToRecentStickers(sticker);
+    },
+
+    addToRecentStickers(sticker) {
+      try {
+        // Validate sticker data
+        if (!sticker || !sticker.url) {
+          return;
+        }
+
+        const recentStickers =
+          this.currentUser?.ui_settings?.recent_stickers || [];
+        const stickerData = {
+          id: sticker.id || sticker.url, // Use URL as fallback ID
+          url: sticker.url,
+          alt: sticker.alt || 'Sticker',
+          provider: sticker.provider || 'unknown',
+          used_at: new Date().toISOString(),
+        };
+
+        // Remove if already exists and add to front
+        const filteredStickers = recentStickers.filter(
+          s => s.id !== stickerData.id && s.url !== stickerData.url
+        );
+        const updatedStickers = [stickerData, ...filteredStickers].slice(0, 20); // Keep last 20
+
+        // Update user settings if store action exists
+        if (this.$store && this.$store.dispatch) {
+          this.$store.dispatch('updateUISettings', {
+            recent_stickers: updatedStickers,
+          });
+        }
+      } catch (error) {
+        // Silently ignore errors in recent stickers tracking
+        // This is a nice-to-have feature and shouldn't break the main flow
+      }
     },
     onClickSelfAssign() {
       const {
