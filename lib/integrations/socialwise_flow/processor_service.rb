@@ -635,9 +635,22 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       
       Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Channel validation passed, processing with InstagramResponseProcessor"
       
+      # CORREÇÃO: Reestruturar payload do SocialWise Flow para formato esperado pelo InstagramResponseProcessor
+      normalized_payload = normalize_socialwise_flow_instagram_payload(instagram_payload)
+      
+      if normalized_payload.nil?
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Failed to normalize Instagram payload structure"
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Original payload: #{instagram_payload.inspect}"
+        create_fallback_instagram_message(message, instagram_payload)
+        return
+      end
+      
+      Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Payload normalized successfully"
+      Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Normalized payload: #{normalized_payload.inspect}"
+      
       # Usar o InstagramResponseProcessor do Socialwise (mesmo usado pelo Dialogflow)
       begin
-        success = Integrations::Socialwise::InstagramResponseProcessor.process(instagram_payload, message)
+        success = Integrations::Socialwise::InstagramResponseProcessor.process(normalized_payload, message)
         
         if success
           Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response processed successfully by InstagramResponseProcessor"
@@ -836,6 +849,67 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     'Mensagem interativa'
   end
   
+  # Normaliza payload do SocialWise Flow para formato esperado pelo InstagramResponseProcessor
+  def normalize_socialwise_flow_instagram_payload(instagram_payload)
+    Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] === NORMALIZING SOCIALWISE FLOW PAYLOAD ==="
+    Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Original payload: #{instagram_payload.inspect}"
+    
+    begin
+      # Verificar se já está no formato correto (Dialogflow)
+      if instagram_payload['payload'].present? && instagram_payload['message_format'].present?
+        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Payload already in Dialogflow format"
+        return instagram_payload
+      end
+      
+      # Verificar se é formato SocialWise Flow com estrutura aninhada
+      if instagram_payload['message'].present? && 
+         instagram_payload['message']['attachment'].present? && 
+         instagram_payload['message']['attachment']['payload'].present?
+        
+        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Detected SocialWise Flow nested format"
+        
+        message_format = instagram_payload['message_format']
+        nested_payload = instagram_payload['message']['attachment']['payload']
+        
+        normalized = {
+          'message_format' => message_format,
+          'payload' => nested_payload
+        }
+        
+        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Normalized payload: #{normalized.inspect}"
+        return normalized
+      end
+      
+      # Verificar se é formato SocialWise Flow direto (sem aninhamento)
+      if instagram_payload['message_format'].present?
+        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Detected SocialWise Flow direct format"
+        
+        normalized = {
+          'message_format' => instagram_payload['message_format'],
+          'payload' => {}
+        }
+        
+        # Copiar campos relevantes para o payload
+        instagram_payload.each do |key, value|
+          next if key == 'message_format'
+          normalized['payload'][key] = value
+        end
+        
+        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Normalized direct format: #{normalized.inspect}"
+        return normalized
+      end
+      
+      Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Unknown payload format, cannot normalize"
+      Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Available keys: #{instagram_payload.keys.inspect}"
+      return nil
+      
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Payload normalization failed: #{e.class}: #{e.message}"
+      Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Backtrace: #{e.backtrace.first(5).join('\n')}"
+      return nil
+    end
+  end
+
   def create_fallback_instagram_message(message, instagram_payload)
     Rails.logger.info "[SOCIALWISE-FLOW] Creating fallback Instagram message"
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram payload for fallback: #{instagram_payload.inspect}"
