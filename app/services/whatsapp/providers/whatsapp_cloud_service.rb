@@ -54,7 +54,9 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def api_headers
-    { 'Authorization' => "Bearer #{whatsapp_channel.provider_config['api_key']}", 'Content-Type' => 'application/json' }
+    api_key = whatsapp_channel.provider_config['api_key']
+    Rails.logger.info "WhatsApp API Headers: api_key present: #{api_key.present?}"
+    { 'Authorization' => "Bearer #{api_key}", 'Content-Type' => 'application/json' }
   end
 
   def media_url(media_id)
@@ -173,6 +175,87 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     )
 
     process_response(response)
+  end
+
+  # Send sticker message using media_id for optimal performance
+  def send_sticker_message(phone_number, media_id)
+    Rails.logger.info "WhatsApp SendStickerMessage: Sending sticker to #{phone_number} with media_id: #{media_id}"
+    
+    payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: phone_number,
+      type: 'sticker',
+      sticker: {
+        id: media_id
+      }
+    }
+    
+    Rails.logger.info "WhatsApp SendStickerMessage: Payload: #{payload.to_json}"
+    Rails.logger.info "WhatsApp SendStickerMessage: URL: #{phone_id_path}/messages"
+    
+    response = HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: payload.to_json
+    )
+    
+    Rails.logger.info "WhatsApp SendStickerMessage: Response status: #{response.code}"
+    Rails.logger.info "WhatsApp SendStickerMessage: Response body: #{response.body}"
+
+    process_response(response)
+  end
+
+  # Upload media to WhatsApp Cloud API and return media_id
+  def upload_media(media_data, content_type = 'image/webp')
+    Rails.logger.info "WhatsApp UploadMedia: Starting upload, size: #{media_data.bytesize} bytes, type: #{content_type}"
+    
+    # Create a temporary file for the upload
+    temp_file = Tempfile.new(['sticker', '.webp'])
+    temp_file.binmode # CRITICAL: Ensure binary mode
+    
+    # CRITICAL FIX: Ensure media_data is in binary encoding
+    binary_data = media_data.force_encoding('BINARY')
+    temp_file.write(binary_data)
+    temp_file.rewind
+
+    begin
+      Rails.logger.info "WhatsApp UploadMedia: Uploading to #{phone_id_path}/media"
+      Rails.logger.info "WhatsApp UploadMedia: Temp file size: #{temp_file.size} bytes"
+      
+      response = HTTParty.post(
+        "#{phone_id_path}/media",
+        headers: {
+          'Authorization' => "Bearer #{whatsapp_channel.provider_config['api_key']}"
+        },
+        multipart: true,
+        body: {
+          messaging_product: 'whatsapp',
+          file: temp_file,
+          type: content_type
+        }
+      )
+
+      Rails.logger.info "WhatsApp UploadMedia: Response status: #{response.code}"
+      Rails.logger.info "WhatsApp UploadMedia: Response body: #{response.body}"
+
+      if response.success? && response.parsed_response['id'].present?
+        media_id = response.parsed_response['id']
+        Rails.logger.info "WhatsApp UploadMedia: Success! Media ID: #{media_id}"
+        media_id
+      else
+        error_details = response.parsed_response&.dig('error') || response.body
+        Rails.logger.error "WhatsApp UploadMedia: Upload failed - Status: #{response.code}, Error: #{error_details}"
+        nil
+      end
+    rescue StandardError => e
+      Rails.logger.error "WhatsApp UploadMedia: Exception during upload: #{e.message}"
+      Rails.logger.error "WhatsApp UploadMedia: Backtrace: #{e.backtrace.first(3).join("\n")}"
+      nil
+    ensure
+      temp_file.close
+      temp_file.unlink
+    end
   end
 
 end

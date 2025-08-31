@@ -50,6 +50,8 @@ coverage
 # ignore packages
 package-lock.json
 *.dump
+# backup folder
+bkp/
 # cypress
 test/cypress/videos/*
 /config/master.key

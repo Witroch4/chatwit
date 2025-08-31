@@ -132,6 +132,10 @@ class Messages::MessageBuilder
     @params[:template_params].present? ? { additional_attributes: { template_params: JSON.parse(@params[:template_params].to_json) } } : {}
   end
 
+  def additional_attributes
+    @params[:additional_attributes].present? ? { additional_attributes: @params[:additional_attributes] } : {}
+  end
+
   def message_sender
     return if @params[:sender_type] != 'AgentBot'
 
@@ -147,10 +151,11 @@ class Messages::MessageBuilder
       private: @private,
       sender: sender,
       content_type: @params[:content_type],
+      content_attributes: content_attributes,
       items: @items,
       in_reply_to: @in_reply_to,
       echo_id: @params[:echo_id],
       source_id: @params[:source_id]
-    }.merge(external_created_at).merge(automation_rule_id).merge(campaign_id).merge(template_params)
+    }.merge(external_created_at).merge(automation_rule_id).merge(campaign_id).merge(template_params).merge(additional_attributes)
   end
 end

@@ -109,7 +109,18 @@ class Whatsapp::SendOnWhatsappService < Base::SendOnChannelService
   end
 
   def send_session_message
-    message_id = channel.send_message(message.conversation.contact_inbox.source_id, message)
+    phone_number = message.conversation.contact_inbox.source_id
+    
+    # DEBUG: Log detailed conversation information for comparison
+    Rails.logger.info "WhatsApp SendOnWhatsappService DEBUG:"
+    Rails.logger.info "  - Conversation ID: #{message.conversation.id}"
+    Rails.logger.info "  - Contact ID: #{message.conversation.contact.id}"
+    Rails.logger.info "  - Contact Phone: #{message.conversation.contact.phone_number}"
+    Rails.logger.info "  - ContactInbox ID: #{message.conversation.contact_inbox.id}"
+    Rails.logger.info "  - ContactInbox Source ID: #{message.conversation.contact_inbox.source_id}"
+    Rails.logger.info "  - Using phone number: #{phone_number}"
+    
+    message_id = channel.send_message(phone_number, message)
     message.update!(source_id: message_id) if message_id.present?
   end
 

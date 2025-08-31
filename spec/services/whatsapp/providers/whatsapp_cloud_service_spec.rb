@@ -263,6 +263,121 @@ describe Whatsapp::Providers::WhatsappCloudService do
     end
   end
 
+  describe '#send_sticker_message' do
+    let(:media_id) { 'media_123456' }
+    let(:phone_number) { '+123456789' }
+
+    context 'when called with valid media_id' do
+      it 'sends sticker message to WhatsApp API' do
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+          .with(
+            body: {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: phone_number,
+              type: 'sticker',
+              sticker: {
+                id: media_id
+              }
+            }.to_json
+          )
+          .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
+
+        expect(service.send_sticker_message(phone_number, media_id)).to eq('message_id')
+      end
+    end
+
+    context 'when API returns error' do
+      it 'handles error response' do
+        error_response = { error: { message: 'Invalid media_id', code: 100 } }
+        
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+          .to_return(status: 400, body: error_response.to_json, headers: response_headers)
+
+        expect(service.send_sticker_message(phone_number, media_id)).to be_nil
+      end
+    end
+  end
+
+  describe '#upload_media' do
+    let(:media_data) { 'fake_webp_data' }
+    let(:content_type) { 'image/webp' }
+    let(:media_response) { { id: 'media_123456' } }
+
+    context 'when upload is successful' do
+      it 'uploads media and returns media_id' do
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/media')
+          .with(
+            headers: {
+              'Authorization' => 'Bearer test_key'
+            }
+          ) do |request|
+            # Check that the request includes the required multipart fields
+            expect(request.body).to include('messaging_product')
+            expect(request.body).to include('whatsapp')
+            expect(request.body).to include('image/webp')
+            true
+          end
+          .to_return(status: 200, body: media_response.to_json, headers: response_headers)
+
+        expect(service.upload_media(media_data, content_type)).to eq('media_123456')
+      end
+    end
+
+    context 'when upload fails' do
+      it 'logs error and returns nil' do
+        error_response = { error: { message: 'Upload failed', code: 100 } }
+        
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/media')
+          .to_return(status: 400, body: error_response.to_json, headers: response_headers)
+
+        allow(Rails.logger).to receive(:error)
+        
+        expect(service.upload_media(media_data, content_type)).to be_nil
+        expect(Rails.logger).to have_received(:error).with(/WhatsApp media upload failed/)
+      end
+    end
+
+    context 'when response is missing media_id' do
+      it 'logs error and returns nil' do
+        invalid_response = { status: 'uploaded' }
+        
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/media')
+          .to_return(status: 200, body: invalid_response.to_json, headers: response_headers)
+
+        allow(Rails.logger).to receive(:error)
+        
+        expect(service.upload_media(media_data, content_type)).to be_nil
+        expect(Rails.logger).to have_received(:error).with(/WhatsApp media upload failed/)
+      end
+    end
+
+    context 'with default content type' do
+      it 'uses image/webp as default content type' do
+        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/media')
+          .with(
+            headers: {
+              'Authorization' => 'Bearer test_key'
+            }
+          ) do |request|
+            expect(request.body).to include('image/webp')
+            true
+          end
+          .to_return(status: 200, body: media_response.to_json, headers: response_headers)
+
+        expect(service.upload_media(media_data)).to eq('media_123456')
+      end
+    end
+
+    context 'when tempfile operations fail' do
+      it 'ensures tempfile cleanup even on errors' do
+        allow(Tempfile).to receive(:new).and_raise(StandardError, 'Tempfile error')
+        
+        expect { service.upload_media(media_data, content_type) }.to raise_error(StandardError, 'Tempfile error')
+      end
+    end
+  end
+
   describe '#handle_error' do
     let(:error_message) { 'Invalid message format' }
     let(:error_response) do

@@ -182,7 +182,6 @@
       "DRAG_DROP": "Drag and drop here to attach",
       "START_AUDIO_RECORDING": "Start audio recording",
       "STOP_AUDIO_RECORDING": "Stop audio recording",
-      "": "",
       "EMAIL_HEAD": {
         "TO": "TO",
         "ADD_BCC": "Add bcc",
@@ -205,6 +204,63 @@
           "CANCEL": "Cancel"
         }
       }
+    },
+    "STICKER_PICKER": {
+      "BUTTON_TOOLTIP": "Send sticker",
+      "TABS": {
+        "LIBRARY": "Library",
+        "TRENDING": "Popular",
+        "SEARCH": "Search",
+        "RECENT": "Recent"
+      },
+      "SEARCH_PLACEHOLDER": "Search stickers...",
+      "LOADING": "Loading stickers...",
+      "RETRY": "Retry",
+      "EMPTY_STATES": {
+        "LIBRARY": "No stickers in your library yet. Right-click on any image to add it as a sticker!",
+        "TRENDING": "No popular stickers available",
+        "SEARCH_RESULTS": "No stickers found for your search",
+        "SEARCH_PROMPT": "Type to search for stickers",
+        "RECENT": "No recent stickers yet",
+        "DEFAULT": "No stickers available"
+      },
+      "ERRORS": {
+        "LOAD_FAILED": "Failed to load stickers. Please try again.",
+        "SEARCH_FAILED": "Search failed. Please try again.",
+        "SEND_FAILED": "Failed to send sticker. Please try again.",
+        "GIPHY_NOT_CONFIGURED": "Giphy integration is not configured. Please contact your administrator.",
+        "RATE_LIMIT": "Too many requests. Please wait a moment and try again.",
+        "SERVICE_UNAVAILABLE": "Sticker service is temporarily unavailable. Please try again later.",
+        "CUSTOM_STICKERS_FAILED": "Failed to load custom stickers. Please try again.",
+        "SERVER_ERROR": "Server error occurred. Please try again later.",
+        "NETWORK_ERROR": "Network connection error. Please check your internet connection.",
+        "SEARCH_SERVICE_UNAVAILABLE": "Search service is temporarily unavailable. Please try again later.",
+        "SEARCH_RATE_LIMIT": "Too many search requests. Please wait a moment and try again.",
+        "INVALID_CHANNEL": "Stickers can only be sent in WhatsApp conversations.",
+        "CONVERSATION_NOT_FOUND": "Conversation not found. Please refresh the page and try again.",
+        "UPLOAD_FAILED": "Failed to upload sticker. Please check your internet connection and try again.",
+        "WHATSAPP_RATE_LIMIT": "Too many messages sent. Please wait a moment before sending another sticker.",
+        "INVALID_STICKER_FORMAT": "This sticker format is not supported. Please try a different sticker.",
+        "WHATSAPP_AUTH_ERROR": "WhatsApp authentication error. Please contact your administrator."
+      },
+      "SUCCESS": {
+        "SENT": "Sticker sent successfully!"
+      }
+    },
+    "STICKER_ALT_TEXT": "Sticker",
+    "STICKER_UNAVAILABLE": "Sticker unavailable",
+    "STICKER_LOADING": "Loading sticker...",
+    "CONTEXT_MENU": {
+      "COPY": "Copy",
+      "DOWNLOAD": "Download",
+      "ADD_TO_STICKER_LIBRARY": "Add to Sticker Library",
+      "IMAGE_COPIED": "Image copied to clipboard",
+      "URL_COPIED": "Image URL copied to clipboard",
+      "COPY_FAILED": "Failed to copy image",
+      "DOWNLOAD_STARTED": "Download started",
+      "DOWNLOAD_FAILED": "Failed to download image",
+      "STICKER_ADDED_SUCCESS": "Sticker added to your library!",
+      "STICKER_ADD_FAILED": "Failed to add sticker to library"
     },
     "VISIBLE_TO_AGENTS": "Private Note: Only visible to you and your team",
     "CHANGE_STATUS": "Conversation status changed",

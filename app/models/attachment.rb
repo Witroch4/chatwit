@@ -17,8 +17,12 @@
 #
 # Indexes
 #
-#  index_attachments_on_account_id  (account_id)
-#  index_attachments_on_message_id  (message_id)
+#  index_attachments_on_account_created_at_stickers     (account_id,created_at) WHERE ((meta ->> 'sticker_type'::text) = 'custom'::text)
+#  index_attachments_on_account_file_type_sticker_type  (account_id, file_type, ((meta ->> 'sticker_type'::text))) WHERE ((meta ->> 'sticker_type'::text) IS NOT NULL)
+#  index_attachments_on_account_id                      (account_id)
+#  index_attachments_on_account_sticker_pack            (account_id, ((meta ->> 'sticker_pack'::text))) WHERE ((meta ->> 'sticker_type'::text) = 'custom'::text)
+#  index_attachments_on_message_id                      (message_id)
+#  index_attachments_on_meta_gin                        (meta) USING gin
 #
 
 class Attachment < ApplicationRecord
@@ -57,6 +61,17 @@ class Attachment < ApplicationRecord
   def download_url
     ActiveStorage::Current.url_options = Rails.application.routes.default_url_options if ActiveStorage::Current.url_options.blank?
     file.attached? ? file.blob.url : ''
+  end
+
+  # Specific method for sticker downloads that need direct file access
+  def sticker_download_url
+    ActiveStorage::Current.url_options = Rails.application.routes.default_url_options if ActiveStorage::Current.url_options.blank?
+    if file.attached?
+      # Use redirect URL for external services like WhatsApp that need publicly accessible URLs
+      Rails.application.routes.url_helpers.rails_blob_url(file.blob, only_path: false)
+    else
+      ''
+    end
   end
 
   def thumb_url

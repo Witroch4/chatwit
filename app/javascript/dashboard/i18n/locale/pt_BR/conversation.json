@@ -227,6 +227,53 @@
       "REMOVE": "Excluir",
       "ASSIGN": "Atribuir"
     },
+    "STICKER_PICKER": {
+      "BUTTON_TOOLTIP": "Enviar sticker",
+      "TABS": {
+        "LIBRARY": "Biblioteca",
+        "TRENDING": "Populares",
+        "SEARCH": "Pesquisar",
+        "RECENT": "Recentes"
+      },
+      "SEARCH_PLACEHOLDER": "Pesquisar stickers...",
+      "LOADING": "Carregando stickers...",
+      "RETRY": "Tentar novamente",
+      "EMPTY_STATES": {
+        "LIBRARY": "Nenhum sticker na sua biblioteca ainda. Clique com o botão direito em qualquer imagem para adicioná-la como sticker!",
+        "TRENDING": "Nenhum sticker popular disponível",
+        "SEARCH_RESULTS": "Nenhum sticker encontrado para sua pesquisa",
+        "SEARCH_PROMPT": "Digite para pesquisar stickers",
+        "RECENT": "Nenhum sticker recente ainda",
+        "DEFAULT": "Nenhum sticker disponível"
+      },
+      "ERRORS": {
+        "LOAD_FAILED": "Falha ao carregar stickers. Tente novamente.",
+        "SEARCH_FAILED": "Pesquisa falhou. Tente novamente.",
+        "SEND_FAILED": "Falha ao enviar sticker. Tente novamente.",
+        "GIPHY_NOT_CONFIGURED": "Integração com Giphy não está configurada. Entre em contato com seu administrador.",
+        "RATE_LIMIT": "Muitas solicitações. Aguarde um momento e tente novamente.",
+        "SERVICE_UNAVAILABLE": "Serviço de stickers temporariamente indisponível. Tente novamente mais tarde.",
+        "CUSTOM_STICKERS_FAILED": "Falha ao carregar stickers personalizados. Tente novamente.",
+        "SERVER_ERROR": "Erro do servidor. Tente novamente mais tarde.",
+        "NETWORK_ERROR": "Erro de conexão de rede. Verifique sua conexão com a internet.",
+        "SEARCH_SERVICE_UNAVAILABLE": "Serviço de pesquisa temporariamente indisponível. Tente novamente mais tarde.",
+        "SEARCH_RATE_LIMIT": "Muitas solicitações de pesquisa. Aguarde um momento e tente novamente.",
+        "INVALID_CHANNEL": "Stickers só podem ser enviados em conversas do WhatsApp.",
+        "CONVERSATION_NOT_FOUND": "Conversa não encontrada. Atualize a página e tente novamente.",
+        "UPLOAD_FAILED": "Falha ao fazer upload do sticker. Verifique sua conexão com a internet e tente novamente.",
+        "WHATSAPP_RATE_LIMIT": "Muitas mensagens enviadas. Aguarde um momento antes de enviar outro sticker.",
+        "INVALID_STICKER_FORMAT": "Este formato de sticker não é suportado. Tente um sticker diferente.",
+        "WHATSAPP_AUTH_ERROR": "Erro de autenticação do WhatsApp. Entre em contato com seu administrador."
+      },
+      "SUCCESS": {
+        "SENT": "Sticker enviado com sucesso!",
+        "SAVED": "Sticker salvo na biblioteca!"
+      },
+      "SAVE_ERROR": "Erro ao salvar sticker"
+    },
+    "STICKER_ALT_TEXT": "Sticker",
+    "STICKER_UNAVAILABLE": "Sticker indisponível",
+    "STICKER_LOADING": "Carregando sticker...",
     "CONTEXT_MENU": {
       "COPY": "Copiar",
       "REPLY_TO": "Responder mensagem",
@@ -235,6 +282,15 @@
       "TRANSLATE": "Traduzir",
       "COPY_PERMALINK": "Copiar link para a mensagem",
       "LINK_COPIED": "URL da mensagem copiada para a área de transferência",
+      "DOWNLOAD": "Baixar",
+      "ADD_TO_STICKER_LIBRARY": "Adicionar à Biblioteca de Stickers",
+      "IMAGE_COPIED": "Imagem copiada para a área de transferência",
+      "URL_COPIED": "URL da imagem copiada para a área de transferência",
+      "DOWNLOAD_STARTED": "Download iniciado",
+      "DOWNLOAD_FAILED": "Falha ao baixar imagem",
+      "STICKER_ADDED_SUCCESS": "Sticker adicionado à sua biblioteca!",
+      "STICKER_ADD_FAILED": "Falha ao adicionar sticker à biblioteca",
+      "SAVE_AS_STICKER": "Salvar como sticker",
       "DELETE_CONFIRMATION": {
         "TITLE": "Você tem certeza que deseja excluir esta mensagem?",
         "MESSAGE": "Você não pode desfazer essa ação",

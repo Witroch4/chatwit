@@ -28,6 +28,7 @@ import {
   replaceVariablesInMessage,
 } from '@chatwoot/utils';
 import WhatsappTemplates from './WhatsappTemplates/Modal.vue';
+import { StickerPicker } from './StickerPicker';
 import { MESSAGE_MAX_LENGTH } from 'shared/helpers/MessageTypeHelper';
 import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 import { trimContent, debounce, getRecipients } from '@chatwoot/utils';
@@ -62,6 +63,7 @@ export default {
     ReplyToMessage,
     ReplyTopPanel,
     ResizableTextArea,
+    StickerPicker,
     WhatsappTemplates,
     WootMessageEditor,
   },
@@ -110,6 +112,7 @@ export default {
       toEmails: '',
       doAutoSaveDraft: () => {},
       showWhatsAppTemplatesModal: false,
+      showStickerPicker: false,
       updateEditorSelectionWith: '',
       undefinedVariableMessage: '',
       showMentions: false,
@@ -669,6 +672,17 @@ export default {
     },
     hideWhatsappTemplatesModal() {
       this.showWhatsAppTemplatesModal = false;
+    },
+    openStickerPicker() {
+      this.showStickerPicker = true;
+    },
+    closeStickerPicker() {
+      this.showStickerPicker = false;
+    },
+    onStickerSelected() {
+      // Sticker is already sent by the StickerPicker component
+      // Just close the picker
+      this.closeStickerPicker();
     },
     onClickSelfAssign() {
       const {
@@ -1241,6 +1255,7 @@ export default {
       :portal-slug="connectedPortalSlug"
       :new-conversation-modal-active="newConversationModalActive"
       @select-whatsapp-template="openWhatsappTemplateModal"
+      @open-sticker-picker="openStickerPicker"
       @toggle-editor="toggleRichContentEditor"
       @replace-text="replaceText"
       @toggle-insert-article="toggleInsertArticle"
@@ -1251,6 +1266,14 @@ export default {
       @close="hideWhatsappTemplatesModal"
       @on-send="onSendWhatsAppReply"
       @cancel="hideWhatsappTemplatesModal"
+    />
+
+    <StickerPicker
+      v-if="showStickerPicker"
+      :conversation-id="conversationId"
+      :is-visible="showStickerPicker"
+      @close="closeStickerPicker"
+      @sticker-selected="onStickerSelected"
     />
 
     <woot-confirm-modal

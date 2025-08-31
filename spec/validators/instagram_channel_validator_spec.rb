@@ -317,7 +317,7 @@ RSpec.describe InstagramChannelValidator, type: :validator do
     context 'when API call raises an exception' do
       before do
         stub_request(:get, "https://graph.instagram.com/v22.0/123456789")
-          .to_raise(Net::TimeoutError.new('Request timeout'))
+          .to_raise(Net::OpenTimeout.new('Request timeout'))
       end
 
       it 'returns false' do

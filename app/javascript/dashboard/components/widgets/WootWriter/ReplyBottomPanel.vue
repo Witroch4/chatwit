@@ -14,13 +14,20 @@ import {
 } from 'shared/constants/messages';
 import VideoCallButton from '../VideoCallButton.vue';
 import AIAssistanceButton from '../AIAssistanceButton.vue';
+import { StickerButton } from '../conversation/StickerPicker';
 import { REPLY_EDITOR_MODES } from './constants';
 import { mapGetters } from 'vuex';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
 export default {
   name: 'ReplyBottomPanel',
-  components: { NextButton, FileUpload, VideoCallButton, AIAssistanceButton },
+  components: {
+    NextButton,
+    FileUpload,
+    VideoCallButton,
+    AIAssistanceButton,
+    StickerButton,
+  },
   mixins: [inboxMixin],
   props: {
     mode: {
@@ -124,6 +131,7 @@ export default {
     'toggleInsertArticle',
     'toggleEditor',
     'selectWhatsappTemplate',
+    'openStickerPicker',
   ],
   setup() {
     const { setSignatureFlagForInbox, fetchSignatureFlagFromUISettings } =
@@ -340,6 +348,11 @@ export default {
         faded
         sm
         @click="$emit('selectWhatsappTemplate')"
+      />
+      <StickerButton
+        :conversation-id="conversationId"
+        :inbox="inbox"
+        @open-sticker-picker="$emit('openStickerPicker')"
       />
       <VideoCallButton
         v-if="(isAWebWidgetInbox || isAPIInbox) && !isOnPrivateNote"

@@ -6,9 +6,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def create
+    Rails.logger.info "MessagesController: Creating message with params: #{params.to_unsafe_h}"
+    Rails.logger.info "MessagesController: Content type: #{params[:content_type]}"
+    
     user = Current.user || @resource
     mb = Messages::MessageBuilder.new(user, @conversation, params)
     @message = mb.perform
+    
+    Rails.logger.info "MessagesController: Message created with ID: #{@message.id}, content_type: #{@message.content_type}"
   rescue StandardError => e
     render_could_not_create_error(e.message)
   end

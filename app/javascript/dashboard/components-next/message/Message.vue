@@ -38,6 +38,7 @@ import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import RichCards from './bubbles/RichCards.vue';
 import WhatsAppInteractive from './bubbles/WhatsAppInteractive.vue';
+import StickerBubble from './bubbles/Sticker.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -288,6 +289,10 @@ const componentToRender = computed(() => {
 
   if (props.contentType === CONTENT_TYPES.INPUT_CSAT) {
     return CSATBubble;
+  }
+
+  if (props.contentType === CONTENT_TYPES.STICKER) {
+    return StickerBubble;
   }
 
   if (props.contentType === CONTENT_TYPES.CARDS) {

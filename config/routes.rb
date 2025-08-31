@@ -278,6 +278,42 @@ Rails.application.routes.draw do
           end
           resources :working_hours, only: [:update]
 
+          resources :stickers, only: [:index, :destroy] do
+            collection do
+              get :packs
+              post :send_sticker
+              post :upload
+            end
+            member do
+              patch 'pack', to: 'stickers#update_pack'
+            end
+          end
+
+          resources :sticker_packs, only: [:index, :show, :create, :update, :destroy] do
+            collection do
+              post :bulk_upload
+            end
+          end
+
+          resource :sticker_performance, only: [:show] do
+            collection do
+              get :index
+              get :usage_stats
+              get :cache_performance
+              get :api_performance
+              post :benchmark_image_processing
+              get :system_health
+            end
+          end
+
+          namespace :admin do
+            resources :stickers, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                post :validate_file
+              end
+            end
+          end
+
           resources :portals do
             member do
               patch :archive

@@ -35,6 +35,16 @@ module Redis::RedisKeys
   MESSAGE_SOURCE_KEY = 'MESSAGE_SOURCE_KEY::%<id>s'.freeze
   OPENAI_CONVERSATION_KEY = 'OPEN_AI_CONVERSATION_KEY::V1::%<event_name>s::%<conversation_id>d::%<updated_at>d'.freeze
 
+  ## Sticker Cache Keys
+  # WhatsApp media ID cache for stickers
+  WHATSAPP_MEDIA_CACHE = 'WHATSAPP_MEDIA::%<channel_id>d::%<url_hash>s'.freeze
+  # Custom stickers cache by account and pack
+  STICKER_CACHE = 'STICKERS::%<account_id>d::%<pack_name>s'.freeze
+  # Sticker packs cache by account
+  STICKER_PACKS_CACHE = 'STICKER_PACKS::%<account_id>d'.freeze
+  # Sticker metrics cache
+  STICKER_METRICS = 'STICKER_METRICS::%<metric_type>s'.freeze
+
   ## Sempahores / Locks
   # We don't want to process messages from the same sender concurrently to prevent creating double conversations
   FACEBOOK_MESSAGE_MUTEX = 'FB_MESSAGE_CREATE_LOCK::%<sender_id>s::%<recipient_id>s'.freeze

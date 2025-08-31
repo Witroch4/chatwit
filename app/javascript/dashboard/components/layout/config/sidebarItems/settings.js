@@ -40,6 +40,8 @@ const settings = accountId => ({
     'settings_teams_new',
     'sla_list',
     'custom_roles_list',
+    'sticker_management',
+    'sticker_pack_details',
   ],
   menuItems: [
     {
@@ -202,6 +204,16 @@ const settings = accountId => ({
       isEnterpriseOnly: true,
       featureFlag: FEATURE_FLAGS.SLA,
       beta: true,
+    },
+    {
+      icon: 'sticker',
+      label: 'STICKER_MANAGEMENT',
+      hasSubMenu: false,
+      meta: {
+        permissions: ['administrator'],
+      },
+      toState: frontendURL(`accounts/${accountId}/settings/stickers`),
+      toStateName: 'sticker_management',
     },
     {
       icon: 'credit-card-person',
