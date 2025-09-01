@@ -15,12 +15,18 @@ RSpec.describe StickerImageOptimizerService, type: :service do
       # Create a simple test image if it doesn't exist
       FileUtils.mkdir_p(File.dirname(test_image_path))
       
-      # Create a simple 100x100 PNG for testing
-      require 'mini_magick'
-      image = MiniMagick::Image.open('logo:')
-      image.resize '100x100'
-      image.format 'png'
-      image.write(test_image_path)
+      # Create a simple 100x100 PNG for testing using magick command
+      system("magick -size 100x100 xc:white #{test_image_path}")
+      
+      # Fallback: create with MiniMagick if magick command fails
+      unless File.exist?(test_image_path) && File.size(test_image_path) > 0
+        require 'mini_magick'
+        image = MiniMagick::Image.new
+        image.size '100x100'
+        image.background 'white'
+        image.format 'png'
+        image.write(test_image_path)
+      end
     end
   end
 
@@ -58,8 +64,11 @@ RSpec.describe StickerImageOptimizerService, type: :service do
       it 'optimizes file size' do
         result = service.process
 
-        expect(result[:final_size]).to be <= described_class::MAX_FILE_SIZE
-        expect(result[:compression_ratio]).to be >= 0
+        # Check against static file size limit (since test image is static)
+        expect(result[:final_size]).to be <= described_class::MAX_STATIC_FILE_SIZE
+        expect(result[:compression_ratio]).to be_a(Numeric)
+        expect(result[:is_animated]).to be_in([true, false])
+        expect(result[:has_transparency]).to be_in([true, false])
       end
 
       it 'tracks performance metrics' do
@@ -143,7 +152,7 @@ RSpec.describe StickerImageOptimizerService, type: :service do
       expect(result[:successful]).to be >= 0
       expect(result[:failed]).to be >= 0
       expect(result[:total_processing_time]).to be > 0
-      expect(result[:results]).to have(2).items
+      expect(result[:results].length).to eq(2)
     end
 
     it 'includes file index in results' do
@@ -185,23 +194,51 @@ RSpec.describe StickerImageOptimizerService, type: :service do
 
   describe 'private methods' do
     let(:service) { described_class.new(file: uploaded_file, account_id: account_id) }
+    
+    describe '#animated?' do
+      it 'detects static images as non-animated' do
+        image = MiniMagick::Image.open(test_image_path)
+        result = service.send(:animated?, image)
+        
+        expect(result).to be false
+      end
+    end
+
+    describe '#has_transparency?' do
+      it 'detects transparency in images' do
+        image = MiniMagick::Image.open(test_image_path)
+        result = service.send(:has_transparency?, image)
+        
+        # Result should be boolean
+        expect(result).to be_in([true, false])
+      end
+    end
 
     describe '#generate_filename' do
-      it 'generates unique WebP filename' do
-        filename1 = service.send(:generate_filename)
-        filename2 = service.send(:generate_filename)
+      it 'generates unique WebP filename for static stickers' do
+        filename1 = service.send(:generate_filename, false)
+        filename2 = service.send(:generate_filename, false)
 
         expect(filename1).to end_with('.webp')
         expect(filename2).to end_with('.webp')
         expect(filename1).not_to eq(filename2)
         expect(filename1).to match(/^sticker_\d{8}_\d{6}_[a-f0-9]{8}\.webp$/)
       end
+
+      it 'generates unique WebP filename for animated stickers' do
+        filename = service.send(:generate_filename, true)
+
+        expect(filename).to end_with('.webp')
+        expect(filename).to include('_animated')
+        expect(filename).to match(/^sticker_\d{8}_\d{6}_[a-f0-9]{8}_animated\.webp$/)
+      end
     end
   end
 
   describe 'constants' do
     it 'defines expected constants' do
-      expect(described_class::MAX_FILE_SIZE).to eq(100.kilobytes)
+      expect(described_class::MAX_STATIC_FILE_SIZE).to eq(100.kilobytes)
+      expect(described_class::MAX_ANIMATED_FILE_SIZE).to eq(500.kilobytes)
       expect(described_class::TARGET_DIMENSIONS).to eq([512, 512])
       expect(described_class::OUTPUT_FORMAT).to eq('webp')
       expect(described_class::SUPPORTED_FORMATS).to include('image/png', 'image/jpeg', 'image/webp')

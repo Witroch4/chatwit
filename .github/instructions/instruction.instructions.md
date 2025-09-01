@@ -306,3 +306,43 @@ Esta seção detalha a implementação da feature e as lições aprendidas para 
     1.  **Backend**: A verificação `account.feature_enabled?('...')` está sendo usada?
     2.  **Frontend**: O composable `useMapGetter` está sendo usado? **NÃO** use `window.globalConfig` para flags de conta.
     3.  **Debug**: Verifique no Rails console: `Account.find(ID).feature_enabled?('...')`.
+
+-----
+
+## 8\. Processamento de Stickers Animados
+
+**Problema**: Stickers animados perdem animação durante processamento.
+
+**Causa**: Operações sequenciais no MiniMagick quebram o contexto da animação.
+
+**Solução**: Use `combine_options` para processamento atômico:
+
+```ruby
+# ❌ ERRADO - Operações sequenciais destroem animação
+image.coalesce
+image.resize "512x512>"
+image.format "webp"
+
+# ✅ CORRETO - Operações atômicas preservam animação
+if is_animated
+  image.combine_options do |c|
+    c.background 'none'    # Fundo transparente
+    c.alpha 'set'         # Ativa canal alfa
+    c.coalesce
+    c.resize "512x512"     # Sem ^ para não distorcer
+    c.loop "0"
+    c.quality quality.to_s
+    c.define 'webp:alpha-quality=100'
+  end
+end
+```
+
+**Dimensões WhatsApp**: API exige máximo 512x512 pixels. Animações preservam proporção, estáticas são forçadas a 512x512 exatos.
+
+**Componentes**: `StickerImageOptimizerService`, `StickerUploader`, `Whatsapp::SendStickerService`
+
+**Validação**: Input e output devem ter o mesmo número de frames nos logs + dimensões válidas.
+
+**Armadilhas**: Nunca use `extent` em animações; sempre configure transparência ANTES do redimensionamento.
+
+-----

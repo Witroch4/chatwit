@@ -1,3 +1,5 @@
+require 'mini_magick'
+
 class Whatsapp::SendStickerService
   # 🎯 OPTIMISTIC FLOW IMPLEMENTATION
   # This service implements the native Chatwoot optimistic message flow:
@@ -400,7 +402,8 @@ class Whatsapp::SendStickerService
   end
 
   def optimize_sticker_for_whatsapp(media_data)
-    Rails.logger.info "WhatsApp SendStickerService: Starting sticker optimization"
+    Rails.logger.info "[SEND_STICKER] 🔄 Starting sticker optimization for WhatsApp"
+    Rails.logger.info "[SEND_STICKER] 📏 Input size: #{media_data.bytesize} bytes"
     
     # Create a temporary file for optimization
     temp_file = Tempfile.new(['sticker_optimize', '.webp'])
@@ -408,24 +411,46 @@ class Whatsapp::SendStickerService
     temp_file.write(media_data)
     temp_file.rewind
     
+    # Check original frames before optimization
     begin
-      # Use the existing StickerImageOptimizerService with correct parameters
+      original_image = MiniMagick::Image.open(temp_file.path)
+      original_frames = original_image.frames.count
+      Rails.logger.info "🎬 [FRAMES] SEND_STICKER Input: #{original_frames} frames"
+    rescue => e
+      Rails.logger.warn "Could not detect original frames: #{e.message}"
+      original_frames = "unknown"
+    end
+    
+    begin
+      # ALWAYS optimize external stickers to ensure animation/transparency preservation
+      # Previous logic that skipped optimization for WebP files was causing animation loss
+      Rails.logger.info "[SEND_STICKER] 🎬 Using StickerImageOptimizerService for animation/transparency preservation"
+      
       optimizer = StickerImageOptimizerService.new(file: temp_file, account_id: @conversation.account_id)
       
       # Optimize the sticker using the direct method
       optimized_path = optimizer.optimize_for_whatsapp(temp_file.path)
       
+      # Check frames after optimization
+      begin
+        optimized_image = MiniMagick::Image.open(optimized_path)
+        optimized_frames = optimized_image.frames.count
+        Rails.logger.info "🎬 [FRAMES] SEND_STICKER Output: #{optimized_frames} frames (original: #{original_frames})"
+      rescue => e
+        Rails.logger.warn "Could not detect optimized frames: #{e.message}"
+      end
+      
       # Read the optimized file
       optimized_data = File.binread(optimized_path).force_encoding('BINARY')
       
-      Rails.logger.info "WhatsApp SendStickerService: Optimization complete - #{media_data.bytesize} -> #{optimized_data.bytesize} bytes"
+      Rails.logger.info "[SEND_STICKER] ✅ Optimization complete: #{media_data.bytesize} → #{optimized_data.bytesize} bytes"
       
       # Clean up optimized file
       File.delete(optimized_path) if File.exist?(optimized_path)
       
       optimized_data
     rescue StandardError => e
-      Rails.logger.warn "WhatsApp SendStickerService: Optimization failed: #{e.message}, using original"
+      Rails.logger.warn "[SEND_STICKER] ⚠️ Optimization failed: #{e.message}, using original"
       # If optimization fails, return original data
       media_data
     ensure

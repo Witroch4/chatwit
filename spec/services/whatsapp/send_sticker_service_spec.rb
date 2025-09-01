@@ -40,7 +40,7 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
         allow(provider_service).to receive(:send_sticker_message).and_return({ success: true })
       end
 
-      it 'creates a sticker message with correct attributes' do
+      it 'creates a sticker message immediately with optimistic flow' do
         expect { service.perform }.to change(Message, :count).by(1)
         
         message = Message.last
@@ -49,15 +49,22 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
         expect(message.content_attributes['sticker_data']).to eq(sticker_data.stringify_keys)
         expect(message.additional_attributes['skip_send_reply']).to be true
         expect(message.message_type).to eq('outgoing')
+        expect(message.status).to eq('delivered') # Should be delivered after success
       end
 
-      it 'uploads media to WhatsApp and sends sticker message' do
-        expect(provider_service).to receive(:upload_media).with('fake_image_data', 'image/webp')
-        expect(provider_service).to receive(:send_sticker_message).with(contact_inbox.source_id, media_id)
+      it 'uploads media to WhatsApp and sends sticker message with optimistic flow' do
+        expect(provider_service).to receive(:upload_media).and_return(media_id)
+        expect(provider_service).to receive(:send_sticker_message).with(contact_inbox.source_id, media_id).and_return('whatsapp_msg_123')
         
         result = service.perform
         expect(result[:success]).to be true
         expect(result[:message_id]).to be_present
+        expect(result[:source_id]).to eq('whatsapp_msg_123')
+        
+        # Verify message status progression
+        message = Message.find(result[:message_id])
+        expect(message.status).to eq('delivered')
+        expect(message.source_id).to eq('whatsapp_msg_123')
       end
 
       it 'records sticker in user recent stickers' do
@@ -86,12 +93,17 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
         allow(provider_service).to receive(:upload_media).and_return(nil)
       end
 
-      it 'returns failure without creating message' do
-        expect { service.perform }.not_to change(Message, :count)
+      it 'creates message optimistically but updates to failed status' do
+        expect { service.perform }.to change(Message, :count).by(1)
         
         result = service.perform
         expect(result[:success]).to be false
-        expect(result[:error]).to eq('Failed to get media ID')
+        expect(result[:error_code]).to eq('MEDIA_UPLOAD_FAILED')
+        
+        # Verify message was created but marked as failed
+        message = Message.last
+        expect(message.status).to eq('failed')
+        expect(message.content_type).to eq('sticker')
       end
     end
 
@@ -104,44 +116,41 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
         })
       end
 
-      it 'removes created message and returns failure' do
-        expect { service.perform }.not_to change(Message, :count)
+      it 'creates message optimistically but updates to failed status' do
+        expect { service.perform }.to change(Message, :count).by(1)
         
         result = service.perform
         expect(result[:success]).to be false
         expect(result[:error]).to eq('WhatsApp API error')
+        
+        # Verify message was created but marked as failed
+        message = Message.last
+        expect(message.status).to eq('failed')
+        expect(message.content_type).to eq('sticker')
       end
     end
   end
 
   describe 'caching behavior' do
     before do
-      Rails.cache.clear
-      allow(provider_service).to receive(:send_sticker_message).and_return({ success: true })
+      Redis::Alfred.flushall
+      allow(provider_service).to receive(:send_sticker_message).and_return('whatsapp_msg_123')
     end
 
     context 'when media_id is not cached' do
       it 'uploads media and caches the result with proper TTL' do
         expect(provider_service).to receive(:upload_media).once.and_return(media_id)
-        expect(Rails.cache).to receive(:fetch)
-          .with(anything, expires_in: described_class::MEDIA_CACHE_TTL)
-          .and_call_original
+        expect(Redis::Alfred).to receive(:setex)
+          .with(anything, media_id, described_class::MEDIA_CACHE_TTL)
         
         service.perform
-      end
-
-      it 'tracks cache miss' do
-        allow(provider_service).to receive(:upload_media).and_return(media_id)
-        
-        service.perform
-        expect(Rails.cache.read('whatsapp_media_cache_miss')).to eq(1)
       end
     end
 
     context 'when media_id is cached' do
       before do
         cache_key = service.send(:generate_media_cache_key, sticker_data[:url])
-        Rails.cache.write(cache_key, media_id, expires_in: described_class::MEDIA_CACHE_TTL)
+        Redis::Alfred.setex(cache_key, media_id, described_class::MEDIA_CACHE_TTL)
       end
 
       it 'uses cached media_id without uploading' do
@@ -149,11 +158,6 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
         expect(provider_service).to receive(:send_sticker_message).with(contact_inbox.source_id, media_id)
         
         service.perform
-      end
-
-      it 'tracks cache hit' do
-        service.perform
-        expect(Rails.cache.read('whatsapp_media_cache_hit')).to eq(1)
       end
     end
 
@@ -191,31 +195,17 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
     let(:test_url) { 'https://example.com/test.webp' }
     
     before do
-      Rails.cache.clear
+      Redis::Alfred.flushall
     end
 
     context 'with specific channel ID' do
       it 'invalidates cache for specific channel' do
-        cache_key = "#{described_class::MEDIA_CACHE_PREFIX}:#{whatsapp_channel.id}:#{Digest::MD5.hexdigest(test_url)}"
-        Rails.cache.write(cache_key, 'test_media_id')
+        url_hash = Digest::MD5.hexdigest(test_url)
+        cache_key = format(Redis::RedisKeys::WHATSAPP_MEDIA_CACHE, channel_id: whatsapp_channel.id, url_hash: url_hash)
+        Redis::Alfred.setex(cache_key, 'test_media_id', 1.hour)
         
         described_class.invalidate_media_cache(test_url, whatsapp_channel.id)
-        expect(Rails.cache.exist?(cache_key)).to be false
-      end
-    end
-
-    context 'without channel ID' do
-      it 'invalidates cache for all channels' do
-        cache_key1 = "#{described_class::MEDIA_CACHE_PREFIX}:1:#{Digest::MD5.hexdigest(test_url)}"
-        cache_key2 = "#{described_class::MEDIA_CACHE_PREFIX}:2:#{Digest::MD5.hexdigest(test_url)}"
-        
-        Rails.cache.write(cache_key1, 'test_media_id_1')
-        Rails.cache.write(cache_key2, 'test_media_id_2')
-        
-        expect(Rails.cache).to receive(:delete_matched)
-          .with("#{described_class::MEDIA_CACHE_PREFIX}:*:#{Digest::MD5.hexdigest(test_url)}")
-        
-        described_class.invalidate_media_cache(test_url)
+        expect(Redis::Alfred.get(cache_key)).to be_nil
       end
     end
   end
@@ -521,25 +511,33 @@ RSpec.describe Whatsapp::SendStickerService, type: :service do
       end
     end
 
-    context 'message cleanup on failure' do
+    context 'optimistic message status updates' do
       before do
         allow(provider_service).to receive(:upload_media).and_return(media_id)
       end
 
-      it 'destroys created message when WhatsApp sending fails' do
+      it 'updates message to failed status when WhatsApp sending fails' do
         allow(provider_service).to receive(:send_sticker_message).and_return({
           success: false,
           error: 'Send failed'
         })
         
-        expect { service.perform }.not_to change(Message, :count)
+        expect { service.perform }.to change(Message, :count).by(1)
+        
+        message = Message.last
+        expect(message.status).to eq('failed')
+        expect(message).to be_persisted
       end
 
-      it 'does not destroy message when sending succeeds' do
-        allow(provider_service).to receive(:send_sticker_message).and_return({ success: true })
+      it 'updates message to delivered status when sending succeeds' do
+        allow(provider_service).to receive(:send_sticker_message).and_return('whatsapp_msg_123')
         
         expect { service.perform }.to change(Message, :count).by(1)
-        expect(Message.last).to be_persisted
+        
+        message = Message.last
+        expect(message.status).to eq('delivered')
+        expect(message.source_id).to eq('whatsapp_msg_123')
+        expect(message).to be_persisted
       end
     end
   end

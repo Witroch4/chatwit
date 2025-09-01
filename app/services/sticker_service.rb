@@ -145,9 +145,15 @@ class StickerService
       
       build_error_response('UNKNOWN_ERROR', 'An unexpected error occurred. Please try again.')
     ensure
-      # Clean up temporary file
-      uploader.processed_file&.close
-      uploader.processed_file&.unlink
+      # Clean up temporary file safely
+      if uploader.processed_file
+        begin
+          uploader.processed_file.close if uploader.processed_file.respond_to?(:close)
+          uploader.processed_file.unlink if uploader.processed_file.respond_to?(:unlink)
+        rescue StandardError => e
+          Rails.logger.debug "StickerService: Could not cleanup temp file: #{e.message}"
+        end
+      end
     end
   end
 
