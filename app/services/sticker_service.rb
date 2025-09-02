@@ -415,11 +415,22 @@ class StickerService
       }
     )
 
-    # Attach the processed file
+    # CORREÇÃO: Garantir que o arquivo seja salvo sem processamento adicional do ActiveStorage
+    # Primeiro, vamos garantir que o tempfile está no início
+    uploader.processed_file.rewind if uploader.processed_file.respond_to?(:rewind)
+    
+    # Vamos tentar anexar diretamente o arquivo sem usar create_and_upload!
+    # que pode estar fazendo reprocessamento
     attachment.file.attach(
       io: uploader.processed_file,
       filename: uploader.processed_filename,
-      content_type: 'image/webp'
+      content_type: 'image/webp',
+      metadata: {
+        # Incluir metadados que indicam que o arquivo já foi processado
+        'analyzed' => true,
+        'identified' => true,
+        'processed_by_sticker_optimizer' => true
+      }
     )
 
     attachment.save!

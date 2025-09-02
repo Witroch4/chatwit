@@ -52,7 +52,8 @@ gem 'aws-sdk-s3', require: false
 # we wanted updated version of faraday which is a dependency for slack-ruby-client
 gem 'azure-storage-blob', git: 'https://github.com/chatwoot/azure-storage-ruby', branch: 'chatwoot', require: false
 gem 'google-cloud-storage', '>= 1.48.0', require: false
-gem 'image_processing'
+# libvips for high-performance image processing (sticker optimization and ActiveStorage)
+gem 'ruby-vips'
 
 ##-- gems for database --#
 gem 'groupdate'

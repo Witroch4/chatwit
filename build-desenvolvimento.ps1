@@ -4,7 +4,8 @@ param(
     [switch]$Build,
     [switch]$Detach,
     [switch]$Force,
-    [switch]$Logs
+    [switch]$Logs,
+    [switch]$Nocache
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,12 +55,14 @@ function Show-Help {
     Write-Host ""
     Write-Host "OPCOES:" -ForegroundColor Green
     Write-Host "  -Build      - Rebuild imagens (so primeira vez ou mudancas em deps)" -ForegroundColor White
+    Write-Host "  -Nocache    - Rebuild imagens sem cache (forcar rebuild completo)" -ForegroundColor White
     Write-Host "  -Detach     - Executar em background" -ForegroundColor White
     Write-Host "  -Force      - Forcar operacao (para clean)" -ForegroundColor White
     Write-Host "  -Logs       - Mostrar logs apos subir" -ForegroundColor White
     Write-Host ""
     Write-Host "EXEMPLOS:" -ForegroundColor Green
     Write-Host "  .\build-desenvolvimento.ps1 up -Build       # Primeira vez (setup completo)" -ForegroundColor Cyan
+    Write-Host "  .\build-desenvolvimento.ps1 up -Nocache     # Rebuild completo sem cache" -ForegroundColor Cyan
     Write-Host "  .\build-desenvolvimento.ps1 up              # Uso diario (hot reload)" -ForegroundColor Cyan
     Write-Host "  .\build-desenvolvimento.ps1 up -Detach      # Background" -ForegroundColor Cyan
     Write-Host "  .\build-desenvolvimento.ps1 down" -ForegroundColor Cyan
@@ -98,6 +101,14 @@ switch ($Action.ToLower()) {
         
         $cmd = "$DockerComposeCmd up"
         if ($Build) { $cmd += " --build" }
+        if ($Nocache) { 
+            Write-Host "[BUILD] Executando build sem cache..." -ForegroundColor Yellow
+            Invoke-Expression "$DockerComposeCmd build --no-cache"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[ERROR] Falha no build!" -ForegroundColor Red
+                exit 1
+            }
+        }
         if ($Detach) { $cmd += " -d" }
         
         Write-Host "[EXEC] $cmd" -ForegroundColor Yellow

@@ -229,6 +229,12 @@
     },
     "STICKER_PICKER": {
       "BUTTON_TOOLTIP": "Enviar sticker",
+      "EDIT_MODE": "Editar stickers",
+      "CANCEL": "Cancelar",
+      "DELETE": "Excluir",
+      "DELETING": "Excluindo...",
+      "SELECTED_COUNT": "Figurinhas selecionadas: {count}",
+      "STICKERS_DELETED_SUCCESS": "{count} sticker(s) excluído(s) com sucesso!",
       "TABS": {
         "LIBRARY": "Biblioteca",
         "TRENDING": "Populares",
@@ -250,6 +256,9 @@
         "LOAD_FAILED": "Falha ao carregar stickers. Tente novamente.",
         "SEARCH_FAILED": "Pesquisa falhou. Tente novamente.",
         "SEND_FAILED": "Falha ao enviar sticker. Tente novamente.",
+        "DELETE_FAILED": "Falha ao excluir stickers. Tente novamente.",
+        "DELETE_PERMISSION_DENIED": "Você não tem permissão para excluir este sticker.",
+        "STICKER_NOT_FOUND": "Sticker não encontrado.",
         "GIPHY_NOT_CONFIGURED": "Integração com Giphy não está configurada. Entre em contato com seu administrador.",
         "RATE_LIMIT": "Muitas solicitações. Aguarde um momento e tente novamente.",
         "SERVICE_UNAVAILABLE": "Serviço de stickers temporariamente indisponível. Tente novamente mais tarde.",
@@ -263,7 +272,8 @@
         "UPLOAD_FAILED": "Falha ao fazer upload do sticker. Verifique sua conexão com a internet e tente novamente.",
         "WHATSAPP_RATE_LIMIT": "Muitas mensagens enviadas. Aguarde um momento antes de enviar outro sticker.",
         "INVALID_STICKER_FORMAT": "Este formato de sticker não é suportado. Tente um sticker diferente.",
-        "WHATSAPP_AUTH_ERROR": "Erro de autenticação do WhatsApp. Entre em contato com seu administrador."
+        "WHATSAPP_AUTH_ERROR": "Erro de autenticação do WhatsApp. Entre em contato com seu administrador.",
+        "TIMEOUT_ERROR": "Tempo limite da solicitação. Tente novamente."
       },
       "SUCCESS": {
         "SENT": "Sticker enviado com sucesso!",

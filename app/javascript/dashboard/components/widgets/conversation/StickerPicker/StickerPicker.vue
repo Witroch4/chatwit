@@ -25,6 +25,9 @@ export default {
       isSearching: false,
       error: null,
       customPacks: [],
+      isEditMode: false,
+      selectedStickers: [],
+      isDeleting: false,
       tabs: [
         {
           key: 'library',
@@ -66,6 +69,17 @@ export default {
           return this.$t('CONVERSATION.STICKER_PICKER.EMPTY_STATES.DEFAULT');
       }
     },
+    canEdit() {
+      // Only allow editing for custom stickers (library tab and custom packs)
+      return this.activeTab === 'library' || this.activeTab.startsWith('pack_');
+    },
+    selectedStickersCount() {
+      return this.selectedStickers.length;
+    },
+    // Computed para forçar reatividade na verificação de seleção
+    selectedStickerIds() {
+      return this.selectedStickers.map(s => s.id);
+    },
   },
   watch: {
     isVisible(newValue) {
@@ -75,6 +89,7 @@ export default {
     },
     activeTab() {
       this.loadTabData();
+      this.exitEditMode();
     },
   },
   created() {
@@ -241,6 +256,12 @@ export default {
       this.error = null;
     },
     async selectSticker(sticker) {
+      // If in edit mode, toggle selection instead of sending sticker
+      if (this.isEditMode) {
+        this.toggleStickerSelection(sticker);
+        return;
+      }
+
       // Close modal immediately for optimistic UI
       this.closeModal();
       this.$emit('stickerSelected', sticker);
@@ -270,6 +291,70 @@ export default {
         this.handleSendStickerError(
           error.response?.data || { error: 'UNKNOWN_ERROR' }
         );
+      }
+    },
+    enterEditMode() {
+      this.isEditMode = true;
+      this.selectedStickers = [];
+    },
+    exitEditMode() {
+      this.isEditMode = false;
+      this.selectedStickers = [];
+    },
+    toggleStickerSelection(sticker) {
+      const index = this.selectedStickers.findIndex(s => s.id === sticker.id);
+      if (index > -1) {
+        this.selectedStickers.splice(index, 1);
+      } else {
+        this.selectedStickers.push(sticker);
+      }
+    },
+    isStickerSelected(sticker) {
+      return this.selectedStickerIds.includes(sticker.id);
+    },
+    async deleteSelectedStickers() {
+      if (this.selectedStickers.length === 0) return;
+
+      this.isDeleting = true;
+
+      // Save count before clearing selection
+      const deletedCount = this.selectedStickers.length;
+
+      try {
+        const deletePromises = this.selectedStickers.map(sticker =>
+          window.axios.delete(
+            `/api/v1/accounts/${this.currentAccount.id}/stickers/${sticker.id}`
+          )
+        );
+
+        await Promise.all(deletePromises);
+
+        // Remove deleted stickers from local arrays
+        this.stickers = this.stickers.filter(
+          sticker => !this.selectedStickers.some(s => s.id === sticker.id)
+        );
+
+        // Update custom packs if needed
+        if (this.activeTab.startsWith('pack_')) {
+          const pack = this.customPacks.find(p => p.key === this.activeTab);
+          if (pack) {
+            pack.stickers = pack.stickers.filter(
+              sticker => !this.selectedStickers.some(s => s.id === sticker.id)
+            );
+          }
+        }
+
+        this.exitEditMode();
+
+        useAlert(
+          this.$t('CONVERSATION.STICKER_PICKER.STICKERS_DELETED_SUCCESS', {
+            count: deletedCount,
+          })
+        );
+      } catch (error) {
+        this.handleDeleteError(error);
+      } finally {
+        this.isDeleting = false;
       }
     },
     closeModal() {
@@ -402,6 +487,29 @@ export default {
 
       useAlert(alertMessage);
     },
+    handleDeleteError(error) {
+      let alertMessage;
+
+      if (error.response?.status === 403) {
+        alertMessage = this.$t(
+          'CONVERSATION.STICKER_PICKER.ERRORS.DELETE_PERMISSION_DENIED'
+        );
+      } else if (error.response?.status === 404) {
+        alertMessage = this.$t(
+          'CONVERSATION.STICKER_PICKER.ERRORS.STICKER_NOT_FOUND'
+        );
+      } else if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
+        alertMessage = this.$t(
+          'CONVERSATION.STICKER_PICKER.ERRORS.NETWORK_ERROR'
+        );
+      } else {
+        alertMessage = this.$t(
+          'CONVERSATION.STICKER_PICKER.ERRORS.DELETE_FAILED'
+        );
+      }
+
+      useAlert(alertMessage);
+    },
   },
 };
 </script>
@@ -421,24 +529,53 @@ export default {
         <div
           class="flex border-b border-gray-200 bg-gray-50 rounded-t-lg overflow-x-auto"
         >
-          <button
-            v-for="tab in tabs"
-            :key="tab.key"
-            class="flex-shrink-0 py-3 px-3 text-xs font-medium text-center border-b-2 transition-colors flex items-center justify-center gap-1 min-w-0"
-            :class="[
-              activeTab === tab.key
-                ? 'border-blue-500 text-blue-600 bg-white'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100',
-            ]"
-            @click="switchTab(tab.key)"
+          <!-- Tabs -->
+          <div class="flex flex-1 overflow-x-auto">
+            <button
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="flex-shrink-0 py-3 px-3 text-xs font-medium text-center border-b-2 transition-colors flex items-center justify-center gap-1 min-w-0"
+              :class="[
+                activeTab === tab.key
+                  ? 'border-blue-500 text-blue-600 bg-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+              ]"
+              @click="switchTab(tab.key)"
+            >
+              <i
+                v-if="tab.icon"
+                :class="tab.icon"
+                class="text-xs flex-shrink-0"
+              />
+              <span class="truncate">{{ tab.label }}</span>
+            </button>
+          </div>
+
+          <!-- Edit/Cancel Button -->
+          <div
+            v-if="canEdit && stickers.length > 0"
+            class="flex-shrink-0 px-3 py-3"
           >
-            <i
-              v-if="tab.icon"
-              :class="tab.icon"
-              class="text-xs flex-shrink-0"
-            />
-            <span class="truncate">{{ tab.label }}</span>
-          </button>
+            <button
+              v-if="!isEditMode"
+              class="text-gray-600 hover:text-gray-800 transition-colors"
+              :title="$t('CONVERSATION.STICKER_PICKER.EDIT_MODE')"
+              @click="enterEditMode"
+            >
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
+                />
+              </svg>
+            </button>
+            <button
+              v-else
+              class="text-blue-600 hover:text-blue-800 transition-colors text-sm font-medium"
+              @click="exitEditMode"
+            >
+              {{ $t('CONVERSATION.STICKER_PICKER.CANCEL') }}
+            </button>
+          </div>
         </div>
 
         <!-- Search Input (only for search tab) -->
@@ -513,7 +650,7 @@ export default {
             <div
               v-for="sticker in stickers"
               :key="sticker.id"
-              class="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:bg-gray-200 transition-colors"
+              class="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:bg-gray-200 transition-colors relative"
               @click="selectSticker(sticker)"
             >
               <img
@@ -522,8 +659,71 @@ export default {
                 class="w-full h-full object-cover"
                 @error="handleImageError"
               />
+
+              <!-- Selection Circle (only in edit mode) -->
+              <div
+                v-if="isEditMode"
+                class="absolute top-2 right-2 w-6 h-6 rounded-full border-2 shadow-lg flex items-center justify-center transition-all duration-200 z-10"
+                :class="[
+                  isStickerSelected(sticker)
+                    ? 'bg-green-500 border-green-500 scale-110'
+                    : 'bg-white border-gray-400 hover:border-gray-600',
+                ]"
+              >
+                <!-- Check Mark -->
+                <svg
+                  v-if="isStickerSelected(sticker)"
+                  class="w-4 h-4 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
+        </div>
+
+        <!-- Edit Mode Footer -->
+        <div
+          v-if="isEditMode && selectedStickersCount > 0"
+          class="flex items-center justify-between p-3 border-t border-gray-200 bg-gray-50"
+        >
+          <span class="text-sm text-gray-600">
+            {{
+              $t('CONVERSATION.STICKER_PICKER.SELECTED_COUNT', {
+                count: selectedStickersCount,
+              })
+            }}
+          </span>
+          <button
+            :disabled="isDeleting"
+            class="flex items-center gap-2 px-3 py-1.5 bg-red-500 text-white text-sm rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            @click="deleteSelectedStickers"
+          >
+            <!-- Loading spinner when deleting -->
+            <div
+              v-if="isDeleting"
+              class="animate-spin rounded-full w-3 h-3 border-2 border-white border-t-transparent"
+            />
+            <!-- Trash icon -->
+            <svg v-else class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fill-rule="evenodd"
+                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            {{
+              isDeleting
+                ? $t('CONVERSATION.STICKER_PICKER.DELETING')
+                : $t('CONVERSATION.STICKER_PICKER.DELETE')
+            }}
+          </button>
         </div>
       </div>
     </div>
