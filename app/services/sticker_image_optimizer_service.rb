@@ -110,7 +110,13 @@ class StickerImageOptimizerService
 
     # --- Etapa 1: Carregar e Desconstruir em Memória ---
     # Esta é a ÚNICA operação de leitura de disco necessária
-    source_strip = Vips::Image.new_from_file(input_path, n: -1, access: :sequential)
+    # Para JPG/PNG (estáticos), não usar n: -1
+    begin
+      source_strip = Vips::Image.new_from_file(input_path, n: -1, access: :sequential)
+    rescue Vips::Error => e
+      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ℹ️ Falling back to single page load (likely static image): #{e.message}"
+      source_strip = Vips::Image.new_from_file(input_path, access: :sequential)
+    end
 
     process_animation_frames(source_strip, input_path, output_path, size)
   end
@@ -132,7 +138,7 @@ class StickerImageOptimizerService
         temp_input.binmode
         temp_input.write(input_buffer)
         temp_input.flush
-        create_sticker_with_in_memory_architecture(temp_input.path, output_path, size)
+        create_sticker_with_in_memory_architecture(temp_input.path, output_path, size: size)
       ensure
         temp_input.close! if temp_input && !temp_input.closed?
       end
@@ -141,8 +147,11 @@ class StickerImageOptimizerService
 
   # HELPER COMPARTILHADO - Processa frames independente da origem (arquivo ou buffer)
   def process_animation_frames(source_strip, input_path, output_path, size)
+    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔍 DEBUG: Entering process_animation_frames with size=#{size}"
+    
     # --- Detecção Robusta de Animação com Fallback ---
     begin
+      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔍 DEBUG: Trying to get metadata from libvips..."
       # Tenta obter os metadados diretamente da libvips.
       # Se a imagem não for uma animação reconhecida, isso vai falhar.
       page_height = source_strip.get('page-height')
@@ -175,9 +184,32 @@ class StickerImageOptimizerService
 
     # Se, após todos os fallbacks, ainda tivermos 1 frame, tratamos como estático.
     if n_pages <= 1
-      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🖼️ Static image detected, processing quickly"
-      thumb = source_strip.thumbnail_image(size, height: size, crop: :centre)
-      thumb.webpsave(output_path, Q: 75)
+      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🖼️ Static image detected, processing with 100KB limit"
+      
+      # Processo iterativo para imagens estáticas respeitando limite de 100KB
+      static_limit = MAX_STATIC_FILE_SIZE # 100KB
+      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🎯 Static image target: #{static_limit} bytes"
+      
+      # Tentar qualidades decrescentes até atingir o limite
+      QUALITY_LEVELS.each_with_index do |quality_level, index|
+        Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🎯 Static Iteration #{index + 1}: Trying Q=#{quality_level}"
+        
+        thumb = source_strip.thumbnail_image(size)
+        thumb.webpsave(output_path, Q: quality_level)
+        
+        file_size = File.size(output_path)
+        Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 📊 Static size after Q#{quality_level}: #{file_size} bytes (target: #{static_limit})"
+        
+        if file_size <= static_limit
+          Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ✅ Static image within limit on iteration #{index + 1}"
+          return output_path
+        else
+          Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ Static still too large (#{file_size} > #{static_limit}), trying next quality..."
+        end
+      end
+      
+      # Se chegou aqui, mesmo com qualidade mínima não conseguiu atingir o limite
+      Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ Static image could not be reduced below #{static_limit} bytes even at lowest quality"
       return output_path
     end
 
@@ -256,7 +288,7 @@ class StickerImageOptimizerService
     output_path = input_path.gsub(/\.[^.]+$/, '_optimized.webp')
 
     begin
-      result_path = create_sticker_with_in_memory_architecture(input_path, output_path)
+      result_path = create_sticker_with_in_memory_architecture(input_path, output_path, size: 512)
       file_size = File.size(result_path)
       
       Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] Success: #{file_size} bytes"
@@ -318,7 +350,7 @@ class StickerImageOptimizerService
   private
 
   # Método direto para otimização com paths específicos (para debug/scripts)
-  def create_sticker_with_in_memory_architecture(input_path, output_path)
+  def create_sticker_direct_from_file(input_path, output_path)
     puts "[STICKER-OPTIMIZER] 🚀 Otimização direta de arquivo"
     puts "[STICKER-OPTIMIZER] 📂 Entrada: #{input_path}"
     puts "[STICKER-OPTIMIZER] 📂 Saída: #{output_path}"
@@ -446,7 +478,7 @@ class StickerImageOptimizerService
 
     # --- Etapa 1: Redimensionamento ---
     resized_frames = new_frames.map do |frame|
-      frame.thumbnail_image(strategy[:size], height: strategy[:size], crop: :centre)
+      frame.thumbnail_image(strategy[:size])
     end
     
     # --- Etapa 2: JUNTAR FRAMES EM UMA "TIRA DE FILME" ---
@@ -570,6 +602,14 @@ class StickerImageOptimizerService
       compression_ratio = ((original_size - final_size).to_f / original_size * 100).round(2)
 
       Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 📈 Size: #{original_size} → #{final_size} bytes (#{compression_ratio}% compression)"
+
+      # Validação específica para imagens estáticas (limite de 100KB)
+      if !is_animated && final_size > MAX_STATIC_FILE_SIZE
+        Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ WARNING: Static image exceeds limit (#{final_size} > #{MAX_STATIC_FILE_SIZE} bytes)"
+        Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] 📋 This may cause issues in WhatsApp sticker upload"
+      elsif !is_animated && final_size <= MAX_STATIC_FILE_SIZE
+        Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ✅ Static image within limit (#{final_size} ≤ #{MAX_STATIC_FILE_SIZE} bytes)"
+      end
 
       processed_file = ActionDispatch::Http::UploadedFile.new(
         tempfile: temp_output,
