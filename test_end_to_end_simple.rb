@@ -8,14 +8,24 @@ puts '🚀 TESTE END-TO-END SIMPLIFICADO (SEM STICKERSERVICE)'
 puts '=' * 60
 
 begin
-  # Usar arquivo de teste atual
-  file_path = '/tmp/love.webp'
+  # Usar arquivo de teste teste-stiker.webp
+  file_path = '/app/app/uploaders/teste-stiker.webp'
   
   puts "📁 Arquivo: #{file_path}"
   puts "📊 Tamanho original: #{File.size(file_path)} bytes (#{(File.size(file_path) / 1024.0).round(1)}KB)"
   
   # ETAPA 1: Processar com StickerImageOptimizerService
   puts "\n🔧 ETAPA 1: Otimizando com StickerImageOptimizerService..."
+  
+  # Verificar animação original
+  original_image = Vips::Image.new_from_file(file_path, n: -1)
+  original_frames = original_image.get("n-pages")
+  original_delays = original_image.get("delay")
+  original_total_time = original_delays.sum
+  
+  puts "   🎞️  Frames originais: #{original_frames}"
+  puts "   ⏰ Delays originais: #{original_delays.inspect}"
+  puts "   🕐 Tempo total original: #{original_total_time}ms"
   
   file_obj = File.open(file_path, 'rb')
   optimizer = StickerImageOptimizerService.new(file: file_obj, account_id: 3)
@@ -30,6 +40,27 @@ begin
     puts "   ⏱️  Tempo: #{optimizer_time}ms"
     puts "   🎞️  Animado: #{result[:is_animated]}"
     puts "   🔧 Método: #{result[:method]}"
+    
+    # Verificar compensação de tempo se for animado
+    if result[:is_animated]
+      processed_file = result[:processed_file]
+      processed_image = Vips::Image.new_from_file(processed_file.path, n: -1)
+      processed_frames = processed_image.get("n-pages")
+      processed_delays = processed_image.get("delay")
+      processed_total_time = processed_delays.sum
+      
+      puts "\n🎞️ ANÁLISE DE COMPENSAÇÃO DE TEMPO:"
+      puts "   📊 Frames: #{original_frames} → #{processed_frames}"
+      puts "   ⏰ Delays: #{original_delays.inspect} → #{processed_delays.inspect}"
+      puts "   🕐 Tempo total: #{original_total_time}ms → #{processed_total_time}ms"
+      puts "   📈 Preservação: #{((processed_total_time.to_f / original_total_time) * 100).round(1)}%"
+      
+      if (processed_total_time - original_total_time).abs <= 50 # Tolerância de 50ms
+        puts "   ✅ Tempo total preservado com sucesso!"
+      else
+        puts "   ⚠️  Tempo total não preservado adequadamente"
+      end
+    end
     
     # ETAPA 2: Salvar arquivo otimizado no disco via ActiveStorage
     puts "\n🔧 ETAPA 2: Analisando arquivo processado..."

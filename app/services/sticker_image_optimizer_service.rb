@@ -207,8 +207,16 @@ class StickerImageOptimizerService
       # Aumentar agressividade do frame culling conforme as iterações avançam
       cull_threshold = base_cull_threshold + (index * 2.0) # Cada iteração fica mais agressiva
       
-      # Frame limit mais agressivo nas últimas iterações
-      max_frames = index < 3 ? 30 : (index < 5 ? 20 : 15)
+      # NOVA LÓGICA: Iteração 1 usa apenas culling, Iteração 2+ usa limite de frames
+      if index == 0
+        # Iteração 1: Apenas culling threshold, sem limite de frames
+        max_frames = Float::INFINITY # Sem limite na primeira iteração
+        Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🎯 Iteration 1: Using only culling threshold (#{cull_threshold}), no frame limit"
+      else
+        # Iteração 2+: Aplicar limite de frames progressivamente mais agressivo
+        max_frames = index == 1 ? 30 : (index < 4 ? 20 : 15)
+        Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🎯 Iteration #{index + 1}: Using culling threshold (#{cull_threshold}) + frame limit (#{max_frames})"
+      end
 
       strategy = {
         quality: quality_level,
@@ -397,18 +405,38 @@ class StickerImageOptimizerService
     Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔍 New delays sample: #{new_delays.first(5).inspect}"
     Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔍 Max delay: #{new_delays.max}ms, Total duration: #{new_delays.sum}ms"
 
-    # FORÇAR LIMITE MÁXIMO DE FRAMES para WhatsApp (agora configurável por estratégia)
-    max_frames_limit = strategy[:max_frames] || 30
-    if new_frames.length > max_frames_limit
+    # APLICAR LIMITE MÁXIMO DE FRAMES apenas se especificado (não infinito)
+    max_frames_limit = strategy[:max_frames] || Float::INFINITY
+    if max_frames_limit != Float::INFINITY && new_frames.length > max_frames_limit
       Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ Still too many frames (#{new_frames.length}), forcing limit to #{max_frames_limit}"
+      
+      # Calcular duração total original antes da limitação
+      original_total_duration = new_delays.sum
       
       # Selecionar frames uniformemente distribuídos
       indices = (0...new_frames.length).step(new_frames.length / max_frames_limit.to_f).map(&:to_i).uniq.first(max_frames_limit)
       new_frames = indices.map { |i| new_frames[i] }
-      new_delays = indices.map { |i| new_delays[i] }
+      limited_delays = indices.map { |i| new_delays[i] }
+      
+      # Compensar delays para manter duração total da animação
+      limited_total_duration = limited_delays.sum
+      if limited_total_duration > 0
+        compensation_factor = original_total_duration.to_f / limited_total_duration
+        new_delays = limited_delays.map { |delay| (delay * compensation_factor).round }
+        
+        Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ⏱️ Time compensation applied:"
+        Rails.logger.info "  Original duration: #{original_total_duration}ms"
+        Rails.logger.info "  Limited duration: #{limited_total_duration}ms"
+        Rails.logger.info "  Compensation factor: #{compensation_factor.round(3)}"
+        Rails.logger.info "  New total duration: #{new_delays.sum}ms"
+      else
+        new_delays = limited_delays
+      end
       
       Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 📊 Hard limited to #{new_frames.length} frames"
-      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔍 Final delays after limiting: #{new_delays.first(5).inspect}"
+      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔍 Final delays after compensation: #{new_delays.first(5).inspect}"
+    else
+      Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 📊 No frame limit applied, keeping #{new_frames.length} frames from culling"
     end
 
     # --- Keyframe Strategy: Dynamic kmax based on scene changes ---
@@ -430,8 +458,20 @@ class StickerImageOptimizerService
     # --- Etapa 3: ANOTAR A "TIRA DE FILME" COM METADADOS DE ANIMAÇÃO ---
     # ESTA É A CORREÇÃO CRÍTICA.
     # Anexamos os metadados diretamente na imagem ANTES de salvar.
-    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] � Annotating filmstrip with animation metadata..."
-    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 💾 Saving animated WebP with inter-frame compression enabled..."
+    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 📝 Annotating filmstrip with animation metadata..."
+    
+    # Aplicar metadados de delay compensados seguindo a documentação libvips
+    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ⏱️ Setting animation metadata with delays: #{new_delays.inspect}"
+    
+    # Definir metadados de animação na imagem seguindo a documentação libvips
+    # Como mostrado em: animation.set_type(pyvips.GValue.array_int_type, "delay", delay_array)
+    animation_strip.set("page-height", strategy[:size])
+    animation_strip.set("n-pages", new_frames.length)
+    animation_strip.set("loop", 0)
+    animation_strip.set("delay", new_delays)
+    
+    # Primeiro, salvar sem metadados de delay personalizado (o webpsave aplicará delays padrão)
+    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 💾 Saving animated WebP with compensation delays..."
     animation_strip.webpsave(output_path, 
       page_height: strategy[:size], # O parâmetro MÁGICO que ativa a animação.
       Q: strategy[:quality],         # Qualidade da compressão com perdas.
@@ -439,7 +479,7 @@ class StickerImageOptimizerService
       kmax: kmax,                    # Distância máxima entre keyframes (para melhor compressão).
       effort: 4                      # Excelente equilíbrio entre velocidade e compressão.
     )
-
+    
     final_size = File.size(output_path)
     Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ✅ #{strategy[:description]} completed: #{final_size} bytes"
     
@@ -669,5 +709,62 @@ class StickerImageOptimizerService
     end
 
     comparison
+  end
+
+  private
+
+  # Aplica delays customizados usando webpmux para compensação de tempo
+  def apply_custom_delays_with_webpmux(webp_path, delays)
+    Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] 🔧 Applying custom delays with webpmux..."
+    
+    temp_output = "#{webp_path}.temp"
+    
+    begin
+      # Extrair frames individuais
+      Rails.logger.debug "[SOCIALWISE-STICKER-LIBVIPS] Extracting frames for delay adjustment..."
+      frame_files = []
+      
+      delays.each_with_index do |delay, i|
+        frame_file = "/tmp/frame_#{i}.webp"
+        
+        # Extrair frame específico
+        cmd = ["webpmux", "-get", "frame", (i + 1).to_s, webp_path, "-o", frame_file]
+        stdout, stderr, status = Open3.capture3(*cmd)
+        
+        unless status.success?
+          Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ Failed to extract frame #{i}: #{stderr}"
+          next
+        end
+        
+        frame_files << { file: frame_file, delay: delay }
+      end
+      
+      # Recriar animação com delays corretos
+      if frame_files.any?
+        Rails.logger.debug "[SOCIALWISE-STICKER-LIBVIPS] Recreating animation with #{frame_files.length} frames..."
+        
+        cmd = ["webpmux"]
+        frame_files.each_with_index do |frame_info, i|
+          cmd += ["-frame", "#{frame_info[:file]}+#{frame_info[:delay]}"]
+        end
+        cmd += ["-loop", "0", "-o", temp_output]
+        
+        stdout, stderr, status = Open3.capture3(*cmd)
+        
+        if status.success?
+          File.rename(temp_output, webp_path)
+          Rails.logger.info "[SOCIALWISE-STICKER-LIBVIPS] ✅ Successfully applied custom delays"
+        else
+          Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ Failed to recreate animation: #{stderr}"
+        end
+      end
+      
+    rescue => e
+      Rails.logger.warn "[SOCIALWISE-STICKER-LIBVIPS] ⚠️ Error applying custom delays: #{e.message}"
+    ensure
+      # Cleanup frame files
+      frame_files&.each { |frame_info| File.delete(frame_info[:file]) if File.exist?(frame_info[:file]) }
+      File.delete(temp_output) if File.exist?(temp_output)
+    end
   end
 end

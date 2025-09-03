@@ -199,15 +199,13 @@ class Api::V1::Accounts::StickerPerformanceController < Api::V1::Accounts::BaseC
 
   def create_test_image_file
     # Create a simple test image in memory
-    require 'mini_magick'
+    require 'vips'
     
     temp_file = Tempfile.new(['benchmark_test', '.png'])
     
-    # Create a 200x200 test image
-    image = MiniMagick::Image.open('logo:')
-    image.resize '200x200'
-    image.format 'png'
-    image.write(temp_file.path)
+    # Create a 200x200 test image using libvips
+    image = Vips::Image.black(200, 200)
+    image.pngsave(temp_file.path)
     
     # Return as uploaded file
     ActionDispatch::Http::UploadedFile.new(
@@ -228,8 +226,9 @@ class Api::V1::Accounts::StickerPerformanceController < Api::V1::Accounts::BaseC
 
   def check_image_processing_health
     begin
-      # Test MiniMagick availability
-      MiniMagick::Tool::Identify.new.version
+      # Test libvips availability
+      require 'vips'
+      Vips.version_string
       'healthy'
     rescue StandardError => e
       Rails.logger.error "Image processing health check failed: #{e.message}"

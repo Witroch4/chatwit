@@ -1,4 +1,4 @@
-require 'mini_magick'
+require 'vips'
 
 class Whatsapp::SendStickerService
   # 🎯 OPTIMISTIC FLOW IMPLEMENTATION
@@ -413,8 +413,9 @@ class Whatsapp::SendStickerService
     
     # Check original frames before optimization
     begin
-      original_image = MiniMagick::Image.open(temp_file.path)
-      original_frames = original_image.frames.count
+      # Use libvips to detect animation frames
+      source_image = Vips::Image.new_from_file(temp_file.path, n: -1, access: :sequential)
+      original_frames = source_image.get('n-pages')
       Rails.logger.info "🎬 [FRAMES] SEND_STICKER Input: #{original_frames} frames"
     rescue => e
       Rails.logger.warn "Could not detect original frames: #{e.message}"
@@ -433,8 +434,9 @@ class Whatsapp::SendStickerService
       
       # Check frames after optimization
       begin
-        optimized_image = MiniMagick::Image.open(optimized_path)
-        optimized_frames = optimized_image.frames.count
+        # Use libvips to detect optimized frames
+        optimized_image = Vips::Image.new_from_file(optimized_path, n: -1, access: :sequential)
+        optimized_frames = optimized_image.get('n-pages')
         Rails.logger.info "🎬 [FRAMES] SEND_STICKER Output: #{optimized_frames} frames (original: #{original_frames})"
       rescue => e
         Rails.logger.warn "Could not detect optimized frames: #{e.message}"
