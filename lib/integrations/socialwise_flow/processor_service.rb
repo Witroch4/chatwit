@@ -7,6 +7,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   def message_content(message)
     return message.content_attributes['submitted_values']&.first&.dig('value') if event_name == 'message.updated'
+
     message.content
   end
 
@@ -24,17 +25,17 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     begin
       log_headers = headers.dup
       log_headers['Authorization'] = '[FILTERED]' if log_headers['Authorization']
-      Rails.logger.info "[SOCIALWISE-FLOW] === SENDING REQUEST TO SOCIALWISE FLOW ==="
+      Rails.logger.info '[SOCIALWISE-FLOW] === SENDING REQUEST TO SOCIALWISE FLOW ==='
       Rails.logger.info "[SOCIALWISE-FLOW] URL: #{url}"
       Rails.logger.info "[SOCIALWISE-FLOW] HEADERS: #{log_headers.inspect}"
       Rails.logger.info "[SOCIALWISE-FLOW] PAYLOAD: #{payload.inspect}"
-      Rails.logger.info "[SOCIALWISE-FLOW] === END REQUEST ==="
-    rescue => e
+      Rails.logger.info '[SOCIALWISE-FLOW] === END REQUEST ==='
+    rescue StandardError => e
       Rails.logger.warn "[SOCIALWISE-FLOW] Failed to log payload: #{e.class}: #{e.message}"
     end
 
     response = HTTParty.post(url, headers: headers, body: payload.to_json, timeout: 30)
-    
+
     if response.success?
       Rails.logger.info "[SOCIALWISE-FLOW] Response received: #{response.parsed_response.inspect}"
       response.parsed_response
@@ -49,15 +50,15 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def process_response(message, response)
-    Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING RESPONSE ==="
+    Rails.logger.info '[SOCIALWISE-FLOW] === PROCESSING RESPONSE ==='
     Rails.logger.info "[SOCIALWISE-FLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Account ID: #{message.conversation.account_id}, Inbox ID: #{message.conversation.inbox_id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Channel type: #{message.conversation.inbox.channel_type}"
     Rails.logger.info "[SOCIALWISE-FLOW] Response: #{response.inspect}"
-    
+
     # Requirement 6.1: Log detailed error information when response is blank
     if response.blank?
-      Rails.logger.warn "[SOCIALWISE-FLOW] Empty or nil response received"
+      Rails.logger.warn '[SOCIALWISE-FLOW] Empty or nil response received'
       Rails.logger.warn "[SOCIALWISE-FLOW] Message content: #{message.content}"
       Rails.logger.warn "[SOCIALWISE-FLOW] Hook settings: #{hook.settings.inspect}"
       return
@@ -66,7 +67,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     begin
       # Primeiro, processar button_reaction se existir
       if response['action_type'] == 'button_reaction'
-        Rails.logger.info "[SOCIALWISE-FLOW] Processing button_reaction"
+        Rails.logger.info '[SOCIALWISE-FLOW] Processing button_reaction'
         process_button_reaction(message, response)
         return
       end
@@ -77,12 +78,12 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         begin
           process_action(message, response['action'])
           Rails.logger.info "[SOCIALWISE-FLOW] Action processed successfully: #{response['action']}"
-        rescue StandardError => action_error
+        rescue StandardError => e
           # Requirement 6.3: Log handoff action failures but don't block message processing
-          Rails.logger.error "[SOCIALWISE-FLOW] Action processing failed: #{action_error.class}: #{action_error.message}"
+          Rails.logger.error "[SOCIALWISE-FLOW] Action processing failed: #{e.class}: #{e.message}"
           Rails.logger.error "[SOCIALWISE-FLOW] Action: #{response['action']}"
           Rails.logger.error "[SOCIALWISE-FLOW] Message ID: #{message.id}"
-          Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{action_error.backtrace.first(3).join('\n')}"
+          Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(3).join('\n')}"
           # Continue processing messages even if action fails
         end
         # Não retornar aqui, pode haver mensagem também
@@ -97,7 +98,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         if response['whatsapp'].present?
           process_whatsapp_response(message, response['whatsapp'])
         else
-          Rails.logger.warn "[SOCIALWISE-FLOW] WhatsApp channel but no whatsapp payload in response"
+          Rails.logger.warn '[SOCIALWISE-FLOW] WhatsApp channel but no whatsapp payload in response'
         end
       when 'Channel::FacebookPage', 'Channel::Instagram'
         # Instagram pode usar Channel::FacebookPage ou Channel::Instagram
@@ -106,7 +107,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         elsif response['facebook'].present?
           process_facebook_response(message, response['facebook'])
         else
-          Rails.logger.warn "[SOCIALWISE-FLOW] Instagram/FacebookPage channel but no instagram/facebook payload in response"
+          Rails.logger.warn '[SOCIALWISE-FLOW] Instagram/FacebookPage channel but no instagram/facebook payload in response'
         end
       else
         # Fallback para texto simples
@@ -118,12 +119,12 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
           Rails.logger.warn "[SOCIALWISE-FLOW] Available response keys: #{response.keys.inspect}"
         end
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW] === RESPONSE PROCESSING COMPLETED ==="
-      
+
+      Rails.logger.info '[SOCIALWISE-FLOW] === RESPONSE PROCESSING COMPLETED ==='
+
     rescue StandardError => e
       # Requirement 6.1: Log detailed error information
-      Rails.logger.error "[SOCIALWISE-FLOW] === RESPONSE PROCESSING FAILED ==="
+      Rails.logger.error '[SOCIALWISE-FLOW] === RESPONSE PROCESSING FAILED ==='
       Rails.logger.error "[SOCIALWISE-FLOW] Exception class: #{e.class}"
       Rails.logger.error "[SOCIALWISE-FLOW] Exception message: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW] Message ID: #{message.id}"
@@ -133,7 +134,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       Rails.logger.error "[SOCIALWISE-FLOW] Channel type: #{message.conversation.inbox.channel_type}"
       Rails.logger.error "[SOCIALWISE-FLOW] Response data: #{response.inspect}"
       Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(10).join('\n')}"
-      
+
       # Requirement 6.4: Create fallback text message with raw response when format is invalid
       begin
         fallback_content = extract_fallback_content_from_response(response)
@@ -143,8 +144,8 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         Rails.logger.error "[SOCIALWISE-FLOW] Fallback message creation also failed: #{fallback_error.class}: #{fallback_error.message}"
         # Last resort: create simple error message
         begin
-          create_conversation(message, { content: "Erro ao processar resposta do bot" })
-          Rails.logger.info "[SOCIALWISE-FLOW] Created simple error message as last resort"
+          create_conversation(message, { content: 'Erro ao processar resposta do bot' })
+          Rails.logger.info '[SOCIALWISE-FLOW] Created simple error message as last resort'
         rescue StandardError => last_resort_error
           Rails.logger.error "[SOCIALWISE-FLOW] Even simple error message creation failed: #{last_resort_error.class}: #{last_resort_error.message}"
         end
@@ -153,86 +154,84 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def process_button_reaction(message, response)
-    Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING BUTTON REACTION ==="
+    Rails.logger.info '[SOCIALWISE-FLOW] === PROCESSING BUTTON REACTION ==='
     Rails.logger.info "[SOCIALWISE-FLOW] Button ID: #{response['buttonId']}"
     Rails.logger.info "[SOCIALWISE-FLOW] Emoji: #{response['emoji']}"
     Rails.logger.info "[SOCIALWISE-FLOW] Text: #{response['text']}"
     Rails.logger.info "[SOCIALWISE-FLOW] Action: #{response['action']}"
     Rails.logger.info "[SOCIALWISE-FLOW] Message ID: #{message.id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Conversation ID: #{message.conversation.id}"
-    
+
     begin
       conversation = message.conversation
       channel_type = conversation.inbox.channel_type
       Rails.logger.info "[SOCIALWISE-FLOW] Channel type: #{channel_type}"
-      
+
       # Validate response data
-      if response['buttonId'].blank?
-        Rails.logger.warn "[SOCIALWISE-FLOW] Button reaction missing buttonId"
-      end
-      
+      Rails.logger.warn '[SOCIALWISE-FLOW] Button reaction missing buttonId' if response['buttonId'].blank?
+
       begin
         # 1. Send emoji reaction based on channel type (Requirements 3.2, 3.3)
         if response['emoji'].present?
           Rails.logger.info "[SOCIALWISE-FLOW] Sending emoji reaction: #{response['emoji']}"
           send_emoji_reaction(message, response, channel_type)
-          Rails.logger.info "[SOCIALWISE-FLOW] Emoji reaction sent successfully"
+          Rails.logger.info '[SOCIALWISE-FLOW] Emoji reaction sent successfully'
         else
-          Rails.logger.warn "[SOCIALWISE-FLOW] No emoji in button reaction response"
+          Rails.logger.warn '[SOCIALWISE-FLOW] No emoji in button reaction response'
         end
-        
-      rescue StandardError => emoji_error
+
+      rescue StandardError => e
         # Requirement 6.2: Continue processing other response elements when emoji reaction fails
-        Rails.logger.error "[SOCIALWISE-FLOW] Emoji reaction sending failed: #{emoji_error.class}: #{emoji_error.message}"
+        Rails.logger.error "[SOCIALWISE-FLOW] Emoji reaction sending failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-FLOW] Emoji: #{response['emoji']}"
         Rails.logger.error "[SOCIALWISE-FLOW] Channel type: #{channel_type}"
-        Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{emoji_error.backtrace.first(3).join('\n')}"
+        Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(3).join('\n')}"
         # Continue processing even if emoji reaction fails (Requirement 3.4)
       end
-      
+
       begin
         # 2. Send contextual response text (Requirements 3.2, 3.3)
         if response['text'].present?
           Rails.logger.info "[SOCIALWISE-FLOW] Sending reaction text: #{response['text']}"
           send_reaction_text(message, response, channel_type)
-          Rails.logger.info "[SOCIALWISE-FLOW] Reaction text sent successfully"
+          Rails.logger.info '[SOCIALWISE-FLOW] Reaction text sent successfully'
         else
-          Rails.logger.warn "[SOCIALWISE-FLOW] No text in button reaction response"
+          Rails.logger.warn '[SOCIALWISE-FLOW] No text in button reaction response'
         end
-        
-      rescue StandardError => text_error
+
+      rescue StandardError => e
         # Requirement 6.2: Continue processing other response elements when text sending fails
-        Rails.logger.error "[SOCIALWISE-FLOW] Reaction text sending failed: #{text_error.class}: #{text_error.message}"
+        Rails.logger.error "[SOCIALWISE-FLOW] Reaction text sending failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-FLOW] Text: #{response['text']}"
         Rails.logger.error "[SOCIALWISE-FLOW] Channel type: #{channel_type}"
-        Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{text_error.backtrace.first(3).join('\n')}"
+        Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(3).join('\n')}"
         # Continue processing even if text sending fails (Requirement 3.4)
       end
-      
+
       # 3. Process handoff action even if reaction sending failed (Requirements 3.4, 4.1, 4.2, 4.3, 4.4)
       if response['action'].present?
         Rails.logger.info "[SOCIALWISE-FLOW] Processing button reaction action: #{response['action']}"
         begin
           process_action(message, response['action'])
           Rails.logger.info "[SOCIALWISE-FLOW] Action processed successfully: #{response['action']}"
-        rescue StandardError => action_error
+        rescue StandardError => e
           # Requirement 6.3: Log handoff action failures but don't block message processing
-          Rails.logger.error "[SOCIALWISE-FLOW] Action processing failed: #{action_error.class}: #{action_error.message}"
+          Rails.logger.error "[SOCIALWISE-FLOW] Action processing failed: #{e.class}: #{e.message}"
           Rails.logger.error "[SOCIALWISE-FLOW] Action: #{response['action']}"
           Rails.logger.error "[SOCIALWISE-FLOW] Message ID: #{message.id}"
           Rails.logger.error "[SOCIALWISE-FLOW] Conversation ID: #{conversation.id}"
-          Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{action_error.backtrace.first(5).join('\n')}"
+          Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(5).join('\n')}"
           # Log error but don't re-raise (Requirement 6.3)
         end
       else
-        Rails.logger.info "[SOCIALWISE-FLOW] No action specified in button reaction"
+        Rails.logger.info '[SOCIALWISE-FLOW] No action specified in button reaction'
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW] === BUTTON REACTION PROCESSING COMPLETED ==="
-      
+
+      Rails.logger.info '[SOCIALWISE-FLOW] === BUTTON REACTION PROCESSING COMPLETED ==='
+
     rescue StandardError => e
       # Requirement 6.1: Log detailed error information
-      Rails.logger.error "[SOCIALWISE-FLOW] === BUTTON REACTION PROCESSING FAILED ==="
+      Rails.logger.error '[SOCIALWISE-FLOW] === BUTTON REACTION PROCESSING FAILED ==='
       Rails.logger.error "[SOCIALWISE-FLOW] Exception class: #{e.class}"
       Rails.logger.error "[SOCIALWISE-FLOW] Exception message: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW] Message ID: #{message.id}"
@@ -240,13 +239,13 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       Rails.logger.error "[SOCIALWISE-FLOW] Channel type: #{message.conversation.inbox.channel_type}"
       Rails.logger.error "[SOCIALWISE-FLOW] Response data: #{response.inspect}"
       Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(10).join('\n')}"
-      
+
       # Still try to process handoff if specified (Requirement 3.4)
       if response['action'].present?
         begin
-          Rails.logger.info "[SOCIALWISE-FLOW] Attempting handoff despite button reaction failure"
+          Rails.logger.info '[SOCIALWISE-FLOW] Attempting handoff despite button reaction failure'
           process_action(message, response['action'])
-          Rails.logger.info "[SOCIALWISE-FLOW] Handoff processed successfully despite earlier failure"
+          Rails.logger.info '[SOCIALWISE-FLOW] Handoff processed successfully despite earlier failure'
         rescue StandardError => handoff_error
           Rails.logger.error "[SOCIALWISE-FLOW] Handoff also failed: #{handoff_error.class}: #{handoff_error.message}"
           Rails.logger.error "[SOCIALWISE-FLOW] Handoff error backtrace: #{handoff_error.backtrace.first(3).join('\n')}"
@@ -255,14 +254,12 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     end
   end
 
-  private
-
   def send_emoji_reaction(message, response, channel_type)
     Rails.logger.info "[SOCIALWISE-FLOW] Sending emoji reaction for #{channel_type}"
-    
+
     conversation = message.conversation
     emoji = response['emoji']
-    
+
     case channel_type
     when 'Channel::Whatsapp'
       # WhatsApp: Send both emoji reaction and contextual response (Requirement 3.2)
@@ -280,10 +277,10 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   def send_reaction_text(message, response, channel_type)
     Rails.logger.info "[SOCIALWISE-FLOW] Sending reaction text for #{channel_type}"
-    
+
     conversation = message.conversation
     text = response['text']
-    
+
     case channel_type
     when 'Channel::Whatsapp'
       # WhatsApp: Send contextual response text (Requirement 3.2)
@@ -305,9 +302,9 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       whatsapp_payload = response['whatsapp']
       if whatsapp_payload && whatsapp_payload['message_id'].present?
         send_whatsapp_reaction_to_api(conversation, whatsapp_payload['message_id'], emoji)
-        Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp emoji reaction sent to API successfully"
+        Rails.logger.info '[SOCIALWISE-FLOW] WhatsApp emoji reaction sent to API successfully'
       else
-        Rails.logger.warn "[SOCIALWISE-FLOW] Missing WhatsApp message_id for emoji reaction"
+        Rails.logger.warn '[SOCIALWISE-FLOW] Missing WhatsApp message_id for emoji reaction'
       end
     rescue StandardError => e
       Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp emoji reaction API call failed: #{e.class}: #{e.message}"
@@ -328,32 +325,32 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       },
       additional_attributes: { skip_send_reply: true }
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp emoji reaction message created: #{emoji_message.id}"
   end
 
   def send_instagram_emoji_reaction(conversation, emoji, response)
-    Rails.logger.info "[SOCIALWISE-FLOW] === INSTAGRAM EMOJI REACTION START ==="
+    Rails.logger.info '[SOCIALWISE-FLOW] === INSTAGRAM EMOJI REACTION START ==='
     Rails.logger.info "[SOCIALWISE-FLOW] Original emoji: #{emoji} -> Converting to: love"
     Rails.logger.info "[SOCIALWISE-FLOW] Response data: #{response.inspect}"
-    
+
     # Send emoji reaction to Instagram API (only supports 'love')
     begin
       # Instagram only accepts 'love' as reaction
       instagram_reaction = 'love'
-      
+
       # Look for message_id in various places
-      message_id = response.dig('instagram', 'message_id') || 
-                  response.dig('whatsapp', 'message_id') ||
-                  response['message_id']
-                  
+      message_id = response.dig('instagram', 'message_id') ||
+                   response.dig('whatsapp', 'message_id') ||
+                   response['message_id']
+
       Rails.logger.info "[SOCIALWISE-FLOW] Instagram message_id found: #{message_id}"
-      
+
       if message_id.present?
         send_instagram_reaction_to_api(conversation, message_id, instagram_reaction)
-        Rails.logger.info "[SOCIALWISE-FLOW] Instagram emoji reaction sent to API successfully"
+        Rails.logger.info '[SOCIALWISE-FLOW] Instagram emoji reaction sent to API successfully'
       else
-        Rails.logger.error "[SOCIALWISE-FLOW] CRITICAL: Missing message_id for Instagram emoji reaction"
+        Rails.logger.error '[SOCIALWISE-FLOW] CRITICAL: Missing message_id for Instagram emoji reaction'
         Rails.logger.error "[SOCIALWISE-FLOW] Available response keys: #{response.keys.inspect}"
       end
     rescue StandardError => e
@@ -375,7 +372,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         'channel_type' => 'instagram'
       }
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram emoji reaction message created: #{emoji_message.id}"
   end
 
@@ -394,7 +391,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         'channel_type' => 'generic'
       }
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Generic emoji reaction message created: #{emoji_message.id}"
   end
 
@@ -404,9 +401,9 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       whatsapp_payload = response['whatsapp']
       if whatsapp_payload && whatsapp_payload['message_id'].present?
         send_whatsapp_contextual_message_to_api(conversation, whatsapp_payload['message_id'], text)
-        Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual text sent to API successfully"
+        Rails.logger.info '[SOCIALWISE-FLOW] WhatsApp contextual text sent to API successfully'
       else
-        Rails.logger.warn "[SOCIALWISE-FLOW] Missing WhatsApp message_id for contextual text"
+        Rails.logger.warn '[SOCIALWISE-FLOW] Missing WhatsApp message_id for contextual text'
       end
     rescue StandardError => e
       Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp contextual text API call failed: #{e.class}: #{e.message}"
@@ -425,7 +422,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       },
       additional_attributes: { skip_send_reply: true }
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction text message created: #{text_message.id}"
   end
 
@@ -433,7 +430,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     # Send simple text message to Instagram API
     begin
       send_instagram_text_message_to_api(conversation, text)
-      Rails.logger.info "[SOCIALWISE-FLOW] Instagram text message sent to API successfully"
+      Rails.logger.info '[SOCIALWISE-FLOW] Instagram text message sent to API successfully'
     rescue StandardError => e
       Rails.logger.error "[SOCIALWISE-FLOW] Instagram text message API call failed: #{e.class}: #{e.message}"
     end
@@ -451,7 +448,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       },
       additional_attributes: { skip_send_reply: true }
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram reaction text message created: #{text_message.id}"
   end
 
@@ -468,40 +465,40 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         'channel_type' => 'generic'
       }
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Generic reaction text message created: #{text_message.id}"
   end
 
   def create_conversation(message, content_params)
     # Requirement 7.1, 7.2: Create outgoing messages with proper message_type and tracking
-    Rails.logger.info "[SOCIALWISE-FLOW] Creating conversation message"
+    Rails.logger.info '[SOCIALWISE-FLOW] Creating conversation message'
     Rails.logger.info "[SOCIALWISE-FLOW] Content params: #{content_params.inspect}"
-    
+
     if content_params.blank?
-      Rails.logger.warn "[SOCIALWISE-FLOW] Blank content_params provided to create_conversation"
+      Rails.logger.warn '[SOCIALWISE-FLOW] Blank content_params provided to create_conversation'
       return
     end
 
     begin
       conversation = message.conversation
-      
+
       # Validate required fields
       unless conversation.account_id.present?
-        Rails.logger.error "[SOCIALWISE-FLOW] Missing account_id in conversation"
+        Rails.logger.error '[SOCIALWISE-FLOW] Missing account_id in conversation'
         return
       end
-      
+
       unless conversation.inbox_id.present?
-        Rails.logger.error "[SOCIALWISE-FLOW] Missing inbox_id in conversation"
+        Rails.logger.error '[SOCIALWISE-FLOW] Missing inbox_id in conversation'
         return
       end
-      
+
       # Ensure content is present
       if content_params[:content].blank? && content_params['content'].blank?
-        Rails.logger.warn "[SOCIALWISE-FLOW] No content in content_params, adding default"
+        Rails.logger.warn '[SOCIALWISE-FLOW] No content in content_params, adding default'
         content_params[:content] = 'Bot message'
       end
-      
+
       # Requirement 7.3: Include proper account_id and inbox_id for tracking
       merged_params = content_params.merge(
         {
@@ -510,20 +507,20 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
           inbox_id: conversation.inbox_id
         }
       )
-      
+
       Rails.logger.info "[SOCIALWISE-FLOW] Creating message with params: #{merged_params.inspect}"
-      
+
       created_message = conversation.messages.create!(merged_params)
-      
+
       Rails.logger.info "[SOCIALWISE-FLOW] Message created successfully: #{created_message.id}"
       Rails.logger.info "[SOCIALWISE-FLOW] Message content: #{created_message.content}"
       Rails.logger.info "[SOCIALWISE-FLOW] Message content_type: #{created_message.content_type}"
-      
+
       created_message
-      
+
     rescue StandardError => e
       # Requirement 6.1: Log detailed error information
-      Rails.logger.error "[SOCIALWISE-FLOW] === MESSAGE CREATION FAILED ==="
+      Rails.logger.error '[SOCIALWISE-FLOW] === MESSAGE CREATION FAILED ==='
       Rails.logger.error "[SOCIALWISE-FLOW] Exception class: #{e.class}"
       Rails.logger.error "[SOCIALWISE-FLOW] Exception message: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW] Original message ID: #{message.id}"
@@ -532,10 +529,10 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       Rails.logger.error "[SOCIALWISE-FLOW] Inbox ID: #{message.conversation.inbox_id}"
       Rails.logger.error "[SOCIALWISE-FLOW] Content params: #{content_params.inspect}"
       Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(5).join('\n')}"
-      
+
       # Try to create a minimal fallback message
       begin
-        Rails.logger.info "[SOCIALWISE-FLOW] Attempting minimal fallback message creation"
+        Rails.logger.info '[SOCIALWISE-FLOW] Attempting minimal fallback message creation'
         fallback_message = message.conversation.messages.create!(
           message_type: :outgoing,
           content: 'Message creation failed',
@@ -554,49 +551,49 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   # ===== WhatsApp =====
   def process_whatsapp_response(message, whatsapp_payload)
-    Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING WHATSAPP RESPONSE ==="
-    Rails.logger.info "[SOCIALWISE-FLOW] Delegating to WhatsappResponseProcessor"
+    Rails.logger.info '[SOCIALWISE-FLOW] === PROCESSING WHATSAPP RESPONSE ==='
+    Rails.logger.info '[SOCIALWISE-FLOW] Delegating to WhatsappResponseProcessor'
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp payload: #{whatsapp_payload.inspect}"
-    
+
     # Requirement 6.1: Log detailed error information when payload is blank
     if whatsapp_payload.blank?
-      Rails.logger.warn "[SOCIALWISE-FLOW][WHATSAPP] Empty or nil WhatsApp payload received"
+      Rails.logger.warn '[SOCIALWISE-FLOW][WHATSAPP] Empty or nil WhatsApp payload received'
       Rails.logger.warn "[SOCIALWISE-FLOW][WHATSAPP] Message ID: #{message.id}"
       Rails.logger.warn "[SOCIALWISE-FLOW][WHATSAPP] Conversation ID: #{message.conversation.id}"
       return
     end
-    
+
     begin
       # Delegate to dedicated WhatsApp processor
       success = Integrations::SocialwiseFlow::WhatsappResponseProcessor.process(whatsapp_payload, message)
-      
+
       if success
-        Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] WhatsApp response processed successfully by WhatsappResponseProcessor"
+        Rails.logger.info '[SOCIALWISE-FLOW][WHATSAPP] WhatsApp response processed successfully by WhatsappResponseProcessor'
       else
         # Requirement 6.2: Continue processing other response elements when WhatsApp processing fails
-        Rails.logger.warn "[SOCIALWISE-FLOW][WHATSAPP] WhatsApp response processing returned false, creating fallback message"
-        
+        Rails.logger.warn '[SOCIALWISE-FLOW][WHATSAPP] WhatsApp response processing returned false, creating fallback message'
+
         # Fallback: criar mensagem de texto simples
-        fallback_text = extract_whatsapp_text(whatsapp_payload) || "WhatsApp message processing failed"
+        fallback_text = extract_whatsapp_text(whatsapp_payload) || 'WhatsApp message processing failed'
         create_conversation(message, { content: fallback_text })
         Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Created fallback message: #{fallback_text}"
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] === WHATSAPP PROCESSING COMPLETED ==="
-      
+
+      Rails.logger.info '[SOCIALWISE-FLOW][WHATSAPP] === WHATSAPP PROCESSING COMPLETED ==='
+
     rescue StandardError => e
       # Requirement 6.1: Log detailed error information
-      Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] === WHATSAPP PROCESSING FAILED ==="
+      Rails.logger.error '[SOCIALWISE-FLOW][WHATSAPP] === WHATSAPP PROCESSING FAILED ==='
       Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Exception class: #{e.class}"
       Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Exception message: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Message ID: #{message.id}"
       Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Conversation ID: #{message.conversation.id}"
       Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] WhatsApp payload: #{whatsapp_payload.inspect}"
       Rails.logger.error "[SOCIALWISE-FLOW][WHATSAPP] Backtrace: #{e.backtrace.first(10).join('\n')}"
-      
+
       # Requirement 6.4: Create fallback text message when processing fails
       begin
-        fallback_text = extract_whatsapp_text(whatsapp_payload) || "WhatsApp message processing failed"
+        fallback_text = extract_whatsapp_text(whatsapp_payload) || 'WhatsApp message processing failed'
         create_conversation(message, { content: fallback_text })
         Rails.logger.info "[SOCIALWISE-FLOW][WHATSAPP] Created fallback message: #{fallback_text}"
       rescue StandardError => fallback_error
@@ -607,24 +604,24 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   # ===== Instagram =====
   def process_instagram_response(message, instagram_payload)
-    Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING INSTAGRAM RESPONSE ==="
+    Rails.logger.info '[SOCIALWISE-FLOW] === PROCESSING INSTAGRAM RESPONSE ==='
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram payload: #{instagram_payload.inspect}"
-    
+
     # Requirement 6.1: Log detailed error information when payload is blank
     if instagram_payload.blank?
-      Rails.logger.warn "[SOCIALWISE-FLOW][INSTAGRAM] Empty or nil Instagram payload received"
+      Rails.logger.warn '[SOCIALWISE-FLOW][INSTAGRAM] Empty or nil Instagram payload received'
       Rails.logger.warn "[SOCIALWISE-FLOW][INSTAGRAM] Message ID: #{message.id}"
       Rails.logger.warn "[SOCIALWISE-FLOW][INSTAGRAM] Conversation ID: #{message.conversation.id}"
       return
     end
-    
+
     begin
       conversation = message.conversation
-      
+
       # Verificar se é canal Instagram (FacebookPage ou Instagram)
       valid_instagram_channels = ['Channel::FacebookPage', 'Channel::Instagram']
       unless valid_instagram_channels.include?(conversation.inbox.channel_type)
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response received but channel is not Instagram compatible"
+        Rails.logger.error '[SOCIALWISE-FLOW][INSTAGRAM] Instagram response received but channel is not Instagram compatible'
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Expected: #{valid_instagram_channels.join(' or ')}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Actual channel type: #{conversation.inbox.channel_type}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Message ID: #{message.id}"
@@ -632,59 +629,59 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Inbox ID: #{conversation.inbox.id}"
         return
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Channel validation passed, processing with InstagramResponseProcessor"
-      
+
+      Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Channel validation passed, processing with InstagramResponseProcessor'
+
       # CORREÇÃO: Reestruturar payload do SocialWise Flow para formato esperado pelo InstagramResponseProcessor
       normalized_payload = normalize_socialwise_flow_instagram_payload(instagram_payload)
-      
+
       if normalized_payload.nil?
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Failed to normalize Instagram payload structure"
+        Rails.logger.error '[SOCIALWISE-FLOW][INSTAGRAM] Failed to normalize Instagram payload structure'
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Original payload: #{instagram_payload.inspect}"
         create_fallback_instagram_message(message, instagram_payload)
         return
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Payload normalized successfully"
+
+      Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Payload normalized successfully'
       Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Normalized payload: #{normalized_payload.inspect}"
-      
+
       # Usar o InstagramResponseProcessor do Socialwise (mesmo usado pelo Dialogflow)
       begin
         success = Integrations::Socialwise::InstagramResponseProcessor.process(normalized_payload, message)
-        
+
         if success
-          Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response processed successfully by InstagramResponseProcessor"
+          Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Instagram response processed successfully by InstagramResponseProcessor'
         else
           # Requirement 6.2: Continue processing other response elements when rich message sending fails
-          Rails.logger.warn "[SOCIALWISE-FLOW][INSTAGRAM] Instagram response processing returned false, creating fallback message"
+          Rails.logger.warn '[SOCIALWISE-FLOW][INSTAGRAM] Instagram response processing returned false, creating fallback message'
           Rails.logger.warn "[SOCIALWISE-FLOW][INSTAGRAM] Message format: #{instagram_payload['message_format']}"
           Rails.logger.warn "[SOCIALWISE-FLOW][INSTAGRAM] Template type: #{instagram_payload['template_type']}"
-          
+
           # Fallback: criar mensagem de texto simples
           create_fallback_instagram_message(message, instagram_payload)
         end
-        
-      rescue StandardError => processor_error
+
+      rescue StandardError => e
         # Requirement 6.1: Log detailed error information
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] === INSTAGRAM PROCESSOR EXCEPTION ==="
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Exception class: #{processor_error.class}"
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Exception message: #{processor_error.message}"
+        Rails.logger.error '[SOCIALWISE-FLOW][INSTAGRAM] === INSTAGRAM PROCESSOR EXCEPTION ==='
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Exception class: #{e.class}"
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Exception message: #{e.message}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Message ID: #{message.id}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Conversation ID: #{conversation.id}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Account ID: #{conversation.account_id}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Inbox ID: #{conversation.inbox_id}"
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Instagram payload: #{instagram_payload.inspect}"
-        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Backtrace: #{processor_error.backtrace.first(10).join('\n')}"
-        
+        Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Backtrace: #{e.backtrace.first(10).join('\n')}"
+
         # Requirement 6.4: Create fallback text message when processing fails
         create_fallback_instagram_message(message, instagram_payload)
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] === INSTAGRAM PROCESSING COMPLETED ==="
-      
+
+      Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] === INSTAGRAM PROCESSING COMPLETED ==='
+
     rescue StandardError => e
       # Requirement 6.1: Log detailed error information
-      Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] === INSTAGRAM PROCESSING FAILED ==="
+      Rails.logger.error '[SOCIALWISE-FLOW][INSTAGRAM] === INSTAGRAM PROCESSING FAILED ==='
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Exception class: #{e.class}"
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Exception message: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Message ID: #{message.id}"
@@ -692,11 +689,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Channel type: #{message.conversation.inbox.channel_type}"
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Instagram payload: #{instagram_payload.inspect}"
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Backtrace: #{e.backtrace.first(10).join('\n')}"
-      
+
       # Requirement 6.4: Create fallback text message when processing fails
       begin
         create_fallback_instagram_message(message, instagram_payload)
-        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Created fallback message after processing failure"
+        Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Created fallback message after processing failure'
       rescue StandardError => fallback_error
         Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Fallback message creation failed: #{fallback_error.class}: #{fallback_error.message}"
       end
@@ -705,33 +702,30 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   # ===== Facebook =====
   def process_facebook_response(message, facebook_payload)
-    Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING FACEBOOK RESPONSE ==="
+    Rails.logger.info '[SOCIALWISE-FLOW] === PROCESSING FACEBOOK RESPONSE ==='
     Rails.logger.info "[SOCIALWISE-FLOW] Facebook payload: #{facebook_payload.inspect}"
-    
+
     # Requirement 6.1: Log detailed error information when payload is blank
     if facebook_payload.blank?
-      Rails.logger.warn "[SOCIALWISE-FLOW][FACEBOOK] Empty or nil Facebook payload received"
+      Rails.logger.warn '[SOCIALWISE-FLOW][FACEBOOK] Empty or nil Facebook payload received'
       Rails.logger.warn "[SOCIALWISE-FLOW][FACEBOOK] Message ID: #{message.id}"
       Rails.logger.warn "[SOCIALWISE-FLOW][FACEBOOK] Conversation ID: #{message.conversation.id}"
       return
     end
-    
+
     begin
       conversation = message.conversation
-      
+
       # Extract text content for dashboard display
-      text_content = facebook_payload.dig('message', 'text') || 'Facebook message'
+      text_content = facebook_payload.dig('message', 'text') || facebook_payload['text'] || 'Facebook message'
       Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Extracted text content: #{text_content}"
-      
-      # Determine if this is rich content or simple text
-      has_rich_content = facebook_payload['message'].present? && 
-                        (facebook_payload['message'].keys - ['text']).any?
+
+      # Determine if this is rich content or simple text (supports Messenger or direct SocialWise format)
+      mapping_payload = build_facebook_mapping_payload_for_cards(facebook_payload)
+      has_rich_content = mapping_payload.present?
       Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Has rich content: #{has_rich_content}"
-      
-      if has_rich_content
-        Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Rich content keys: #{(facebook_payload['message'].keys - ['text']).inspect}"
-      end
-      
+      Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Rich mapping payload: #{mapping_payload.inspect}" if has_rich_content
+
       # Create message for dashboard display (Requirement 7.1, 7.2)
       outgoing_message = nil
       begin
@@ -739,28 +733,47 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
           message_type: :outgoing,
           content: text_content,
           account_id: conversation.account_id,
-          inbox_id: conversation.inbox_id
+          inbox_id: conversation.inbox_id,
+          # Avoid duplicate sending via SendReplyJob; we explicitly send below
+          additional_attributes: { skip_send_reply: true }
         }
-        
+
         if has_rich_content
-          # Rich content - use integrations content_type
-          content_params[:content_type] = 'integrations'
-          content_params[:content_attributes] = facebook_payload
+          # Map rich payload to dashboard 'cards' just like Instagram
+          Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] Mapping payload to dashboard cards'
+          mapped_result = Messages::InstagramRendererMapper.map(mapping_payload)
+          # Ensure a visible title in the first card for Button/QuickReplies
+          begin
+            items = Array(mapped_result.content_attributes['items'])
+            if items.any?
+              items.first['title'] = text_content.to_s.truncate(120) if items.first['title'].blank?
+              # persist adjusted items
+              mapped_content_attributes = mapped_result.content_attributes.merge('items' => items)
+            else
+              mapped_content_attributes = mapped_result.content_attributes
+            end
+          rescue StandardError => _e
+            mapped_content_attributes = mapped_result.content_attributes
+          end
+
+          content_params[:content] = mapped_result.fallback_text
+          content_params[:content_type] = mapped_result.content_type # 'cards'
+          content_params[:content_attributes] = mapped_content_attributes
         else
           # Simple text message
           content_params[:content_type] = 'text'
         end
-        
+
         outgoing_message = conversation.messages.create!(content_params)
         Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Message created: #{outgoing_message.id} (content_type: #{outgoing_message.content_type})"
-        
-      rescue StandardError => message_creation_error
+
+      rescue StandardError => e
         # Requirement 6.2: Continue processing even if message creation fails
-        Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Message creation failed: #{message_creation_error.class}: #{message_creation_error.message}"
+        Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Message creation failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Text content: #{text_content}"
         Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Has rich content: #{has_rich_content}"
-        Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Backtrace: #{message_creation_error.backtrace.first(3).join('\n')}"
-        
+        Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Backtrace: #{e.backtrace.first(3).join('\n')}"
+
         # Try to create a simple fallback message
         begin
           outgoing_message = conversation.messages.create!(
@@ -776,61 +789,64 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
           return # Can't create message, abort processing
         end
       end
-      
+
       # Send message using appropriate service
       if outgoing_message
         begin
-          # Prepare payload for sending
-          send_payload = facebook_payload.deep_dup
-          
-          # Add recipient ID if missing (Requirement 5.4)
-          unless send_payload['recipient'].present?
-            contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
-            send_payload['recipient'] = { 'id' => contact_source_id }
-            Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Added recipient ID: #{contact_source_id}"
-          end
-          
+          # Prepare payload for sending: support Messenger raw or direct SocialWise format
+          message_for_send = build_facebook_send_message_payload(facebook_payload)
+          send_payload = { 'message' => message_for_send }
+
+          # Add recipient ID (Requirement 5.4)
+          contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
+          send_payload['recipient'] = { 'id' => contact_source_id }
+          Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Added recipient ID: #{contact_source_id}"
+
           if has_rich_content
             # Use RawDeliverService for rich content (Requirement 5.3)
-            Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Sending rich content via RawDeliverService"
+            Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] Sending rich content via RawDeliverService'
             Facebook::RawDeliverService.new(message: outgoing_message, payload: send_payload).perform
-            Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Rich content sent successfully"
+            Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] Rich content sent successfully'
           else
             # Use standard service for simple text (Requirement 5.2)
-            Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Sending text message via SendOnFacebookService"
+            Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] Sending text message via SendOnFacebookService'
             Facebook::SendOnFacebookService.new(message: outgoing_message).perform
-            Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Text message sent successfully"
+            Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] Text message sent successfully'
           end
-          
-        rescue StandardError => sending_error
+
+        rescue StandardError => e
           # Requirement 6.2: Log rich message sending failures but continue processing
-          Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Message sending failed: #{sending_error.class}: #{sending_error.message}"
+          Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Message sending failed: #{e.class}: #{e.message}"
           Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Message ID: #{outgoing_message.id}"
           Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Has rich content: #{has_rich_content}"
-          Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Contact source ID: #{conversation.contact.get_source_id(conversation.inbox.id) rescue 'unknown'}"
+          Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Contact source ID: #{begin
+            conversation.contact.get_source_id(conversation.inbox.id)
+          rescue StandardError
+            'unknown'
+          end}"
           Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Send payload: #{send_payload.inspect}"
-          Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Backtrace: #{sending_error.backtrace.first(5).join('\n')}"
+          Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Backtrace: #{e.backtrace.first(5).join('\n')}"
           # Message is created in dashboard, sending failure doesn't affect that
         end
       end
-      
-      Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] === FACEBOOK PROCESSING COMPLETED ==="
-      
+
+      Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] === FACEBOOK PROCESSING COMPLETED ==='
+
     rescue StandardError => e
       # Requirement 6.1: Log detailed error information
-      Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] === FACEBOOK PROCESSING FAILED ==="
+      Rails.logger.error '[SOCIALWISE-FLOW][FACEBOOK] === FACEBOOK PROCESSING FAILED ==='
       Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Exception class: #{e.class}"
       Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Exception message: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Message ID: #{message.id}"
       Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Conversation ID: #{message.conversation.id}"
       Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Facebook payload: #{facebook_payload.inspect}"
       Rails.logger.error "[SOCIALWISE-FLOW][FACEBOOK] Backtrace: #{e.backtrace.first(10).join('\n')}"
-      
+
       # Requirement 6.4: Create fallback text message when processing fails
       begin
-        fallback_text = facebook_payload.dig('message', 'text') || 
-                       facebook_payload['text'] || 
-                       'Facebook message processing failed'
+        fallback_text = facebook_payload.dig('message', 'text') ||
+                        facebook_payload['text'] ||
+                        'Facebook message processing failed'
         create_conversation(message, { content: fallback_text })
         Rails.logger.info "[SOCIALWISE-FLOW][FACEBOOK] Created fallback message: #{fallback_text}"
       rescue StandardError => fallback_error
@@ -840,69 +856,148 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   # ==== Helper Methods =====
-  
+
+  # Build a payload to map into dashboard 'cards' structure, supporting Messenger or SocialWise direct format
+  def build_facebook_mapping_payload_for_cards(facebook_payload)
+    return nil unless facebook_payload.is_a?(Hash)
+
+    # 1) Messenger-style nested structure
+    return facebook_payload.dig('message', 'attachment', 'payload') if facebook_payload.dig('message', 'attachment', 'payload').present?
+
+    if facebook_payload.dig('message', 'quick_replies').present?
+      return {
+        'text' => facebook_payload.dig('message', 'text'),
+        'quick_replies' => facebook_payload.dig('message', 'quick_replies')
+      }
+    end
+
+    # 2) SocialWise direct format (instagram-like)
+    if facebook_payload['message_format'].present?
+      case facebook_payload['message_format']
+      when 'GENERIC_TEMPLATE'
+        return {
+          'template_type' => 'generic',
+          'elements' => facebook_payload['elements']
+        }
+      when 'BUTTON_TEMPLATE'
+        return {
+          'template_type' => 'button',
+          'text' => facebook_payload['text'],
+          'buttons' => facebook_payload['buttons']
+        }
+      when 'QUICK_REPLIES'
+        return {
+          'text' => facebook_payload['text'],
+          'quick_replies' => facebook_payload['quick_replies']
+        }
+      end
+    end
+
+    nil
+  end
+
+  # Build the Messenger Send API 'message' payload from either nested Messenger or SocialWise direct format
+  def build_facebook_send_message_payload(facebook_payload)
+    # Use Messenger raw message if present
+    return facebook_payload['message'] if facebook_payload['message'].is_a?(Hash)
+
+    # Build from SocialWise direct format
+    case facebook_payload['message_format']
+    when 'GENERIC_TEMPLATE'
+      {
+        'attachment' => {
+          'type' => 'template',
+          'payload' => {
+            'template_type' => 'generic',
+            'elements' => facebook_payload['elements'] || []
+          }
+        }
+      }
+    when 'BUTTON_TEMPLATE'
+      {
+        'attachment' => {
+          'type' => 'template',
+          'payload' => {
+            'template_type' => 'button',
+            'text' => facebook_payload['text'].to_s,
+            'buttons' => facebook_payload['buttons'] || []
+          }
+        }
+      }
+    when 'QUICK_REPLIES'
+      {
+        'text' => facebook_payload['text'].to_s,
+        'quick_replies' => facebook_payload['quick_replies'] || []
+      }
+    else
+      # Fallback to simple text
+      { 'text' => facebook_payload['text'].presence || 'Facebook message' }
+    end
+  end
+
   def extract_whatsapp_text(payload)
     # Tentar extrair texto de diferentes locais no payload
     payload.dig('interactive', 'body', 'text') ||
-    payload.dig('text', 'body') ||
-    payload['text'] ||
-    'Mensagem interativa'
+      payload.dig('text', 'body') ||
+      payload['text'] ||
+      'Mensagem interativa'
   end
-  
+
   # Normaliza payload do SocialWise Flow para formato esperado pelo InstagramResponseProcessor
   def normalize_socialwise_flow_instagram_payload(instagram_payload)
-    Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] === NORMALIZING SOCIALWISE FLOW PAYLOAD ==="
+    Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] === NORMALIZING SOCIALWISE FLOW PAYLOAD ==='
     Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Original payload: #{instagram_payload.inspect}"
-    
+
     begin
       # Verificar se já está no formato correto (Dialogflow)
       if instagram_payload['payload'].present? && instagram_payload['message_format'].present?
-        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Payload already in Dialogflow format"
+        Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Payload already in Dialogflow format'
         return instagram_payload
       end
-      
+
       # Verificar se é formato SocialWise Flow com estrutura aninhada
-      if instagram_payload['message'].present? && 
-         instagram_payload['message']['attachment'].present? && 
+      if instagram_payload['message'].present? &&
+         instagram_payload['message']['attachment'].present? &&
          instagram_payload['message']['attachment']['payload'].present?
-        
-        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Detected SocialWise Flow nested format"
-        
+
+        Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Detected SocialWise Flow nested format'
+
         message_format = instagram_payload['message_format']
         nested_payload = instagram_payload['message']['attachment']['payload']
-        
+
         normalized = {
           'message_format' => message_format,
           'payload' => nested_payload
         }
-        
+
         Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Normalized payload: #{normalized.inspect}"
         return normalized
       end
-      
+
       # Verificar se é formato SocialWise Flow direto (sem aninhamento)
       if instagram_payload['message_format'].present?
-        Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Detected SocialWise Flow direct format"
-        
+        Rails.logger.info '[SOCIALWISE-FLOW][INSTAGRAM] Detected SocialWise Flow direct format'
+
         normalized = {
           'message_format' => instagram_payload['message_format'],
           'payload' => {}
         }
-        
+
         # Copiar campos relevantes para o payload
         instagram_payload.each do |key, value|
           next if key == 'message_format'
+
           normalized['payload'][key] = value
         end
-        
+
         Rails.logger.info "[SOCIALWISE-FLOW][INSTAGRAM] Normalized direct format: #{normalized.inspect}"
         return normalized
       end
-      
-      Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Unknown payload format, cannot normalize"
+
+      Rails.logger.error '[SOCIALWISE-FLOW][INSTAGRAM] Unknown payload format, cannot normalize'
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Available keys: #{instagram_payload.keys.inspect}"
       return nil
-      
+
     rescue StandardError => e
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Payload normalization failed: #{e.class}: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW][INSTAGRAM] Backtrace: #{e.backtrace.first(5).join('\n')}"
@@ -911,9 +1006,9 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def create_fallback_instagram_message(message, instagram_payload)
-    Rails.logger.info "[SOCIALWISE-FLOW] Creating fallback Instagram message"
+    Rails.logger.info '[SOCIALWISE-FLOW] Creating fallback Instagram message'
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram payload for fallback: #{instagram_payload.inspect}"
-    
+
     begin
       # Extrair texto principal do payload Instagram
       text = case instagram_payload['message_format']
@@ -926,19 +1021,19 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
              else
                'Mensagem rica do Instagram'
              end
-      
+
       fallback_text = text || 'Mensagem do Instagram'
       create_conversation(message, { content: fallback_text })
       Rails.logger.info "[SOCIALWISE-FLOW] Instagram fallback message created: #{fallback_text}"
-      
+
     rescue StandardError => e
       Rails.logger.error "[SOCIALWISE-FLOW] Instagram fallback message creation failed: #{e.class}: #{e.message}"
       Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(3).join('\n')}"
-      
+
       # Last resort fallback
       begin
         create_conversation(message, { content: 'Instagram message processing failed' })
-        Rails.logger.info "[SOCIALWISE-FLOW] Created last resort Instagram fallback message"
+        Rails.logger.info '[SOCIALWISE-FLOW] Created last resort Instagram fallback message'
       rescue StandardError => last_resort_error
         Rails.logger.error "[SOCIALWISE-FLOW] Last resort Instagram fallback also failed: #{last_resort_error.class}: #{last_resort_error.message}"
       end
@@ -947,52 +1042,46 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   # Helper method to extract fallback content from any response format
   def extract_fallback_content_from_response(response)
-    Rails.logger.info "[SOCIALWISE-FLOW] Extracting fallback content from response"
-    
+    Rails.logger.info '[SOCIALWISE-FLOW] Extracting fallback content from response'
+
     # Try to extract meaningful text from various response formats
     fallback_content = nil
-    
+
     # Try text field first
     fallback_content = response['text'] if response['text'].present?
-    
+
     # Try WhatsApp content
-    if fallback_content.blank? && response['whatsapp'].present?
-      fallback_content = extract_whatsapp_text(response['whatsapp'])
-    end
-    
+    fallback_content = extract_whatsapp_text(response['whatsapp']) if fallback_content.blank? && response['whatsapp'].present?
+
     # Try Instagram content
     if fallback_content.blank? && response['instagram'].present?
       instagram_payload = response['instagram']
       fallback_content = case instagram_payload['message_format']
-                        when 'QUICK_REPLIES', 'BUTTON_TEMPLATE'
-                          instagram_payload['text']
-                        when 'GENERIC_TEMPLATE'
-                          instagram_payload.dig('elements', 0, 'title')
-                        else
-                          'Instagram rich message'
-                        end
+                         when 'QUICK_REPLIES', 'BUTTON_TEMPLATE'
+                           instagram_payload['text']
+                         when 'GENERIC_TEMPLATE'
+                           instagram_payload.dig('elements', 0, 'title')
+                         else
+                           'Instagram rich message'
+                         end
     end
-    
+
     # Try Facebook content
-    if fallback_content.blank? && response['facebook'].present?
-      fallback_content = response['facebook'].dig('message', 'text') || 'Facebook message'
-    end
-    
+    fallback_content = response['facebook'].dig('message', 'text') || 'Facebook message' if fallback_content.blank? && response['facebook'].present?
+
     # Try button reaction text
     if fallback_content.blank? && response['action_type'] == 'button_reaction'
       fallback_content = response['text'] || "Button reaction: #{response['emoji']}"
     end
-    
+
     # Last resort: stringify the response
-    if fallback_content.blank?
-      fallback_content = "Bot response: #{response.to_s.truncate(100)}"
-    end
-    
+    fallback_content = "Bot response: #{response.to_s.truncate(100)}" if fallback_content.blank?
+
     Rails.logger.info "[SOCIALWISE-FLOW] Extracted fallback content: #{fallback_content}"
     fallback_content
   rescue StandardError => e
     Rails.logger.error "[SOCIALWISE-FLOW] Fallback content extraction failed: #{e.class}: #{e.message}"
-    "Response processing failed"
+    'Response processing failed'
   end
 
   def build_request_payload(session_id, message_content)
@@ -1029,13 +1118,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     }
   end
 
-  private
-
   # API call methods for WhatsApp reactions and messages
   def send_whatsapp_reaction_to_api(conversation, message_id, emoji)
     inbox = conversation.inbox
     contact_phone = conversation.contact.get_source_id(inbox.id)
-    
+
     payload = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
@@ -1046,28 +1133,28 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         emoji: emoji
       }
     }
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction payload: #{payload.inspect}"
-    
+
     response = HTTParty.post(
       "#{whatsapp_api_base_url(inbox)}/#{inbox.channel.provider_config['phone_number_id']}/messages",
       headers: whatsapp_api_headers(inbox),
       body: payload.to_json
     )
-    
+
     if response.success?
       Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction API response: #{response.parsed_response}"
     else
       Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp reaction API error: #{response.code} - #{response.body}"
     end
-    
+
     response
   end
 
   def send_whatsapp_contextual_message_to_api(conversation, reply_to_message_id, text)
     inbox = conversation.inbox
     contact_phone = conversation.contact.get_source_id(inbox.id)
-    
+
     payload = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
@@ -1080,52 +1167,52 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         body: text
       }
     }
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual message payload: #{payload.inspect}"
-    
+
     response = HTTParty.post(
       "#{whatsapp_api_base_url(inbox)}/#{inbox.channel.provider_config['phone_number_id']}/messages",
       headers: whatsapp_api_headers(inbox),
       body: payload.to_json
     )
-    
+
     if response.success?
       Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual message API response: #{response.parsed_response}"
     else
       Rails.logger.error "[SOCIALWISE-FLOW] WhatsApp contextual message API error: #{response.code} - #{response.body}"
     end
-    
+
     response
   end
 
   # API call methods for Instagram reactions and messages
   def send_instagram_reaction_to_api(conversation, message_id, reaction)
-    Rails.logger.info "[SOCIALWISE-FLOW] === INSTAGRAM API CALL START ==="
-    
+    Rails.logger.info '[SOCIALWISE-FLOW] === INSTAGRAM API CALL START ==='
+
     inbox = conversation.inbox
     contact_source_id = conversation.contact.get_source_id(inbox.id)
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Inbox ID: #{inbox.id}, Channel type: #{inbox.channel_type}"
     Rails.logger.info "[SOCIALWISE-FLOW] Contact source ID: #{contact_source_id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram channel class: #{inbox.channel.class}"
-    
+
     # Check if we have the required configuration
     instagram_id = inbox.channel.instagram_id.presence || 'me'
     page_access_token = inbox.channel.access_token
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram ID: #{instagram_id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Has access token: #{page_access_token.present?}"
-    
+
     if instagram_id.blank?
-      Rails.logger.error "[SOCIALWISE-FLOW] CRITICAL: Missing instagram_id in channel"
+      Rails.logger.error '[SOCIALWISE-FLOW] CRITICAL: Missing instagram_id in channel'
       return
     end
-    
+
     if page_access_token.blank?
-      Rails.logger.error "[SOCIALWISE-FLOW] CRITICAL: Missing access_token in channel"
+      Rails.logger.error '[SOCIALWISE-FLOW] CRITICAL: Missing access_token in channel'
       return
     end
-    
+
     payload = {
       recipient: {
         id: contact_source_id
@@ -1136,32 +1223,32 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         reaction: reaction  # 'love' for Instagram
       }
     }
-    
+
     api_url = "#{instagram_api_base_url}/#{instagram_id}/messages"
     Rails.logger.info "[SOCIALWISE-FLOW] API URL: #{api_url}"
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram reaction payload: #{payload.inspect}"
-    
+
     response = HTTParty.post(
       api_url,
       headers: instagram_api_headers(inbox),
       body: payload.to_json
     )
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] API Response Code: #{response.code}"
-    
+
     if response.success?
       Rails.logger.info "[SOCIALWISE-FLOW] Instagram reaction API SUCCESS: #{response.parsed_response}"
     else
       Rails.logger.error "[SOCIALWISE-FLOW] Instagram reaction API ERROR: #{response.code} - #{response.body}"
     end
-    
+
     response
   end
 
   def send_instagram_text_message_to_api(conversation, text)
     inbox = conversation.inbox
     contact_source_id = conversation.contact.get_source_id(inbox.id)
-    
+
     payload = {
       recipient: {
         id: contact_source_id
@@ -1170,31 +1257,31 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         text: text
       }
     }
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram text message payload: #{payload.inspect}"
-    
+
     instagram_id = inbox.channel.instagram_id.presence || 'me'
     api_url = "#{instagram_api_base_url}/#{instagram_id}/messages"
-    
+
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram text API URL: #{api_url}"
-    
+
     response = HTTParty.post(
       api_url,
       headers: instagram_api_headers(inbox),
       body: payload.to_json
     )
-    
+
     if response.success?
       Rails.logger.info "[SOCIALWISE-FLOW] Instagram text message API response: #{response.parsed_response}"
     else
       Rails.logger.error "[SOCIALWISE-FLOW] Instagram text message API error: #{response.code} - #{response.body}"
     end
-    
+
     response
   end
 
   # Helper methods for API configuration
-  def whatsapp_api_base_url(inbox)
+  def whatsapp_api_base_url(_inbox)
     ENV.fetch('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com/v23.0')
   end
 

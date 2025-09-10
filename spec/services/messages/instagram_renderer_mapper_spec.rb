@@ -144,11 +144,11 @@ RSpec.describe Messages::InstagramRendererMapper do
         expect(result.fallback_text).to eq('Choose an option:')
       end
 
-      it 'maps button template correctly' do
+      it 'maps button template correctly (text as body without truncation)' do
         result = described_class.map(button_payload)
         card = result.content_attributes['items'].first
 
-        expect(card['title']).to eq('Choose an option:')
+        expect(card['body']).to eq('Choose an option:')
         expect(card['actions']).to be_an(Array)
         expect(card['actions'].length).to eq(3)
       end
@@ -321,7 +321,7 @@ RSpec.describe Messages::InstagramRendererMapper do
     context 'with payload size validation' do
       it 'rejects oversized payloads' do
         # Create a large payload that exceeds MAX_PAYLOAD_SIZE
-        large_elements = (1..100).map do |i|
+        large_elements = (1..100).map do |_i|
           {
             'title' => 'A' * 1000,
             'subtitle' => 'B' * 1000,

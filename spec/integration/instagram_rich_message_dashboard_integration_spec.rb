@@ -149,7 +149,7 @@ RSpec.describe 'Instagram Rich Message Dashboard Integration' do
         expect(message.content_attributes['items'].length).to eq(1)
 
         card = message.content_attributes['items'].first
-        expect(card['title']).to eq('Integration test: Choose an option')
+        expect(card['body']).to eq('Integration test: Choose an option')
         expect(card['actions'].length).to eq(2)
 
         expect(message.content).to eq('Integration test: Choose an option')
@@ -387,9 +387,9 @@ RSpec.describe 'Instagram Rich Message Dashboard Integration' do
       # Verify Instagram API was called with correct structure
       expect(WebMock).to have_requested(:post, /graph\.instagram\.com/)
         .with(body: hash_including(
-                'recipient' => hash_including('id'),
-                'message' => hash_including('attachment')
-              ))
+          'recipient' => hash_including('id'),
+          'message' => hash_including('attachment')
+        ))
     end
   end
 

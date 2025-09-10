@@ -97,7 +97,6 @@ import ContextMenu from 'dashboard/modules/conversations/components/MessageConte
  * @property {number} inboxId - The ID of the inbox to which the message belongs
  */
 
-// eslint-disable-next-line vue/define-macros-order
 const props = defineProps({
   id: { type: Number, required: true },
   messageType: {

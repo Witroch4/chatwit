@@ -28,7 +28,15 @@ class Integrations::Facebook::DeliveryStatus
   end
 
   def conversation
-    @conversation ||= ::Conversation.find_by(contact_id: contact.id) if contact.present?
+    return @conversation if defined?(@conversation)
+    return nil unless contact.present?
+
+    scope = ::Conversation.where(contact_id: contact.id)
+    inbox = facebook_channel&.inbox
+    scope = scope.where(inbox_id: inbox.id) if inbox
+
+    # pick the most recent conversation for this contact + inbox
+    @conversation = scope.order(id: :desc).first
   end
 
   def facebook_channel

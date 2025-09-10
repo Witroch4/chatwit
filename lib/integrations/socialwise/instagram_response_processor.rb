@@ -8,7 +8,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @return [Boolean] true if processing was successful, false otherwise
     def process(socialwise_data, message)
       start_time = Time.current
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING SOCIALWISE RESPONSE PROCESSING ==="
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING SOCIALWISE RESPONSE PROCESSING ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing started at: #{start_time.iso8601}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Account ID: #{message.conversation.account_id}, Inbox ID: #{message.conversation.inbox_id}"
@@ -23,13 +23,13 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
       # ADAPTAÇÃO: Suportar tanto formato Dialogflow quanto SocialWise Flow
       normalized_data = normalize_payload_structure(socialwise_data)
-      
+
       # Se a normalização falhou, usar fallback
       unless normalized_data
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload normalization failed, using fallback"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload normalization failed, using fallback'
         return fallback_to_text_message(message, socialwise_data)
       end
-      
+
       message_format = normalized_data['message_format']
       payload = normalized_data['payload']
 
@@ -47,12 +47,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
       end_time = Time.current
       processing_duration = ((end_time - start_time) * 1000).round(2)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === SOCIALWISE RESPONSE PROCESSING COMPLETED ==="
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === SOCIALWISE RESPONSE PROCESSING COMPLETED ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing completed at: #{end_time.iso8601}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Total processing time: #{processing_duration}ms"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] SUCCESS: Message format '#{message_format}' processed successfully"
       true
-    rescue => e
+    rescue StandardError => e
       end_time = Time.current
       processing_duration = ((end_time - start_time) * 1000).round(2)
       Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing failed: #{e.class}: #{e.message}"
@@ -70,105 +70,105 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param socialwise_data [Hash] Payload original (Dialogflow ou SocialWise Flow)
     # @return [Hash, nil] Payload normalizado no formato esperado ou nil se falhar
     def normalize_payload_structure(socialwise_data)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalizing payload structure"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalizing payload structure'
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original data keys: #{socialwise_data.keys.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Full socialwise_data: #{socialwise_data.inspect}"
-      
+
       begin
         # Verificar se é formato SocialWise Flow (tem 'instagram' wrapper)
         if socialwise_data.is_a?(Hash) && socialwise_data['instagram'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected SocialWise Flow format (instagram wrapper)"
-          
+          Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected SocialWise Flow format (instagram wrapper)'
+
           instagram_data = socialwise_data['instagram']
           Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram data: #{instagram_data.inspect}"
-          
+
           # Validar se instagram_data tem os campos necessários
           unless instagram_data.is_a?(Hash) && instagram_data['message_format'].present?
-            Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid instagram data structure"
+            Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid instagram data structure'
             Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram data: #{instagram_data.inspect}"
             return nil
           end
-          
+
           # Extrair message_format e construir payload normalizado
           message_format = instagram_data['message_format']
           Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message format: #{message_format}"
-          
+
           normalized = {
             'message_format' => message_format,
             'payload' => {}
           }
-          
+
           # Adicionar template_type se presente
-          if instagram_data['template_type'].present?
-            normalized['payload']['template_type'] = instagram_data['template_type']
-          end
-          
+          normalized['payload']['template_type'] = instagram_data['template_type'] if instagram_data['template_type'].present?
+
           # Adicionar elementos específicos baseado no formato
           case message_format
           when 'GENERIC_TEMPLATE'
-            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing GENERIC_TEMPLATE format"
+            Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing GENERIC_TEMPLATE format'
             normalized['payload']['template_type'] = 'generic'
             normalized['payload']['elements'] = instagram_data['elements'] if instagram_data['elements'].present?
-            
+
           when 'BUTTON_TEMPLATE'
-            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing BUTTON_TEMPLATE format"
+            Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing BUTTON_TEMPLATE format'
             normalized['payload']['template_type'] = 'button'
             normalized['payload']['text'] = instagram_data['text'] if instagram_data['text'].present?
             normalized['payload']['buttons'] = instagram_data['buttons'] if instagram_data['buttons'].present?
-            
+
           when 'QUICK_REPLIES'
-            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing QUICK_REPLIES format"
+            Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing QUICK_REPLIES format'
             normalized['payload']['text'] = instagram_data['text'] if instagram_data['text'].present?
             normalized['payload']['quick_replies'] = instagram_data['quick_replies'] if instagram_data['quick_replies'].present?
-            
+
           else
             Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown message format in SocialWise Flow: #{message_format}"
             # Ainda assim, tenta processar copiando todos os campos
             instagram_data.each do |key, value|
               next if key == 'message_format'
+
               normalized['payload'][key] = value
             end
           end
-          
+
           Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized to Dialogflow format: #{normalized.inspect}"
           return normalized
-          
+
         # Verificar se é formato Dialogflow (tem message_format e payload direto)
         elsif socialwise_data.is_a?(Hash) && socialwise_data['message_format'].present? && socialwise_data['payload'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected Dialogflow format (direct message_format and payload)"
+          Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected Dialogflow format (direct message_format and payload)'
           return socialwise_data
-          
+
         # Verificar se é formato direto do SocialWise Flow (sem wrapper 'instagram')
         elsif socialwise_data.is_a?(Hash) && socialwise_data['message_format'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected direct SocialWise Flow format (no instagram wrapper)"
-          
+          Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected direct SocialWise Flow format (no instagram wrapper)'
+
           # Construir payload normalizado
           normalized = {
             'message_format' => socialwise_data['message_format'],
             'payload' => {}
           }
-          
+
           # Copiar todos os campos exceto message_format para o payload
           socialwise_data.each do |key, value|
             next if key == 'message_format'
+
             normalized['payload'][key] = value
           end
-          
+
           Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Normalized direct format: #{normalized.inspect}"
           return normalized
-          
+
         else
-          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown payload format"
-          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Expected formats:"
+          Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown payload format'
+          Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Expected formats:'
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] 1. SocialWise Flow: {'instagram': {'message_format': '...', ...}}"
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] 2. Dialogflow: {'message_format': '...', 'payload': {...}}"
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] 3. Direct SocialWise: {'message_format': '...', 'elements': [...], ...}"
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Received keys: #{socialwise_data.keys.inspect}"
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Received data: #{socialwise_data.inspect}"
-          
+
           return nil
         end
-        
+
       rescue StandardError => e
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload normalization failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.first(5).join('\n')}"
@@ -183,31 +183,54 @@ class Integrations::Socialwise::InstagramResponseProcessor
     def route_message(message_format, payload, message)
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Routing message with format: #{message_format}"
 
-      # Validate Instagram channel using comprehensive validator
-      validator = InstagramChannelValidator.new(message)
-      unless validator.valid_for_rich_messages?
-        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation failed: #{validator.error_messages}"
-        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation status: #{validator.validation_status.inspect}"
+      platform = detect_platform(message)
+      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Detected platform: #{platform}"
+
+      case platform
+      when :instagram
+        validator = InstagramChannelValidator.new(message)
+        unless validator.valid_for_rich_messages?
+          Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation failed: #{validator.error_messages}"
+          Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation status: #{validator.validation_status.inspect}"
+          return fallback_to_text_message(message, { 'payload' => payload })
+        end
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation passed successfully'
+      when :facebook
+        fb_validator = FacebookChannelValidator.new(message)
+        unless fb_validator.valid_for_rich_messages?
+          Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Facebook channel validation failed: #{fb_validator.error_messages}"
+          Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation status: #{fb_validator.validation_status.inspect}"
+          return fallback_to_text_message(message, { 'payload' => payload })
+        end
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Facebook channel validation passed successfully'
+      else
+        Rails.logger.warn '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unsupported platform for rich messages'
         return fallback_to_text_message(message, { 'payload' => payload })
       end
 
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation passed successfully"
-
       case message_format
       when 'GENERIC_TEMPLATE'
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Generic Template"
-        send_generic_template(payload, message)
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Generic Template'
+        send_generic_template(payload, message, platform: platform)
       when 'BUTTON_TEMPLATE'
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Button Template"
-        send_button_template(payload, message)
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Button Template'
+        send_button_template(payload, message, platform: platform)
       when 'QUICK_REPLIES'
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Quick Replies"
-        send_quick_replies(payload, message)
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Quick Replies'
+        send_quick_replies(payload, message, platform: platform)
       else
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown message format: #{message_format}"
         log_unknown_format(message_format)
         fallback_to_text_message(message, { 'payload' => payload })
       end
+    end
+
+    def detect_platform(message)
+      channel = message.conversation.inbox.channel
+      return :instagram if channel.is_a?(Channel::Instagram)
+      return :facebook if channel.is_a?(Channel::FacebookPage)
+
+      :unknown
     end
 
     # Validates payload structure for each message format
@@ -216,7 +239,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @return [Boolean] true if valid, false otherwise
     def validate_payload(message_format, payload)
       validation_start_time = Time.current
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING PAYLOAD VALIDATION ==="
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING PAYLOAD VALIDATION ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating payload for format: #{message_format}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload size: #{payload.inspect.length} characters"
 
@@ -226,31 +249,31 @@ class Integrations::Socialwise::InstagramResponseProcessor
       end
 
       validation_result = case message_format
-      when 'GENERIC_TEMPLATE'
-        validate_generic_template(payload)
-      when 'BUTTON_TEMPLATE'
-        validate_button_template(payload)
-      when 'QUICK_REPLIES'
-        validate_quick_replies(payload)
-      else
-        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown format for validation: #{message_format}"
-        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Supported formats: GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES"
-        false
-      end
+                          when 'GENERIC_TEMPLATE'
+                            validate_generic_template(payload)
+                          when 'BUTTON_TEMPLATE'
+                            validate_button_template(payload)
+                          when 'QUICK_REPLIES'
+                            validate_quick_replies(payload)
+                          else
+                            Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown format for validation: #{message_format}"
+                            Rails.logger.warn '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Supported formats: GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES'
+                            false
+                          end
 
       validation_end_time = Time.current
       validation_duration = ((validation_end_time - validation_start_time) * 1000).round(2)
-      
+
       if validation_result
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === PAYLOAD VALIDATION SUCCESSFUL ==="
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === PAYLOAD VALIDATION SUCCESSFUL ==='
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation time: #{validation_duration}ms"
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Format: #{message_format} validated successfully"
       else
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === PAYLOAD VALIDATION FAILED ==="
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === PAYLOAD VALIDATION FAILED ==='
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation time: #{validation_duration}ms"
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Format: #{message_format} validation failed"
       end
-      
+
       validation_result
     end
 
@@ -258,7 +281,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The payload to validate
     # @return [Boolean] true if valid, false otherwise
     def validate_generic_template(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating Generic Template payload"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating Generic Template payload'
 
       # Check required fields
       unless payload['template_type'] == 'generic'
@@ -267,7 +290,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       end
 
       unless payload['elements'].is_a?(Array) && payload['elements'].any?
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid elements: must be non-empty array"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid elements: must be non-empty array'
         return false
       end
 
@@ -302,28 +325,22 @@ class Integrations::Socialwise::InstagramResponseProcessor
         end
 
         # Validate image URL format if present
-        if element['image_url'].present?
-          unless validate_image_url(element['image_url'], "Element #{index} image_url")
-            return false
-          end
-        end
+        return false if element['image_url'].present? && !validate_image_url(element['image_url'], "Element #{index} image_url")
 
         # Validate buttons if present
-        if element['buttons'].present?
-          unless element['buttons'].is_a?(Array) && element['buttons'].length <= 3
-            Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Element #{index} has invalid buttons (max 3 allowed)"
-            return false
-          end
+        next unless element['buttons'].present?
 
-          element['buttons'].each_with_index do |button, btn_index|
-            unless validate_button(button, "Element #{index} Button #{btn_index}")
-              return false
-            end
-          end
+        unless element['buttons'].is_a?(Array) && element['buttons'].length <= 3
+          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Element #{index} has invalid buttons (max 3 allowed)"
+          return false
+        end
+
+        element['buttons'].each_with_index do |button, btn_index|
+          return false unless validate_button(button, "Element #{index} Button #{btn_index}")
         end
       end
 
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template payload validation passed"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template payload validation passed'
       true
     end
 
@@ -331,7 +348,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The payload to validate
     # @return [Boolean] true if valid, false otherwise
     def validate_button_template(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating Button Template payload"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating Button Template payload'
 
       # Check required fields
       unless payload['template_type'] == 'button'
@@ -340,7 +357,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       end
 
       unless payload['text'].present?
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template missing required text"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template missing required text'
         return false
       end
 
@@ -351,18 +368,16 @@ class Integrations::Socialwise::InstagramResponseProcessor
       end
 
       unless payload['buttons'].is_a?(Array) && payload['buttons'].any? && payload['buttons'].length <= 3
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid buttons: must be array with 1-3 buttons"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid buttons: must be array with 1-3 buttons'
         return false
       end
 
       # Validate each button
       payload['buttons'].each_with_index do |button, index|
-        unless validate_button(button, "Button #{index}")
-          return false
-        end
+        return false unless validate_button(button, "Button #{index}")
       end
 
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template payload validation passed"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template payload validation passed'
       true
     end
 
@@ -370,11 +385,11 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The payload to validate
     # @return [Boolean] true if valid, false otherwise
     def validate_quick_replies(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating Quick Replies payload"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating Quick Replies payload'
 
       # Check required fields
       unless payload['text'].present?
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies missing required text"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies missing required text'
         return false
       end
 
@@ -385,7 +400,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       end
 
       unless payload['quick_replies'].is_a?(Array) && payload['quick_replies'].any? && payload['quick_replies'].length <= 13
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid quick_replies: must be array with 1-13 quick replies"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid quick_replies: must be array with 1-13 quick replies'
         return false
       end
 
@@ -424,7 +439,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         end
       end
 
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies payload validation passed"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies payload validation passed'
       true
     end
 
@@ -460,7 +475,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} postback button missing required payload"
           return false
         end
-        
+
         # Validate payload length (Instagram limit: 1000 characters)
         if button['payload'].length > 1000
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} postback payload too long: max 1000 characters, got #{button['payload'].length}"
@@ -471,11 +486,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} web_url button missing required url"
           return false
         end
-        
+
         # Enhanced URL validation
-        unless validate_web_url(button['url'], context)
-          return false
-        end
+        return false unless validate_web_url(button['url'], context)
       else
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} has invalid type: #{button['type']} (must be 'postback' or 'web_url')"
         return false
@@ -490,7 +503,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @return [Boolean] true if valid, false otherwise
     def validate_web_url(url, context)
       # Basic URL format validation
-      unless url =~ URI::DEFAULT_PARSER.make_regexp(%w[http https])
+      unless url&.match?(URI::DEFAULT_PARSER.make_regexp(%w[http https]))
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} has invalid URL format: #{url}"
         return false
       end
@@ -504,7 +517,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # Parse URL to validate structure
       begin
         parsed_uri = URI.parse(url)
-        
+
         # Ensure scheme is present and valid
         unless %w[http https].include?(parsed_uri.scheme)
           Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} URL must use http or https scheme: #{url}"
@@ -531,14 +544,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @return [Boolean] true if valid, false otherwise
     def validate_image_url(image_url, context)
       # Basic URL validation first
-      unless validate_web_url(image_url, context)
-        return false
-      end
+      return false unless validate_web_url(image_url, context)
 
       # Check for common image file extensions
       valid_extensions = %w[.jpg .jpeg .png .gif .webp]
       url_path = URI.parse(image_url).path.downcase
-      
+
       unless valid_extensions.any? { |ext| url_path.end_with?(ext) }
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{context} may not be a valid image URL (no recognized extension): #{image_url}"
         # Don't fail validation, just warn - some image URLs don't have extensions
@@ -552,7 +563,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The original Generic Template payload
     # @return [Hash] Instagram API compatible payload
     def build_generic_template_payload(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Generic Template payload"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Generic Template payload'
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original payload: #{payload.inspect}"
 
       # Apply character limit validation and truncation for Generic Template
@@ -639,7 +650,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The original Button Template payload
     # @return [Hash] Instagram API compatible payload
     def build_button_template_payload(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Button Template payload"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Button Template payload'
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original payload: #{payload.inspect}"
 
       # Apply character limit validation and truncation for Button Template
@@ -659,7 +670,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param buttons [Array] The original buttons array
     # @return [Array] Instagram API compatible buttons
     def build_button_template_buttons(buttons)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Button Template buttons"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Button Template buttons'
 
       return [] unless buttons.is_a?(Array)
 
@@ -692,8 +703,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # Send Generic Template message using Instagram Rich Message Service
     # @param payload [Hash] The Generic Template payload
     # @param message [Message] The message object
-    def send_generic_template(payload, message)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING GENERIC TEMPLATE SEND ==="
+    def send_generic_template(payload, message, platform: :instagram)
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING GENERIC TEMPLATE SEND ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template payload: #{payload.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
 
@@ -703,30 +714,26 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
         # Create outgoing message for rich message service
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service'
         conversation = message.conversation
         outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
-        # Send using Instagram Rich Message Service
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating Instagram Rich Message Service with payload: #{instagram_payload.inspect}"
-        rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service successfully"
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Service class: #{rich_message_service.class}"
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Service responds to perform: #{rich_message_service.respond_to?(:perform)}"
-
-        # Perform the send operation
+        # Perform the send operation (platform-specific)
         send_start_time = Time.current
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] About to call rich_message_service.perform"
+        rich_message_service = if platform == :instagram
+                                 Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
+                               else
+                                 Facebook::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
+                               end
         rich_message_service.perform
         send_end_time = Time.current
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] rich_message_service.perform completed successfully"
-        
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template sent successfully"
-        
+
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template sent successfully'
+
         # Log performance metrics for the send operation
         log_performance_metrics(
-          "Generic Template Send",
+          'Generic Template Send',
           send_start_time,
           send_end_time,
           message,
@@ -736,13 +743,13 @@ class Integrations::Socialwise::InstagramResponseProcessor
           }
         )
 
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === GENERIC TEMPLATE SEND COMPLETED ==="
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === GENERIC TEMPLATE SEND COMPLETED ==='
         true
-      rescue => e
+      rescue StandardError => e
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template send failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error"
-        
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error'
+
         fallback_to_text_message(message, { 'payload' => payload })
         false
       end
@@ -751,8 +758,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # Send Button Template message using Instagram Rich Message Service
     # @param payload [Hash] The Button Template payload
     # @param message [Message] The message object
-    def send_button_template(payload, message)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING BUTTON TEMPLATE SEND ==="
+    def send_button_template(payload, message, platform: :instagram)
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING BUTTON TEMPLATE SEND ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template payload: #{payload.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
 
@@ -762,25 +769,28 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
         # Create outgoing message for rich message service
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service'
         conversation = message.conversation
         outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
-        # Send using Instagram Rich Message Service
-        rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service"
+        # Send using platform-specific service
+        rich_message_service = if platform == :instagram
+                                 Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
+                               else
+                                 Facebook::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
+                               end
 
         # Perform the send operation
         send_start_time = Time.current
         rich_message_service.perform
         send_end_time = Time.current
-        
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template sent successfully"
-        
+
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template sent successfully'
+
         # Log performance metrics for the send operation
         log_performance_metrics(
-          "Button Template Send",
+          'Button Template Send',
           send_start_time,
           send_end_time,
           message,
@@ -790,13 +800,13 @@ class Integrations::Socialwise::InstagramResponseProcessor
           }
         )
 
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === BUTTON TEMPLATE SEND COMPLETED ==="
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === BUTTON TEMPLATE SEND COMPLETED ==='
         true
-      rescue => e
+      rescue StandardError => e
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template send failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error"
-        
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error'
+
         fallback_to_text_message(message, { 'payload' => payload })
         false
       end
@@ -806,7 +816,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The original Quick Replies payload
     # @return [Hash] Instagram API compatible payload
     def build_quick_replies_payload(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Quick Replies payload"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Building Instagram Quick Replies payload'
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Original payload: #{payload.inspect}"
 
       # Apply character limit validation and truncation for Quick Replies
@@ -849,8 +859,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # Send Quick Replies message using Instagram Rich Message Service
     # @param payload [Hash] The Quick Replies payload
     # @param message [Message] The message object
-    def send_quick_replies(payload, message)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING QUICK REPLIES SEND ==="
+    def send_quick_replies(payload, message, platform: :instagram)
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING QUICK REPLIES SEND ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies payload: #{payload.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
 
@@ -860,25 +870,28 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Built Instagram payload: #{instagram_payload.inspect}"
 
         # Create outgoing message for rich message service
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service"
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service'
         conversation = message.conversation
         outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
-        # Send using Instagram Rich Message Service
-        rich_message_service = Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created Instagram Rich Message Service"
+        # Send using platform-specific service
+        rich_message_service = if platform == :instagram
+                                 Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
+                               else
+                                 Facebook::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
+                               end
 
         # Perform the send operation
         send_start_time = Time.current
         rich_message_service.perform
         send_end_time = Time.current
-        
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies sent successfully"
-        
+
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies sent successfully'
+
         # Log performance metrics for the send operation
         log_performance_metrics(
-          "Quick Replies Send",
+          'Quick Replies Send',
           send_start_time,
           send_end_time,
           message,
@@ -888,13 +901,13 @@ class Integrations::Socialwise::InstagramResponseProcessor
           }
         )
 
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === QUICK REPLIES SEND COMPLETED ==="
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === QUICK REPLIES SEND COMPLETED ==='
         true
-      rescue => e
+      rescue StandardError => e
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies send failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error"
-        
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error'
+
         fallback_to_text_message(message, { 'payload' => payload })
         false
       end
@@ -904,7 +917,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param message_format [String] The unknown format
     def log_unknown_format(message_format)
       Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown message format received: #{message_format}"
-      Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Supported formats: GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES"
+      Rails.logger.warn '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Supported formats: GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES'
     end
 
     # Fallback to text message when rich message processing fails
@@ -912,17 +925,17 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param socialwise_data [Hash] The socialwise data for text extraction
     # @return [Boolean] true if fallback was successful
     def fallback_to_text_message(message, socialwise_data)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message'
 
       begin
         fallback_text = extract_fallback_text(socialwise_data)
-        
+
         # Validate that fallback maintains conversation flow
         unless validate_fallback_flow(message, fallback_text)
-          Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback flow validation failed, using emergency fallback"
-          fallback_text = "Message received" # Emergency fallback
+          Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback flow validation failed, using emergency fallback'
+          fallback_text = 'Message received' # Emergency fallback
         end
-        
+
         conversation = message.conversation
         fallback_message = conversation.messages.create!(
           content: fallback_text,
@@ -934,10 +947,10 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback text message created successfully: #{fallback_text}"
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback message ID: #{fallback_message.id}, maintains conversation flow"
         true
-      rescue => e
+      rescue StandardError => e
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback to text message failed: #{e.class}: #{e.message}"
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback backtrace: #{e.backtrace.join('\n')}"
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] CRITICAL: Fallback failed, conversation flow may be broken"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] CRITICAL: Fallback failed, conversation flow may be broken'
         false
       end
     end
@@ -950,8 +963,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param additional_data [Hash] Additional data to log
     def log_performance_metrics(operation, start_time, end_time, message, additional_data = {})
       duration_ms = ((end_time - start_time) * 1000).round(2)
-      
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === PERFORMANCE METRICS ==="
+
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === PERFORMANCE METRICS ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Operation: #{operation}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Duration: #{duration_ms}ms"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Start time: #{start_time.iso8601}"
@@ -959,20 +972,20 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Conversation ID: #{message.conversation.id}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Account ID: #{message.conversation.account_id}"
-      
+
       # Log additional performance data
       additional_data.each do |key, value|
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] #{key.to_s.humanize}: #{value}"
       end
-      
+
       # Performance warnings
       if duration_ms > 5000
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] PERFORMANCE WARNING: #{operation} took #{duration_ms}ms (>5s)"
       elsif duration_ms > 2000
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] PERFORMANCE NOTICE: #{operation} took #{duration_ms}ms (>2s)"
       end
-      
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === END PERFORMANCE METRICS ==="
+
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === END PERFORMANCE METRICS ==='
     end
 
     # Logs success details with comprehensive information
@@ -981,7 +994,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The processed payload
     # @param processing_time [Float] The processing time in milliseconds
     def log_success_details(message_format, message, payload, processing_time)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === SUCCESS DETAILS ==="
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === SUCCESS DETAILS ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message format: #{message_format}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing time: #{processing_time}ms"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}"
@@ -990,12 +1003,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Inbox ID: #{message.conversation.inbox_id}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Contact ID: #{message.conversation.contact_id}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Channel type: #{message.conversation.inbox.channel_type}"
-      
+
       # Log recipient details
       contact = message.conversation.contact
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Recipient name: #{contact.name}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Recipient source ID: #{contact.get_source_id(message.conversation.inbox_id)}"
-      
+
       # Log payload summary
       case message_format
       when 'GENERIC_TEMPLATE'
@@ -1008,8 +1021,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
         replies_count = payload['quick_replies']&.length || 0
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies with #{replies_count} options"
       end
-      
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === END SUCCESS DETAILS ==="
+
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === END SUCCESS DETAILS ==='
     end
 
     # Tests fallback scenarios to ensure user experience is maintained
@@ -1017,8 +1030,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param socialwise_data [Hash] The socialwise data
     # @return [Hash] Test results for different fallback scenarios
     def test_fallback_scenarios(message, socialwise_data)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Testing fallback scenarios for user experience"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Testing fallback scenarios for user experience'
+
       test_results = {
         text_extraction: false,
         flow_validation: false,
@@ -1054,7 +1067,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Test results: #{test_results.inspect}"
 
         test_results
-      rescue => e
+      rescue StandardError => e
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback scenarios test failed: #{e.class}: #{e.message}"
         test_results[:error] = e.message
         test_results
@@ -1066,27 +1079,27 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param fallback_text [String] The fallback text to be sent
     # @return [Boolean] true if fallback is valid for conversation flow
     def validate_fallback_flow(message, fallback_text)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating fallback flow for conversation"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validating fallback flow for conversation'
+
       # Ensure fallback text is not empty
       unless fallback_text.present?
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback text is empty, this would break conversation flow"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback text is empty, this would break conversation flow'
         return false
       end
 
       # Ensure message and conversation are valid
       unless message&.conversation
-        Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid message or conversation, cannot maintain flow"
+        Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid message or conversation, cannot maintain flow'
         return false
       end
 
       # Ensure conversation is still active
       conversation = message.conversation
       if conversation.status == 'resolved'
-        Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Conversation is resolved, but fallback will still be sent"
+        Rails.logger.warn '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Conversation is resolved, but fallback will still be sent'
       end
 
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback flow validation passed"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Fallback flow validation passed'
       true
     end
 
@@ -1096,9 +1109,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @return [Hash] Processed payload with character limits applied
     def apply_character_limits(payload, message_format)
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying character limits for format: #{message_format}"
-      
+
       processed_payload = Marshal.load(Marshal.dump(payload))
-      
+
       case message_format
       when 'GENERIC_TEMPLATE'
         apply_generic_template_limits(processed_payload)
@@ -1116,28 +1129,28 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The payload to process
     # @return [Hash] Processed payload
     def apply_generic_template_limits(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Generic Template character limits (80 chars for titles/subtitles)"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Generic Template character limits (80 chars for titles/subtitles)'
+
       if payload['elements'].is_a?(Array)
         payload['elements'].each_with_index do |element, index|
-          if element.is_a?(Hash)
-            # Truncate title if needed
-            if element['title'].present? && element['title'].length > 80
-              original_length = element['title'].length
-              element['title'] = truncate_text(element['title'], 80)
-              Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template element #{index} title truncated from #{original_length} to 80 characters"
-            end
-            
-            # Truncate subtitle if needed
-            if element['subtitle'].present? && element['subtitle'].length > 80
-              original_length = element['subtitle'].length
-              element['subtitle'] = truncate_text(element['subtitle'], 80)
-              Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template element #{index} subtitle truncated from #{original_length} to 80 characters"
-            end
+          next unless element.is_a?(Hash)
+
+          # Truncate title if needed
+          if element['title'].present? && element['title'].length > 80
+            original_length = element['title'].length
+            element['title'] = truncate_text(element['title'], 80)
+            Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template element #{index} title truncated from #{original_length} to 80 characters"
           end
+
+          # Truncate subtitle if needed
+          next unless element['subtitle'].present? && element['subtitle'].length > 80
+
+          original_length = element['subtitle'].length
+          element['subtitle'] = truncate_text(element['subtitle'], 80)
+          Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template element #{index} subtitle truncated from #{original_length} to 80 characters"
         end
       end
-      
+
       payload
     end
 
@@ -1145,14 +1158,14 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The payload to process
     # @return [Hash] Processed payload
     def apply_button_template_limits(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Button Template character limits (640 chars for text)"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Button Template character limits (640 chars for text)'
+
       if payload['text'].present? && payload['text'].length > 640
         original_length = payload['text'].length
         payload['text'] = truncate_text(payload['text'], 640)
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template text truncated from #{original_length} to 640 characters"
       end
-      
+
       payload
     end
 
@@ -1160,14 +1173,14 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param payload [Hash] The payload to process
     # @return [Hash] Processed payload
     def apply_quick_replies_limits(payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Quick Replies character limits (1000 chars for text)"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Applying Quick Replies character limits (1000 chars for text)'
+
       if payload['text'].present? && payload['text'].length > 1000
         original_length = payload['text'].length
         payload['text'] = truncate_text(payload['text'], 1000)
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies text truncated from #{original_length} to 1000 characters"
       end
-      
+
       payload
     end
 
@@ -1177,15 +1190,13 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @return [String] Truncated text with notice
     def truncate_text(text, limit)
       return text if text.length <= limit
-      
-      truncation_notice = " (mensagem truncada)"
+
+      truncation_notice = ' (mensagem truncada)'
       available_chars = limit - truncation_notice.length
-      
+
       # Ensure we have enough space for the notice
-      if available_chars < 10
-        return text[0, limit]
-      end
-      
+      return text[0, limit] if available_chars < 10
+
       truncated_text = text[0, available_chars].strip
       "#{truncated_text}#{truncation_notice}"
     end
@@ -1196,24 +1207,24 @@ class Integrations::Socialwise::InstagramResponseProcessor
     def extract_fallback_text(socialwise_data)
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting fallback text from: #{socialwise_data.inspect}"
 
-      return "Message received" unless socialwise_data.is_a?(Hash)
+      return 'Message received' unless socialwise_data.is_a?(Hash)
 
       # Try SocialWise Flow format first (instagram wrapper)
       if socialwise_data['instagram'].present?
         instagram_data = socialwise_data['instagram']
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting from SocialWise Flow format"
-        
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting from SocialWise Flow format'
+
         # Try text field first
         if instagram_data['text'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using instagram.text field for fallback"
+          Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using instagram.text field for fallback'
           return instagram_data['text']
         end
-        
+
         # For Generic Template, try to extract from first element
         if instagram_data['elements'].is_a?(Array) && instagram_data['elements'].first.is_a?(Hash)
           element = instagram_data['elements'].first
           if element['title'].present?
-            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback"
+            Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback'
             return element['title']
           end
         end
@@ -1222,11 +1233,11 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # Try Dialogflow format (payload wrapper)
       payload = socialwise_data['payload']
       if payload.is_a?(Hash)
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting from Dialogflow format"
-        
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Extracting from Dialogflow format'
+
         # Try to extract text from different payload types
         if payload['text'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using payload.text field for fallback"
+          Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using payload.text field for fallback'
           return payload['text']
         end
 
@@ -1234,7 +1245,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         if payload['elements'].is_a?(Array) && payload['elements'].first.is_a?(Hash)
           element = payload['elements'].first
           if element['title'].present?
-            Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback"
+            Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using first element title for fallback'
             return element['title']
           end
         end
@@ -1242,7 +1253,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
       # Try direct format (no wrapper)
       if socialwise_data['text'].present?
-        Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using direct text field for fallback"
+        Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using direct text field for fallback'
         return socialwise_data['text']
       end
 
@@ -1250,14 +1261,14 @@ class Integrations::Socialwise::InstagramResponseProcessor
       if socialwise_data['elements'].is_a?(Array) && socialwise_data['elements'].first.is_a?(Hash)
         element = socialwise_data['elements'].first
         if element['title'].present?
-          Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using direct element title for fallback"
+          Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using direct element title for fallback'
           return element['title']
         end
       end
 
       # Generic fallback
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using generic fallback text"
-      "Message received"
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Using generic fallback text'
+      'Message received'
     end
 
     # Create outgoing message with rich content directly to avoid flash effect
@@ -1266,12 +1277,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param original_payload [Hash] The original Dialogflow payload
     # @return [Message] The created message
     def create_rich_outgoing_message(conversation, instagram_payload, original_payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich outgoing message"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich outgoing message'
+
       # ALWAYS create rich messages - feature flag dependency removed
       # This is a core system feature and should always be enabled
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich message directly (feature flag dependency removed)"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich message directly (feature flag dependency removed)'
+
       # Create message directly as rich cards to avoid flash effect
       create_rich_message_directly(conversation, instagram_payload, original_payload)
     end
@@ -1281,12 +1292,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param instagram_payload [Hash] The Instagram API payload
     # @param original_payload [Hash] The original Dialogflow payload
     # @return [Message] The created message
-    def create_rich_message_directly(conversation, instagram_payload, original_payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating message directly as rich cards"
-      
+    def create_rich_message_directly(conversation, instagram_payload, _original_payload)
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating message directly as rich cards'
+
       # Use the Instagram Renderer Mapper to convert payload to Chatwoot format
       mapped_result = Messages::InstagramRendererMapper.map(instagram_payload)
-      
+
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped content_type: #{mapped_result.content_type}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped fallback_text: #{mapped_result.fallback_text}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped content_attributes keys: #{mapped_result.content_attributes.keys}"
@@ -1304,7 +1315,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created rich message directly with ID: #{message.id}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message content_type: #{message.content_type}"
-      
+
       message
     end
 
@@ -1313,8 +1324,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param original_payload [Hash] The original Dialogflow payload
     # @return [Message] The created message
     def create_text_message(conversation, original_payload)
-      Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating regular text message"
-      
+      Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating regular text message'
+
       conversation.messages.create!(
         content: extract_fallback_text({ 'payload' => original_payload }),
         message_type: :outgoing,

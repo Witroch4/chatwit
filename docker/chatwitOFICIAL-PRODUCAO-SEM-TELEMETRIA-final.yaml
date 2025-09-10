@@ -16,7 +16,7 @@ x-chatwoot-base: &chatwoot-base
   image: witrocha/chatwit:latest  # <-- VERSÃO CORRIGIDA
   volumes:
     - chatwoot_data:/app/storage
-    - chatwoot_public:/app
+    - chatwoot_public:/app/public
   networks:
     - minha_rede
   logging:
@@ -90,7 +90,7 @@ services:
     <<: *chatwoot-base # Inclui as configurações base
     entrypoint: /app/docker/entrypoints/rails-enterprise.sh
     # MODIFICADO: Comando inteligente - migração só quando necessário
-    command: sh -c "bundle exec rails db:chatwit_smart_prepare && bundle exec rails s -p 3000 -b 0.0.0.0"
+    command: ["sh", "-c", "bundle exec rails db:chatwit_smart_prepare && bundle exec rails s -p 3000 -b 0.0.0.0"]
     environment: *chatwoot-environment # Referencia as variáveis de ambiente
     deploy:
       <<: *chatwoot-deploy # Inclui a configuração de deploy comum

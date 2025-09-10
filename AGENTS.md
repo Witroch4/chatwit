@@ -1,19 +1,155 @@
-# Chatwoot Development Guidelines (Instagram Rich Cards)
+# Chatwoot Development Guidelines (SocialWise Flow & Rich Messages)
 
-> Este documento consolida o que funcionou no projeto, lições aprendidas e checklists para evitar regressões.
+> Este documento consolida o que funcionou no projeto, lições aprendidas e checklists para e### Antiflicker (Eliminação Total do Flash Effect) ✅
+
+**PRINCÍPIO FUNDAMENTAL**: Single Source of Truth - apenas backend verifica feature flags.
+
+**Fluxo Anti-Flicker**:
+1. **Backend** (`InstagramResponseProcessor`): ## Checklists Antiflicker - ATUALIZADO 2025
+
+### ✅ Verificações de Flash Effect
+
+1. **Feature flag** `SOCIALWISE_RICH_DASHBOARD` **ativada** no Account
+2. **Backend**: cria mensagem **diretamente** como `content_type: "cards"` quando flag ativa
+3. **Service**: verifica `message_already_rich?` e **pula mirroring** se já rica
+4. **Frontend**: **NÃO verifica flag** - renderiza baseado apenas em `items.length > 0`
+5. **Layout**: altura fixa em imagens para evitar layout shift
+6. **Error Handling**: `@error` oculta imagens quebradas
+
+### 🔍 Logs Esperados para Sucesso
+
+**Backend (Sem Flash)**:
+```
+[SOCIALWISE-INSTAGRAM-RICH] Message already created as rich cards, skipping mirroring
+```
+
+**Frontend (Performance)**:
+```
+[RichCards] Image loaded successfully: https://...
+[RichCards] render_success
+```
+
+**SocialWise Flow (Multi-Canal)**:
+```
+[SOCIALWISE-FLOW] === PROCESSING RESPONSE ===
+[SOCIALWISE-FLOW] Channel type: Channel::Instagram
+[SOCIALWISE-FLOW-WHATSAPP] Processing Interactive Message (para WhatsApp)
+```ccount.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')`
+2. **Se habilitada**: cria mensagem **diretamente** com `content_type: "cards"` e `content_attributes` completos
+3. **Service** (`RichMessageService`): verifica `message_already_rich?` e **pula mirroring** se já rica
+4. **Frontend** (`RichCards.vue`): **NÃO verifica flag** - se foi chamado, backend já decidiu
+
+**Log esperado para sucesso anti-flicker**:
+```
+[SOCIALWISE-INSTAGRAM-RICH] Message already created as rich cards, skipping mirroring
+```regressões. **Atualizado em Janeiro 2025 com base na implementação atual do SocialWise Flow.**
 
 ---
 
 ## Build / Test / Lint
 
 - **Setup**: `bundle install && pnpm install`
-- **Run Dev**: `pnpm dev` ou `overmind start -f ./Procfile.dev`
+- **Run Dev**: `docker-compose up` ou `overmind start -f ./Procfile.dev`
 - **Lint JS/Vue**: `pnpm eslint` / `pnpm eslint:fix`
-- **Lint Ruby**: `bundle exec rubocop -a`
+- **Lint Ruby**: `bundle exec rubocop -a` (via Docker: `docker exec chatwit-dev-rails-1 bundle exec rubocop -a`)
 - **Test JS**: `pnpm test` / `pnpm test:watch`
-- **Test Ruby**: `bundle exec rspec spec/path/to/file_spec.rb`
-- **Single Test**: `bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER`
-- **Run Project**: `overmind start -f Procfile.dev`
+- **Test Ruby**: `docker exec chatwit-dev-rails-1 bundle exec rspec spec/path/to/file_spec.rb`
+- **Single Test**: `docker exec chatwit-dev-rails-1 bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER`
+- **Run Project**: `docker-compose up` (padrão) ou `overmind start -f Procfile.dev` (local)
+
+---
+
+## Arquitetura SocialWise Flow (Multi-Canal)
+
+### Visão Geral da Integração
+
+O **SocialWise Flow** é o processador central que conecta o Chatwit com o sistema SocialWise, oferecendo suporte multi-canal para WhatsApp, Instagram e Facebook. Ele processa respostas automáticas, mensagens ricas e reações em tempo real.
+
+### Componentes Principais
+
+#### 1. Processador Principal
+- **`Integrations::SocialwiseFlow::ProcessorService`**
+  - Herda de `Integrations::BotProcessorService`
+  - Processa mensagens de múltiplos canais (WhatsApp, Instagram, Facebook)
+  - **URL padrão**: `https://socialwise.witdev.com.br/api/integrations/webhooks/socialwiseflow`
+  - **Logs estruturados**: prefixo `[SOCIALWISE-FLOW]` com contexto completo
+
+#### 2. Fluxo de Processamento Multi-Canal
+1. **Recebe evento** da conversa (message.created, message.updated)
+2. **Constrói request enriquecido** via `WebhookEnhancerService`
+3. **Faz chamada HTTP** para SocialWise Flow API com payload completo
+4. **Rota por tipo de canal** baseado no `channel_type`:
+   - `Channel::Whatsapp` → delega para `WhatsappResponseProcessor`
+   - `Channel::Instagram` → delega para `InstagramResponseProcessor`
+   - `Channel::FacebookPage` → processa diretamente
+5. **Fallback gracioso** em caso de erros
+
+#### 3. Processadores Especializados por Canal
+
+**WhatsApp** (`Integrations::SocialwiseFlow::WhatsappResponseProcessor`):
+- Suporte a mensagens interativas (`interactive`)
+- Mensagens de texto simples (`text`)
+- Logs com prefixo `[SOCIALWISE-FLOW-WHATSAPP]`
+- Integração nativa com API do WhatsApp
+
+**Instagram** (`Integrations::Socialwise::InstagramResponseProcessor`):
+- **Generic Template**: Cards com imagens, títulos, botões (1-10 elementos)
+- **Button Template**: Texto com botões de ação (1-3 botões)
+- **Quick Replies**: Respostas rápidas (1-13 opções)
+- **Anti-flicker**: criação direta como rich content
+- Logs com prefixo `[SOCIALWISE-INSTAGRAM-DIALOGFLOW]`
+
+**Facebook**:
+- Rich content via `content_type: 'integrations'`
+- Fallback para texto simples
+- Validação de recipient ID
+
+#### 4. Tipos de Resposta Suportados
+
+**Button Reactions** (`button_reaction`):
+- **Emoji**: Envio de reação emoji (WhatsApp: qualquer emoji, Instagram: apenas 'love')
+- **Texto contextual**: Resposta textual associada à reação
+- **Handoff actions**: Suporte a transferências de conversa
+- **Diferenciação por canal**: comportamento específico para cada plataforma
+
+**Mensagens Ricas**:
+- Templates interativos para WhatsApp
+- Cards e quick replies para Instagram
+- Fallback automático para texto quando processamento falha
+
+### 5. WebhookEnhancerService
+
+**Função**: Enriquece payloads de webhook com dados contextuais do SocialWise.
+
+**Dados enriquecidos**:
+- **Contact data**: nome, telefone, email, custom attributes
+- **Conversation data**: status, assignee, timestamps  
+- **Message data**: conteúdo, tipo, dados interativos
+- **WhatsApp identifiers**: WAMID, contact source
+- **Flat structure**: campos no nível raiz para facilitar consumo por webhooks
+
+**Cache inteligente**: Otimização de performance com invalidação automática.
+
+### 6. Observabilidade e Logs Estruturados
+
+**Padrão de Logs**:
+- **Prefixos por integração**: `[SOCIALWISE-FLOW]`, `[SOCIALWISE-FLOW-WHATSAPP]`, `[SOCIALWISE-INSTAGRAM-DIALOGFLOW]`
+- **IDs de rastreamento**: message_id, conversation_id, account_id, inbox_id, contact_id
+- **Contexto completo**: channel_type, payload completo, backtrace em erros
+- **Níveis apropriados**: INFO para fluxo normal, WARN para fallbacks, ERROR para falhas
+
+**Métricas de Performance**:
+- Tempo de processamento em millisegundos
+- Duração de chamadas à API do Instagram/WhatsApp
+- Rate de sucesso/fallback por canal
+
+**Error Handling Resiliente**:
+- Logs detalhados com contexto completo
+- Fallback messages quando processamento falha
+- Continuidade do fluxo mesmo com falhas parciais
+- Separação entre falhas críticas e não-críticas
+
+---
 
 ## Code Style
 
@@ -52,21 +188,18 @@
 
 ## Fluxo **Instagram Rich Message** (Backend)
 
-### Peças principais
+### Componentes Principais
 
 - **Processor**: `Integrations::Socialwise::InstagramResponseProcessor`
-
-  - Valida payload (`GENERIC_TEMPLATE`, `BUTTON_TEMPLATE`, `QUICK_REPLIES`)
-  - Constrói payload compatível com **Instagram API** (v22.0)
-  - **Cria a mensagem já em formato rico** quando _feature flag_ ativa
-  - Chama `Instagram::RichMessageService` para enviar ao IG e espelhar no dashboard quando necessário
+  - Normaliza payloads de ambos Dialogflow e SocialWise Flow
+  - Valida formatos: `GENERIC_TEMPLATE`, `BUTTON_TEMPLATE`, `QUICK_REPLIES`
+  - Delega para `Instagram::RichMessageService` para envio e mirroring
 
 - **Service**: `Instagram::RichMessageService`
-
-  - Valida canal, prepara `rich_message_params`
-  - `send_message` → POST ao endpoint IG
-  - **Mirror para dashboard** apenas se a mensagem **não** foi criada diretamente como rica
-  - Logs extensivos + métricas de tempo
+  - **Rich dashboard sempre habilitado** (feature flag dependency removida)
+  - Verifica `message_already_rich?` antes de fazer mirroring
+  - Logs extensivos com prefixo `[SOCIALWISE-INSTAGRAM-RICH]`
+  - Métricas de tempo de API e processamento
 
 ### Antiflicker (sem “flash” de texto)
 
@@ -75,55 +208,103 @@
 - Usar `additional_attributes: { skip_send_reply: true }` para ligar os pontos com o fluxo assíncrono sem emitir eventos em duplicidade.
 - Registrar logs como: _“Message already created as rich cards, skipping mirroring”_ para confirmar o caminho correto.
 
-### Validações de payload (resumo útil)
+### Validações de Payload (Instagram API Compliant)
 
-- **GENERIC_TEMPLATE**
+- **GENERIC_TEMPLATE**:
+  - 1-10 elementos; `title` obrigatório (≤ 80 chars)
+  - Máx. 3 botões por elemento
+  - `image_url` opcional mas validada se presente
 
-  - `elements`: 1..10
-  - `title` obrigatório (≤ 80 chars), `subtitle` ≤ 80
-  - Máx. 3 botões por element
-
-- **BUTTON_TEMPLATE**
-
+- **BUTTON_TEMPLATE**:
   - `text` obrigatório (≤ 2000 chars)
-  - 1..3 botões
+  - 1-3 botões obrigatórios
 
-- **QUICK_REPLIES**
-
+- **QUICK_REPLIES**:
   - `text` obrigatório (≤ 1000 chars)
-  - 1..13 opções; `title` ≤ 20; `payload` ≤ 1000
+  - 1-13 quick replies; `title` ≤ 20 chars
 
-- **Buttons**
+- **Botões**:
+  - `postback`: requer `payload` (≤ 1000 chars)
+  - `web_url`: requer URL válida https (≤ 2000 chars)
 
-  - `postback`: `payload` obrigatório
-  - `web_url`: `url` http/https válida (≤ 2000 chars)
+### Mapeamento para Dashboard (Chatwoot Renderer)
 
-### Mapeamento para Chatwoot (renderer)
+- **Mapper**: `Messages::InstagramRendererMapper.map(instagram_payload)`
+- **Output**: `fallback_text`, `content_type`, `content_attributes`
+- **Anti-flicker**: cria mensagem diretamente como rica quando feature habilitada
 
-- Use `Messages::InstagramRendererMapper.map(instagram_payload)` para obter:
+### Observabilidade Atualizada
 
-  - `content_type`
-  - `content_attributes`
-  - `fallback_text`
-
-### Observabilidade
-
-- Logs com prefixo (`[SOCIALWISE-INSTAGRAM-…]`) para cada etapa
-- Métricas simples de duração para API do IG e para processamento
+- Logs com prefixo `[SOCIALWISE-INSTAGRAM-RICH]` para todas as etapas
+- Métricas de performance: duração de API calls e processamento total
+- Error handling resiliente com fallback gracioso
 
 ---
 
-## Frontend (Vue 3 + Vite) — Bubbles **RichCards** e **QuickReplies**
+## Frontend (Vue 3 + Vite) — Rich Cards & Quick Replies - ATUALIZADO 2025
 
-### Diretrizes de componentização
+### Componentes Principais
 
-- Local: `app/javascript/dashboard/components-next/message/bubbles/`
-- **RichCards.vue**
+- **Local**: `app/javascript/dashboard/components-next/message/bubbles/`
+- **RichCards.vue**:
+  - **Princípio Chave**: **NÃO verifica feature flag** (backend já decidiu)
+  - Lê `contentAttributes.items` para renderizar cards
+  - Render condicional apenas baseado na presença de `items`
+  - **Layout Shift Prevention**: altura fixa para imagens (`h-48`)
+  - **Performance**: `loading="lazy"`, `decoding="async"`
+  - **Error Handling**: `@error` para ocultar imagens quebradas
+  - **Acessibilidade**: `role="group"`, `aria-label`
 
-  - Lê `contentAttributes.items`
-  - Renderiza card com: `image`, `title`, `description`, `actions (link|postback)`
-  - Acessibilidade: `role="group"`, `aria-label` por card
-  - Evite XSS: escape de textos ao compor `alt`/innerText quando necessário
+- **QuickReplies.vue** (se existir):
+  - Mesma lógica: sem verificação de flag
+  - Emite `BUS_EVENTS.RICH_POSTBACK` ao clicar
+  - **Acessibilidade**: `role="button"`, `:aria-label`
+
+### Feature Flag Frontend - ATUALIZAÇÃO CRÍTICA
+
+**❌ ERRADO - Dupla Verificação**:
+```vue
+<!-- NÃO FAZER: verificação de flag no componente rico -->
+<script setup>
+const isRichEnabled = useMapGetter('accounts/isFeatureEnabledonAccount');
+const shouldRender = computed(() => 
+  isRichEnabled.value('SOCIALWISE_RICH_DASHBOARD') && items.value.length > 0
+);
+</script>
+```
+
+**✅ CORRETO - Single Source of Truth**:
+```vue
+<!-- FAZER: confiar na decisão do backend -->
+<script setup>
+const shouldRenderRichCards = computed(() => {
+  // Se este componente foi chamado, backend já verificou flag
+  return items.value.length > 0;
+});
+</script>
+```
+
+### Performance & Dev Experience
+
+**Logs de Desenvolvimento**:
+```javascript
+// Proteger logs dev-only
+const isDev = import.meta.env.MODE !== 'production';
+const handleImageLoad = (src) => {
+  if (isDev) {
+    console.log('[RichCards] Image loaded:', src);
+  }
+};
+```
+
+**Métricas**:
+```javascript
+function trackMetric(name, labels) {
+  if (window.analytics) {
+    window.analytics.track(name, labels);
+  }
+}
+```
   - Métricas: `trackMetric('cw_rich_cards_render_total', …)`
   - Erros: `onErrorCaptured` + emitir `RICH_CARDS_FALLBACK`
   - **Importante:** **não** usar `import.meta` dentro de **expressões de template** (causa erro de parse do compiler); use em código JS no `<script setup>` ou encapsule em métodos/computed e chame via eventos.
@@ -238,50 +419,340 @@
 
 ---
 
-## Boas Práticas de Observabilidade
+## Observabilidade SocialWise Flow - ATUALIZADA 2025
 
-- **Rails.logger** com prefixos consistentes e IDs (message_id, conversation_id)
-- Métricas de tempo (ms) para chamadas IG e processamento
-- No FE, `console.log` **somente** em `NODE_ENV !== 'production'`/`import.meta.env.MODE !== 'production'`
-- Eventos de analytics (`trackMetric`) sem PII
+### Padrão de Logs Estruturados
+
+**Prefixos por Integração**:
+- `[SOCIALWISE-FLOW]`: Processador principal multi-canal
+- `[SOCIALWISE-FLOW-WHATSAPP]`: Processador especializado WhatsApp
+- `[SOCIALWISE-INSTAGRAM-DIALOGFLOW]`: Processador Instagram/Dialogflow
+- `[SOCIALWISE-INSTAGRAM-RICH]`: Service de rich messages Instagram
+
+**Contexto Obrigatório**:
+- **IDs de rastreamento**: message_id, conversation_id, account_id, inbox_id
+- **Channel identification**: channel_type, provider info
+- **Payload data**: tamanho, formato, conteúdo (truncado se necessário)
+- **Timing info**: timestamps ISO8601, duração em ms
+- **Error context**: backtrace, classe de erro, contexto completo
+
+### Métricas de Performance
+
+**Backend**:
+```ruby
+Rails.logger.info "[SOCIALWISE-FLOW] Total processing time: #{duration}ms"
+Rails.logger.info "[SOCIALWISE-INSTAGRAM-RICH] API call duration: #{api_duration}ms"
+```
+
+**Frontend**:
+```javascript
+// Apenas em desenvolvimento
+if (import.meta.env.MODE !== 'production') {
+  console.log('[RichCards] Component rendered in:', performance.now() - startTime, 'ms');
+}
+
+// Métricas para analytics
+trackMetric('cw_rich_cards_render_total', { 
+  error: 'false', 
+  type: 'success',
+  message_id: id.value 
+});
+```
+
+### Error Handling Resiliente
+
+**Padrão de Fallback Gracioso**:
+1. **Log error** com contexto completo
+2. **Extract fallback content** do payload original
+3. **Create simple message** como último recurso
+4. **Continue processing** - não falha completamente
+5. **Track metrics** para monitoramento
+
+**Button Reactions**:
+- Logs de emoji, text e action
+- Diferenciação por canal (WhatsApp permite qualquer emoji, Instagram só 'love')
+- Fallback para mensagem simples se reação falhar
 
 ---
 
-## Snippets úteis
+## 🔧 Troubleshooting SocialWise Flow - ATUALIZADO 2025
 
-**Handler de postback (FE):**
+### Problemas Comuns e Soluções
 
-```js
-const handlePostback = action => {
+#### 1. Flash Effect Ainda Acontecendo
+
+**Diagnóstico**:
+1. ✅ Feature flag ativa? `Account.find(X).feature_enabled?('SOCIALWISE_RICH_DASHBOARD')`
+2. ✅ Logs mostram "Message already created as rich cards, skipping mirroring"?
+3. ✅ Frontend **não** está fazendo verificação dupla de flag?
+4. ✅ Mensagem criada com `content_type: "cards"` no banco?
+
+**Solução**:
+```ruby
+# Debug no Rails console
+account = Account.find(ACCOUNT_ID)
+account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD') # deve retornar true
+```
+
+#### 2. Rich Cards Não Aparecem
+
+**Diagnóstico**:
+1. ✅ Backend: `content_type` é "cards" no banco de dados?
+2. ✅ Frontend: `Message.vue` chama `RichCards` baseado em `content_type`?
+3. ✅ Component logs: `shouldRender: true`?
+4. ✅ `contentAttributes.items` tem dados?
+
+**Debug**:
+```vue
+<!-- No RichCards.vue -->
+<script setup>
+onMounted(() => {
+  console.log('[RichCards] Debug info:', {
+    shouldRender: shouldRenderRichCards.value,
+    itemsCount: items.value.length,
+    items: items.value
+  });
+});
+</script>
+```
+
+#### 3. SocialWise Flow Não Responde
+
+**Diagnóstico**:
+1. ✅ URL correta em `hook.settings['socialwise_flow_url']`?
+2. ✅ Authorization token configurado?
+3. ✅ Account tem integração SocialWise ativa?
+4. ✅ Logs `[SOCIALWISE-FLOW]` aparecem?
+
+**Debug**:
+```ruby
+# Verificar configuração
+hook = Hook.find(HOOK_ID)
+hook.settings['socialwise_flow_url'] # deve ter URL
+hook.settings['access_token'] # deve ter token
+```
+
+#### 4. Button Reactions Falhando
+
+**WhatsApp**: Aceita qualquer emoji
+**Instagram**: Apenas 'love' é suportado
+
+**Debug**:
+```
+[SOCIALWISE-FLOW] Button ID: button_123
+[SOCIALWISE-FLOW] Emoji: ❤️ (WhatsApp) ou love (Instagram)
+[SOCIALWISE-FLOW] Action: handoff
+```
+
+#### 5. WebhookEnhancer Não Enriquece
+
+**Verificar**:
+1. ✅ `socialwise_active?(account)` retorna true?
+2. ✅ `webhook_enhancement_enabled?(account)` ativo?
+3. ✅ Cache invalidado após mudanças?
+
+**Solução**:
+```ruby
+# Limpar cache
+Integrations::Socialwise::WebhookEnhancerService.clear_provider_config_cache(account_id)
+```
+
+### Build Errors (Vite & Frontend)
+
+#### Erro Crítico: `import.meta may appear only with 'sourceType: "module"'`
+
+**Causa**: Usar `import.meta` diretamente em templates Vue.
+
+**❌ Problemático**:
+```vue
+<template>
+  <img @load="() => import.meta.env.MODE !== 'production' && console.log('loaded')" />
+</template>
+```
+
+**✅ Solução**:
+```vue
+<script setup>
+const isDev = import.meta.env.MODE !== 'production';
+const handleImageLoad = () => {
+  if (isDev) console.log('Image loaded');
+};
+</script>
+<template>
+  <img @load="handleImageLoad" />
+</template>
+```
+
+### Docker Build Issues
+
+**Gem não encontrada** (`stackprof`, `io-console`):
+- ✅ Garantir que `Gemfile.lock` está commitado
+- ✅ Build em ambiente Linux (Docker)
+- ✅ Verificar grupos de gems (`development`, `test`, `production`)
+
+### Feature Flags Debug
+
+**Rails Console**:
+```ruby
+# Verificar flag global
+feature = InstallationConfig.find_by(name: 'FEATURE_SOCIALWISE_RICH_DASHBOARD')
+
+# Verificar flag por account
+account = Account.find(3)
+account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+
+# Habilitar se necessário
+account.account_features.find_or_create_by(feature_name: 'SOCIALWISE_RICH_DASHBOARD').update!(enabled: true)
+```
+
+---
+
+## 💻 Snippets Úteis - SocialWise Flow
+
+### Backend (Ruby)
+
+**Criação direta de mensagem rica**:
+```ruby
+# Em InstagramResponseProcessor ou similar
+def create_rich_outgoing_message(conversation, instagram_payload, original_payload)
+  account = conversation.account
+  if account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+    create_rich_message_directly(conversation, instagram_payload, original_payload)
+  else
+    # Fallback para fluxo normal
+    create_regular_message(conversation, original_payload)
+  end
+end
+
+def create_rich_message_directly(conversation, instagram_payload, original_payload)
+  mapped_result = Messages::InstagramRendererMapper.map(instagram_payload)
+  
+  conversation.messages.create!(
+    content: mapped_result.fallback_text,
+    content_type: mapped_result.content_type,
+    content_attributes: mapped_result.content_attributes,
+    message_type: :outgoing,
+    account_id: conversation.account_id,
+    inbox_id: conversation.inbox_id,
+    additional_attributes: { skip_send_reply: true }
+  )
+end
+```
+
+**Button Reaction Handler**:
+```ruby
+def process_button_reaction(message, response)
+  conversation = message.conversation
+  channel_type = conversation.inbox.channel_type
+  
+  # Enviar emoji específico por canal
+  if response['emoji'].present?
+    send_emoji_reaction(message, response, channel_type)
+  end
+  
+  # Enviar texto contextual
+  if response['text'].present?
+    send_reaction_text(message, response, channel_type)
+  end
+end
+```
+
+
+### Frontend (Vue 3)
+
+**RichCards Component Pattern**:
+```vue
+<script setup>
+import { computed, onMounted } from 'vue';
+import { useMessageContext } from '../provider.js';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
+
+const { contentAttributes, id } = useMessageContext();
+
+const items = computed(() => contentAttributes.value?.items || []);
+
+// IMPORTANTE: Não verificar feature flag aqui
+const shouldRenderRichCards = computed(() => items.value.length > 0);
+
+const isDev = import.meta.env.MODE !== 'production';
+
+const handlePostback = (action) => {
   emitter.emit(BUS_EVENTS.RICH_POSTBACK, {
     messageId: id.value,
     payload: action.payload,
     text: action.text,
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
 };
-```
 
-**Proteger logs dev-only (FE):**
-
-```js
-function devLog(...args) {
-  if (import.meta.env.MODE !== 'production') {
-    // eslint-disable-next-line no-console
-    console.log(...args);
+const handleImageLoad = (src) => {
+  if (isDev) {
+    console.log('[RichCards] Image loaded:', src);
   }
-}
+};
+
+const handleImageError = (event) => {
+  if (isDev) {
+    console.error('[RichCards] Image failed:', event.target.src);
+  }
+  event.target.style.display = 'none';
+};
+</script>
+
+<template>
+  <div v-if="shouldRenderRichCards" class="rich-cards-container">
+    <div
+      v-for="(card, index) in items"
+      :key="index"
+      class="card max-w-sm bg-white rounded-lg shadow"
+      :role="'group'"
+      :aria-label="`Card ${index + 1}: ${card.title}`"
+    >
+      <img
+        v-if="card.media_url || card.mediaUrl"
+        :src="card.media_url || card.mediaUrl"
+        :alt="card.title"
+        class="w-full h-48 object-cover rounded-t-lg"
+        loading="lazy"
+        decoding="async"
+        @load="handleImageLoad(card.media_url || card.mediaUrl)"
+        @error="handleImageError"
+      />
+      
+      <div class="p-4">
+        <h3 class="font-semibold text-gray-900 line-clamp-2">
+          {{ card.title }}
+        </h3>
+        
+        <p v-if="card.description" class="text-gray-600 text-sm mt-2 line-clamp-3">
+          {{ card.description }}
+        </p>
+        
+        <div v-if="card.actions?.length" class="mt-4 space-y-2">
+          <button
+            v-for="(action, actionIndex) in card.actions"
+            :key="actionIndex"
+            class="w-full px-4 py-2 text-sm font-medium rounded-md transition-colors"
+            :class="action.type === 'web_url' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'"
+            @click="action.type === 'postback' ? handlePostback(action) : window.open(action.url, '_blank')"
+          >
+            {{ action.text }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
 ```
 
-**Checagem de flag (FE) - ATUALIZADO:**
-
-```js
+**Feature Flag Check (quando necessário)**:
+```vue
+<script setup>
 // ✅ Para componentes que precisam verificar flags (NÃO RichCards)
 import { useMapGetter } from 'dashboard/composables/store.js';
 
-const isFeatureEnabledOnAccount = useMapGetter(
-  'accounts/isFeatureEnabledonAccount'
-);
+const isFeatureEnabledOnAccount = useMapGetter('accounts/isFeatureEnabledonAccount');
 const currentAccountId = useMapGetter('getCurrentAccountId');
 
 const isRichDashboardEnabled = computed(() => {
@@ -293,23 +764,143 @@ const isRichDashboardEnabled = computed(() => {
     'SOCIALWISE_RICH_DASHBOARD'
   );
 });
-
-// ❌ EVITAR: window.globalConfig para feature flags account-specific
+</script>
 ```
 
-**Criação direta da mensagem rica (BE):**
+### Debug & Monitoring
 
-```rb
-message = conversation.messages.create!(
-  content: mapped.fallback_text,
-  content_type: mapped.content_type, # "cards" | "input_select"
-  content_attributes: mapped.content_attributes,
-  message_type: :outgoing,
-  account_id: conversation.account_id,
-  inbox_id: conversation.inbox_id,
-  additional_attributes: { skip_send_reply: true }
-)
+**Rails Console Debug**:
+```ruby
+# Verificar feature flag
+account = Account.find(3)
+account.feature_enabled?('SOCIALWISE_RICH_DASHBOARD')
+
+# Verificar mensagem rica
+message = Message.find(12345)
+message.content_type # deve ser "cards" para rich
+message.content_attributes # deve ter structure completa
+
+# Verificar cache SocialWise
+Integrations::Socialwise::WebhookEnhancerService.socialwise_active?(account)
+
+# Limpar cache se necessário
+Integrations::Socialwise::WebhookEnhancerService.clear_provider_config_cache(account.id)
 ```
+
+**Logs Structurados**:
+```ruby
+# Padrão de log para SocialWise Flow
+Rails.logger.info "[SOCIALWISE-FLOW] === PROCESSING #{action.upcase} ==="
+Rails.logger.info "[SOCIALWISE-FLOW] Message ID: #{message.id}, Conversation ID: #{conversation.id}"
+Rails.logger.info "[SOCIALWISE-FLOW] Account ID: #{account.id}, Channel: #{channel_type}"
+Rails.logger.info "[SOCIALWISE-FLOW] Payload: #{payload.inspect}"
+```
+
+---
+
+## 🎯 Lições Críticas Aprendidas - Janeiro 2025
+
+### ✅ Flash Effect - Problema RESOLVIDO
+
+**Causa Raiz Identificada**: Dupla verificação de feature flag causava race condition:
+1. Backend criava mensagem como "cards" ✅
+2. Frontend verificava flag novamente ❌
+3. Flash visível: texto → rich cards ❌
+
+**Solução Implementada**: Single Source of Truth
+- **Backend**: único responsável por verificar `SOCIALWISE_RICH_DASHBOARD`
+- **Frontend**: RichCards confiam na decisão do backend
+- **Service**: `message_already_rich?` previne mirroring desnecessário
+
+### 🔄 SocialWise Flow - Arquitetura Multi-Canal
+
+**Evolução do Sistema**:
+- **Antes**: Instagram Processor isolado para Dialogflow
+- **Agora**: SocialWise Flow unified processor para WhatsApp + Instagram + Facebook
+- **Benefício**: Código reutilizável, logs padronizados, error handling consistente
+
+**Button Reactions**: Feature diferenciadora
+- WhatsApp: qualquer emoji + texto contextual
+- Instagram: apenas 'love' + texto simples
+- Handoff actions para transferência de conversa
+
+### 📊 Observabilidade que Funciona
+
+**Logs Estruturados Essenciais**:
+```
+[SOCIALWISE-FLOW] === PROCESSING RESPONSE ===
+[SOCIALWISE-INSTAGRAM-RICH] Message already created as rich cards, skipping mirroring
+[SOCIALWISE-FLOW-WHATSAPP] Interactive message created: 12345
+```
+
+**Métricas que Importam**:
+- Tempo total de processamento (< 500ms ideal)
+- Rate de fallback por canal (< 5% ideal)
+- Flash effect occurrences (0 após fix)
+
+### 🛠️ WebhookEnhancer - Performance Critical
+
+**Cache Strategy**: Evita queries desnecessárias
+- Provider config cached per account
+- Invalidação automática em mudanças
+- Preload de inboxes WhatsApp na inicialização
+
+**Flat Structure**: Facilita consumo por webhooks externos
+- Campos no root level (`contact_name`, `wamid`, etc.)
+- Backward compatibility mantida
+- Custom attributes merged transparently
+
+### 🔧 Build & Deploy Learnings
+
+**Vite Build**: `import.meta` em templates quebra build
+- **Solução**: mover para `<script setup>` e usar variáveis
+
+**Docker Assets**: Gems nativas quebram em Windows
+- **Solução**: build sempre em Linux via Docker
+
+**Feature Flags**: Account-specific vs global
+- **CUIDADO**: usar `account.feature_enabled?()` no backend
+- **EVITAR**: `window.globalConfig` para flags de account
+
+### 📱 Frontend Performance
+
+**Layout Shift Prevention**: Altura fixa em imagens (`h-48`)
+**Error Resilience**: `@error` oculta imagens quebradas
+**Dev Experience**: Logs apenas em development mode
+**Accessibility**: `role`, `aria-label` em todos os interativos
+
+---
+
+## 🚀 Próximos Passos e Melhorias
+
+### Performance Otimizations
+- [ ] Lazy loading de componentes ricos
+- [ ] Virtual scrolling para muitas mensagens
+- [ ] Image optimization pipeline
+
+### Observabilidade Avançada
+- [ ] Métricas de engagement em rich cards
+- [ ] Alertas automáticos para high fallback rates
+- [ ] Dashboard de performance SocialWise Flow
+
+### Feature Expansions
+- [ ] Voice messages em rich cards
+- [ ] Carousel templates para Instagram
+- [ ] Persistent menu para WhatsApp
+
+---
+
+## 📚 Referências e Links Úteis
+
+- **Instagram API**: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api
+- **WhatsApp Business API**: https://developers.facebook.com/docs/whatsapp/cloud-api/
+- **Vue 3 Composition API**: https://vuejs.org/api/composition-api-setup.html
+- **Tailwind CSS**: https://tailwindcss.com/docs
+- **Chatwit Internal Docs**: `/home/wital/chatwit/CLAUDE.md`
+
+---
+
+*Documento atualizado em Janeiro 2025 com base na implementação real do SocialWise Flow multi-canal.*
 
 ---
 

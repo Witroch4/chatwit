@@ -171,6 +171,12 @@ COPY --from=pre-builder /app/.git_sha /app/.git_sha
 
 WORKDIR /app
 
+# Ensure entrypoint scripts are executable and have Unix line endings
+RUN chmod +x /app/docker/entrypoints/rails-enterprise.sh \
+  && chmod +x /app/docker/entrypoints/rails.sh \
+  && chmod +x /app/docker/entrypoints/vite.sh \
+  && sed -i 's/\r$//' /app/docker/entrypoints/rails-enterprise.sh /app/docker/entrypoints/rails.sh /app/docker/entrypoints/vite.sh
+
 EXPOSE 3000
 
 CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"] 

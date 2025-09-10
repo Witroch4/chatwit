@@ -36,6 +36,21 @@ const isQuickReplies = computed(() => {
   return hasOnlyPostbackActions && hasNoImage && hasNoDescription && hasManyActions;
 });
 
+// Heuristic: detect Messenger Button Template mapped as a single card
+// with title-only and 1..3 actions, no image/description
+const isMessengerButtonTemplate = card => {
+  if (!card) return false;
+  const noImage = !card.media_url && !card.mediaUrl;
+  const noDescription = !card.description;
+  const hasTitle = !!card.title;
+  const actions = card.actions || [];
+  const hasFewActions = actions.length >= 1 && actions.length <= 3;
+  const actionTypesOk = actions.every(a => a && (a.type === 'postback' || a.type === 'link'));
+  return hasTitle && noImage && noDescription && hasFewActions && actionTypesOk;
+};
+
+const titleClampClass = card => (isMessengerButtonTemplate(card) ? 'line-clamp-6' : 'line-clamp-2');
+
 // HTML escaping function for security
 const escapeHtml = (text) => {
   if (!text) return '';
@@ -195,10 +210,17 @@ onErrorCaptured((err) => {
         <div class="card-content p-4">
           <h3
             v-if="item.title"
-            class="card-title font-semibold text-base mb-2 line-clamp-2"
+            class="card-title font-semibold text-base mb-2"
+            :class="[titleClampClass(item)]"
           >
             {{ item.title }}
           </h3>
+          <p
+            v-else-if="item.body"
+            class="card-body text-sm text-n-slate-12 mb-3 whitespace-pre-line break-words"
+          >
+            {{ item.body }}
+          </p>
           <p
             v-if="item.description"
             class="card-description text-sm text-n-slate-11 mb-3 line-clamp-3"
@@ -319,6 +341,13 @@ onErrorCaptured((err) => {
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-6 {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

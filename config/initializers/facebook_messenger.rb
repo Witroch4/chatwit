@@ -41,4 +41,10 @@ Rails.application.reloader.to_prepare do
   Facebook::Messenger::Bot.on :message_echo do |message|
     Webhooks::FacebookEventsJob.perform_later(message.to_json)
   end
+
+  # Handle button clicks (messaging_postbacks)
+  Facebook::Messenger::Bot.on :postback do |postback|
+    Rails.logger.info "Recieved postback  #{postback.to_json}"
+    Webhooks::FacebookEventsJob.perform_later(postback.to_json)
+  end
 end

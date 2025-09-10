@@ -32,14 +32,14 @@ RSpec.describe Messages::InstagramRendererMapper, 'Integration Tests' do
     end
 
     context 'Button Template to single card conversion (Req 2.2)' do
-      it 'converts button template to single card' do
+      it 'converts button template to single card with text as body' do
         result = described_class.map(BUTTON_TEMPLATE_PAYLOAD)
 
         expect(result.content_type).to eq('cards')
         expect(result.content_attributes['items'].length).to eq(1)
 
         card = result.content_attributes['items'].first
-        expect(card['title']).to eq('Choose an option:')
+        expect(card['body']).to eq('Choose an option:')
         expect(card['actions'].length).to eq(3)
       end
     end
@@ -180,7 +180,7 @@ RSpec.describe Messages::InstagramRendererMapper, 'Integration Tests' do
 
     context 'Edge cases and robustness' do
       it 'handles edge case payloads correctly' do
-        EDGE_CASE_PAYLOADS.each do |name, payload|
+        EDGE_CASE_PAYLOADS.each do |_name, payload|
           result = described_class.map(payload)
           expect(result).to be_a(described_class::Mapped)
           expect(result.content_type).to be_a(String)

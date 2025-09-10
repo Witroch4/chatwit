@@ -4,7 +4,7 @@ class Messages::InstagramRendererMapper
   MAX_CARDS = 10
   MAX_BTNS = 3
   MAX_PAYLOAD_SIZE = 25.kilobytes
-  TITLE_LIMIT = 120
+  TITLE_LIMIT = 180
   DESCRIPTION_LIMIT = 200
   CACHE_TTL = 1.hour
 
@@ -44,7 +44,8 @@ class Messages::InstagramRendererMapper
     # Generate MD5 cache key from payload
     def generate_cache_key(payload)
       hash = Digest::MD5.hexdigest(payload.to_json)
-      "instagram_mapper:#{hash}"
+      # bump version to invalidate stale mappings after logic changes
+      "instagram_mapper:v2:#{hash}"
     end
 
     # Map payload based on template type
@@ -81,7 +82,7 @@ class Messages::InstagramRendererMapper
       first_card = items.first || {}
       fallback = generate_fallback_text(first_card['title'], first_card['description'])
 
-      Mapped.new('cards', { 'items' => items }, fallback)
+      Mapped.new('cards', sanitize_cards({ 'items' => items }), fallback)
     end
 
     # Convert Button Template to single card structure
@@ -91,7 +92,7 @@ class Messages::InstagramRendererMapper
 
       return default_text_mapping(payload) if text.blank? && buttons.empty?
 
-      # Create single card with text as title and buttons as actions
+      # Create single card with text as the title and buttons as actions
       card_item = {
         'title' => text.present? ? text.truncate(TITLE_LIMIT) : nil,
         'actions' => map_buttons(buttons)
@@ -99,7 +100,7 @@ class Messages::InstagramRendererMapper
 
       fallback = text.presence || 'Button template'
 
-      Mapped.new('cards', { 'items' => [card_item] }, fallback)
+      Mapped.new('cards', sanitize_cards({ 'items' => [card_item] }), fallback)
     end
 
     # Convert Quick Replies to cards structure (using RichCards component)
@@ -124,7 +125,7 @@ class Messages::InstagramRendererMapper
       return default_text_mapping(payload) if buttons.empty?
 
       text = payload['text'].to_s.strip.presence || 'Select an option'
-      
+
       # Create a single card with the text and quick reply buttons
       card_item = {
         'title' => text.truncate(TITLE_LIMIT),
@@ -134,7 +135,41 @@ class Messages::InstagramRendererMapper
       fallback = "#{text} (#{buttons.length} options)"
 
       # Use 'cards' content_type to render with RichCards component
-      Mapped.new('cards', { 'items' => [card_item] }, fallback)
+      Mapped.new('cards', sanitize_cards({ 'items' => [card_item] }), fallback)
+    end
+
+    # Ensure only allowed keys are present in items/actions for 'cards'
+    def sanitize_cards(content_attributes)
+      return { 'items' => [] } unless content_attributes.is_a?(Hash)
+
+      allowed_item_keys = %w[title description media_url actions]
+
+      items = Array(content_attributes['items']).map do |item|
+        next unless item.is_a?(Hash)
+
+        sanitized = {}
+        sanitized['title'] = item['title'] if item.key?('title') && item['title'].present?
+        sanitized['description'] = item['description'] if item.key?('description') && item['description'].present?
+        sanitized['media_url'] = item['media_url'] if item.key?('media_url') && item['media_url'].present?
+
+        if item['actions'].is_a?(Array)
+          sanitized['actions'] = item['actions'].map do |action|
+            next unless action.is_a?(Hash)
+
+            {
+              'text' => action['text'],
+              'type' => action['type'],
+              'payload' => action['payload'],
+              'uri' => action['uri']
+            }.compact
+          end.compact
+        end
+
+        # Drop unknown keys defensively
+        sanitized.slice(*allowed_item_keys)
+      end.compact
+
+      { 'items' => items }
     end
 
     # Build individual card item from element
