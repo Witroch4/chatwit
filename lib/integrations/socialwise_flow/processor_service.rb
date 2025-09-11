@@ -93,10 +93,20 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       channel_type = message.conversation.inbox.channel_type
       Rails.logger.info "[SOCIALWISE-FLOW] Channel type: #{channel_type}"
 
+      # Primeiro verificar se é resposta simples com apenas texto
+      if response['text'].present? && !has_rich_content?(response)
+        Rails.logger.info "[SOCIALWISE-FLOW] Simple text response detected for all channels: #{response['text']}"
+        create_conversation(message, { content: response['text'] })
+        return
+      end
+
       case channel_type
       when 'Channel::Whatsapp'
         if response['whatsapp'].present?
           process_whatsapp_response(message, response['whatsapp'])
+        elsif response['text'].present?
+          Rails.logger.info '[SOCIALWISE-FLOW] WhatsApp channel with simple text response'
+          create_conversation(message, { content: response['text'] })
         else
           Rails.logger.warn '[SOCIALWISE-FLOW] WhatsApp channel but no whatsapp payload in response'
         end
@@ -106,6 +116,9 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
           process_instagram_response(message, response['instagram'])
         elsif response['facebook'].present?
           process_facebook_response(message, response['facebook'])
+        elsif response['text'].present?
+          Rails.logger.info '[SOCIALWISE-FLOW] Instagram/FacebookPage channel with simple text response'
+          create_conversation(message, { content: response['text'] })
         else
           Rails.logger.warn '[SOCIALWISE-FLOW] Instagram/FacebookPage channel but no instagram/facebook payload in response'
         end
@@ -559,12 +572,12 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       conversation = message.conversation
 
       # Validate required fields
-      unless conversation.account_id.present?
+      if conversation.account_id.blank?
         Rails.logger.error '[SOCIALWISE-FLOW] Missing account_id in conversation'
         return
       end
 
-      unless conversation.inbox_id.present?
+      if conversation.inbox_id.blank?
         Rails.logger.error '[SOCIALWISE-FLOW] Missing inbox_id in conversation'
         return
       end
@@ -932,6 +945,14 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   # ==== Helper Methods =====
+
+  def has_rich_content?(response)
+    # Verifica se a resposta contém conteúdo rico além de texto simples
+    response['whatsapp'].present? ||
+      response['instagram'].present? ||
+      response['facebook'].present? ||
+      response['action_type'] == 'button_reaction'
+  end
 
   # Build a payload to map into dashboard 'cards' structure, supporting Messenger or SocialWise direct format
   def build_facebook_mapping_payload_for_cards(facebook_payload)
