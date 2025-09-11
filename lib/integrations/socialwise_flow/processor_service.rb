@@ -264,7 +264,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     when 'Channel::Whatsapp'
       # WhatsApp: Send both emoji reaction and contextual response (Requirement 3.2)
       send_whatsapp_emoji_reaction(conversation, emoji, response)
-    when 'Channel::FacebookPage', 'Channel::Instagram'
+    when 'Channel::FacebookPage'
+      # Facebook: Send emoji reaction specific to Facebook
+      Rails.logger.info "[SOCIALWISE-FLOW] Routing to Facebook emoji reaction handler for #{channel_type}"
+      send_facebook_emoji_reaction(conversation, emoji, response)
+    when 'Channel::Instagram'
       # Instagram: Send emoji reaction and simple response (Requirement 3.3)
       Rails.logger.info "[SOCIALWISE-FLOW] Routing to Instagram emoji reaction handler for #{channel_type}"
       send_instagram_emoji_reaction(conversation, emoji, response)
@@ -285,7 +289,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     when 'Channel::Whatsapp'
       # WhatsApp: Send contextual response text (Requirement 3.2)
       send_whatsapp_reaction_text(conversation, text, response)
-    when 'Channel::FacebookPage', 'Channel::Instagram'
+    when 'Channel::FacebookPage'
+      # Facebook: Send simple response text specific to Facebook
+      Rails.logger.info "[SOCIALWISE-FLOW] Routing to Facebook text reaction handler for #{channel_type}"
+      send_facebook_reaction_text(conversation, text, response)
+    when 'Channel::Instagram'
       # Instagram: Send simple response text (Requirement 3.3)
       Rails.logger.info "[SOCIALWISE-FLOW] Routing to Instagram text reaction handler for #{channel_type}"
       send_instagram_reaction_text(conversation, text, response)
@@ -327,6 +335,48 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     )
 
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp emoji reaction message created: #{emoji_message.id}"
+  end
+
+  def send_facebook_emoji_reaction(conversation, emoji, response)
+    Rails.logger.info '[SOCIALWISE-FLOW] === FACEBOOK EMOJI REACTION START ==='
+    Rails.logger.info "[SOCIALWISE-FLOW] Original emoji: #{emoji}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Response data: #{response.inspect}"
+
+    # Send emoji reaction to Facebook API
+    begin
+      # Look for message_id in Facebook payload
+      message_id = response.dig('facebook', 'message_id')
+
+      Rails.logger.info "[SOCIALWISE-FLOW] Facebook message_id found: #{message_id}"
+
+      if message_id.present?
+        send_facebook_reaction_to_api(conversation, message_id, emoji)
+        Rails.logger.info '[SOCIALWISE-FLOW] Facebook emoji reaction sent to API successfully'
+      else
+        Rails.logger.error '[SOCIALWISE-FLOW] CRITICAL: Missing message_id for Facebook emoji reaction'
+        Rails.logger.error "[SOCIALWISE-FLOW] Available response keys: #{response.keys.inspect}"
+      end
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW] Facebook emoji reaction API call failed: #{e.class}: #{e.message}"
+      Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(3).join('\n')}"
+    end
+
+    # Create activity message indicating emoji reaction for Facebook
+    emoji_message = conversation.messages.create!(
+      message_type: :activity,
+      content: "Bot reagiu com #{emoji}",
+      private: false,
+      account_id: conversation.account_id,
+      inbox_id: conversation.inbox_id,
+      content_attributes: {
+        'emoji_reaction' => emoji,
+        'button_id' => response['buttonId'],
+        'reaction_type' => 'button_reaction',
+        'channel_type' => 'facebook'
+      }
+    )
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook emoji reaction message created: #{emoji_message.id}"
   end
 
   def send_instagram_emoji_reaction(conversation, emoji, response)
@@ -424,6 +474,32 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     )
 
     Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction text message created: #{text_message.id}"
+  end
+
+  def send_facebook_reaction_text(conversation, text, response)
+    # Send simple text message to Facebook API
+    begin
+      send_facebook_text_message_to_api(conversation, text)
+      Rails.logger.info '[SOCIALWISE-FLOW] Facebook text message sent to API successfully'
+    rescue StandardError => e
+      Rails.logger.error "[SOCIALWISE-FLOW] Facebook text message API call failed: #{e.class}: #{e.message}"
+    end
+
+    # Facebook simple response text
+    text_message = conversation.messages.create!(
+      message_type: :outgoing,
+      content: text,
+      account_id: conversation.account_id,
+      inbox_id: conversation.inbox_id,
+      content_attributes: {
+        'button_reaction_response' => true,
+        'button_id' => response['buttonId'],
+        'channel_type' => 'facebook'
+      },
+      additional_attributes: { skip_send_reply: true }
+    )
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook reaction text message created: #{text_message.id}"
   end
 
   def send_instagram_reaction_text(conversation, text, response)
@@ -1297,6 +1373,101 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def instagram_api_headers(inbox)
+    {
+      'Authorization' => "Bearer #{inbox.channel.access_token}",
+      'Content-Type' => 'application/json'
+    }
+  end
+
+  # API call methods for Facebook reactions and messages
+  def send_facebook_reaction_to_api(conversation, _message_id, _reaction)
+    Rails.logger.info '[SOCIALWISE-FLOW] === FACEBOOK API REACTION CALL START ==='
+
+    inbox = conversation.inbox
+    contact_source_id = conversation.contact.get_source_id(inbox.id)
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook Inbox ID: #{inbox.id}, Channel type: #{inbox.channel_type}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook Contact source ID: #{contact_source_id}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook channel class: #{inbox.channel.class}"
+
+    # Check if we have the required configuration
+    page_access_token = inbox.channel.access_token
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook Has access token: #{page_access_token.present?}"
+
+    if page_access_token.blank?
+      Rails.logger.error '[SOCIALWISE-FLOW] CRITICAL: Missing access_token for Facebook channel'
+      return
+    end
+
+    # Facebook Messenger uses different API format for reactions
+    payload = {
+      recipient: {
+        id: contact_source_id
+      },
+      sender_action: 'mark_seen'  # Facebook doesn't have direct reaction API like Instagram
+    }
+
+    api_url = "#{facebook_api_base_url}/#{inbox.channel.page_id}/messages"
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook API URL: #{api_url}"
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook reaction payload: #{payload.inspect}"
+
+    response = HTTParty.post(
+      api_url,
+      headers: facebook_api_headers(inbox),
+      body: payload.to_json
+    )
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook API Response Code: #{response.code}"
+
+    if response.success?
+      Rails.logger.info "[SOCIALWISE-FLOW] Facebook reaction API SUCCESS: #{response.parsed_response}"
+    else
+      Rails.logger.error "[SOCIALWISE-FLOW] Facebook reaction API ERROR: #{response.code} - #{response.body}"
+    end
+
+    response
+  end
+
+  def send_facebook_text_message_to_api(conversation, text)
+    inbox = conversation.inbox
+    contact_source_id = conversation.contact.get_source_id(inbox.id)
+
+    payload = {
+      recipient: {
+        id: contact_source_id
+      },
+      message: {
+        text: text
+      }
+    }
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook text message payload: #{payload.inspect}"
+
+    api_url = "#{facebook_api_base_url}/#{inbox.channel.page_id}/messages"
+
+    Rails.logger.info "[SOCIALWISE-FLOW] Facebook text API URL: #{api_url}"
+
+    response = HTTParty.post(
+      api_url,
+      headers: facebook_api_headers(inbox),
+      body: payload.to_json
+    )
+
+    if response.success?
+      Rails.logger.info "[SOCIALWISE-FLOW] Facebook text message API response: #{response.parsed_response}"
+    else
+      Rails.logger.error "[SOCIALWISE-FLOW] Facebook text message API error: #{response.code} - #{response.body}"
+    end
+
+    response
+  end
+
+  def facebook_api_base_url
+    ENV.fetch('FACEBOOK_API_BASE_URL', 'https://graph.facebook.com/v23.0')
+  end
+
+  def facebook_api_headers(inbox)
     {
       'Authorization' => "Bearer #{inbox.channel.access_token}",
       'Content-Type' => 'application/json'
