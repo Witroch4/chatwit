@@ -1295,7 +1295,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
     # Check if we have the required configuration
     instagram_id = inbox.channel.instagram_id.presence || 'me'
-    page_access_token = inbox.channel.access_token
+    page_access_token = channel_access_token(inbox)
 
     Rails.logger.info "[SOCIALWISE-FLOW] Instagram ID: #{instagram_id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Has access token: #{page_access_token.present?}"
@@ -1394,8 +1394,9 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def instagram_api_headers(inbox)
+    token = channel_access_token(inbox)
     {
-      'Authorization' => "Bearer #{inbox.channel.access_token}",
+      'Authorization' => "Bearer #{token}",
       'Content-Type' => 'application/json'
     }
   end
@@ -1412,7 +1413,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     Rails.logger.info "[SOCIALWISE-FLOW] Facebook channel class: #{inbox.channel.class}"
 
     # Check if we have the required configuration
-    page_access_token = inbox.channel.access_token
+    page_access_token = channel_access_token(inbox)
 
     Rails.logger.info "[SOCIALWISE-FLOW] Facebook Has access token: #{page_access_token.present?}"
 
@@ -1489,9 +1490,25 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   def facebook_api_headers(inbox)
+    token = channel_access_token(inbox)
     {
-      'Authorization' => "Bearer #{inbox.channel.access_token}",
+      'Authorization' => "Bearer #{token}",
       'Content-Type' => 'application/json'
     }
+  end
+
+  # Helper to resolve the correct access token for Instagram/Facebook channels
+  def channel_access_token(inbox)
+    ch = inbox.channel
+    # Prefer dedicated accessor if available (Channel::Instagram)
+    return ch.access_token if ch.respond_to?(:access_token)
+    # Facebook Page stores token as page_access_token
+    return ch.page_access_token if ch.respond_to?(:page_access_token)
+    # Fallback to provider_config keys when present
+    if ch.respond_to?(:provider_config) && ch.provider_config.is_a?(Hash)
+      return ch.provider_config['access_token'] || ch.provider_config['page_access_token']
+    end
+
+    nil
   end
 end
