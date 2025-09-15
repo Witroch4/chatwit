@@ -102,7 +102,11 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
       case channel_type
       when 'Channel::Whatsapp'
-        if response['whatsapp'].present?
+        mapped_whatsapp = response.dig('mapped', 'whatsapp')
+        if mapped_whatsapp.present?
+          Rails.logger.info '[SOCIALWISE-FLOW] Detected mapped.whatsapp payload; delegating to WhatsappResponseProcessor'
+          process_whatsapp_response(message, mapped_whatsapp)
+        elsif response['whatsapp'].present?
           process_whatsapp_response(message, response['whatsapp'])
         elsif response['text'].present?
           Rails.logger.info '[SOCIALWISE-FLOW] WhatsApp channel with simple text response'
@@ -112,7 +116,15 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         end
       when 'Channel::FacebookPage', 'Channel::Instagram'
         # Instagram pode usar Channel::FacebookPage ou Channel::Instagram
-        if response['instagram'].present?
+        mapped_instagram = response.dig('mapped', 'instagram')
+        mapped_facebook = response.dig('mapped', 'facebook')
+        if mapped_instagram.present?
+          Rails.logger.info '[SOCIALWISE-FLOW] Detected mapped.instagram payload; delegating to Instagram processor'
+          process_instagram_response(message, mapped_instagram)
+        elsif mapped_facebook.present?
+          Rails.logger.info '[SOCIALWISE-FLOW] Detected mapped.facebook payload; delegating to Facebook processor'
+          process_facebook_response(message, mapped_facebook)
+        elsif response['instagram'].present?
           process_instagram_response(message, response['instagram'])
         elsif response['facebook'].present?
           process_facebook_response(message, response['facebook'])
@@ -238,6 +250,33 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
         end
       else
         Rails.logger.info '[SOCIALWISE-FLOW] No action specified in button reaction'
+      end
+
+      # 4. Process mapped payloads (WhatsApp/Instagram/Facebook) if present
+      begin
+        if response['mapped'].is_a?(Hash)
+          Rails.logger.info '[SOCIALWISE-FLOW] Mapped payload detected inside button_reaction'
+          case channel_type
+          when 'Channel::Whatsapp'
+            if response.dig('mapped', 'whatsapp').present?
+              Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Processing Interactive Message (mapped)'
+              process_whatsapp_response(message, response['mapped']['whatsapp'])
+            end
+          when 'Channel::Instagram', 'Channel::FacebookPage'
+            if response.dig('mapped', 'instagram').present?
+              Rails.logger.info '[SOCIALWISE-INSTAGRAM-RICH] Processing mapped Instagram payload'
+              process_instagram_response(message, response['mapped']['instagram'])
+            elsif response.dig('mapped', 'facebook').present?
+              Rails.logger.info '[SOCIALWISE-FLOW][FACEBOOK] Processing mapped Facebook payload'
+              process_facebook_response(message, response['mapped']['facebook'])
+            end
+          else
+            Rails.logger.warn "[SOCIALWISE-FLOW] Mapped payload present but unsupported channel: #{channel_type}"
+          end
+        end
+      rescue StandardError => e
+        Rails.logger.error "[SOCIALWISE-FLOW] Failed to process mapped payload in button_reaction: #{e.class}: #{e.message}"
+        Rails.logger.error "[SOCIALWISE-FLOW] Backtrace: #{e.backtrace.first(5).join('\n')}"
       end
 
       Rails.logger.info '[SOCIALWISE-FLOW] === BUTTON REACTION PROCESSING COMPLETED ==='
@@ -951,7 +990,12 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     response['whatsapp'].present? ||
       response['instagram'].present? ||
       response['facebook'].present? ||
-      response['action_type'] == 'button_reaction'
+      response['action_type'] == 'button_reaction' ||
+      (response['mapped'].is_a?(Hash) && (
+        response['mapped']['whatsapp'].present? ||
+        response['mapped']['instagram'].present? ||
+        response['mapped']['facebook'].present?
+      ))
   end
 
   # Build a payload to map into dashboard 'cards' structure, supporting Messenger or SocialWise direct format
@@ -972,10 +1016,24 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     if facebook_payload['message_format'].present?
       case facebook_payload['message_format']
       when 'GENERIC_TEMPLATE'
-        return {
-          'template_type' => 'generic',
-          'elements' => facebook_payload['elements']
-        }
+        # Support single-element direct format (title/image_url/buttons)
+        if facebook_payload['elements'].blank?
+          element = {
+            'title' => facebook_payload['title'],
+            'subtitle' => facebook_payload['subtitle'],
+            'image_url' => facebook_payload['image_url'],
+            'buttons' => facebook_payload['buttons']
+          }.compact
+          return {
+            'template_type' => 'generic',
+            'elements' => [element]
+          }
+        else
+          return {
+            'template_type' => 'generic',
+            'elements' => facebook_payload['elements']
+          }
+        end
       when 'BUTTON_TEMPLATE'
         return {
           'template_type' => 'button',
@@ -1001,12 +1059,18 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     # Build from SocialWise direct format
     case facebook_payload['message_format']
     when 'GENERIC_TEMPLATE'
+      elements = (facebook_payload['elements'].presence || [{
+        'title' => facebook_payload['title'],
+        'subtitle' => facebook_payload['subtitle'],
+        'image_url' => facebook_payload['image_url'],
+        'buttons' => facebook_payload['buttons']
+      }.compact])
       {
         'attachment' => {
           'type' => 'template',
           'payload' => {
             'template_type' => 'generic',
-            'elements' => facebook_payload['elements'] || []
+            'elements' => elements
           }
         }
       }
