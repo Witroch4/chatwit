@@ -52,4 +52,10 @@ module Redis::RedisKeys
   SLACK_MESSAGE_MUTEX = 'SLACK_MESSAGE_LOCK::%<conversation_id>s::%<reference_id>s'.freeze
   EMAIL_MESSAGE_MUTEX = 'EMAIL_CHANNEL_LOCK::%<inbox_id>s'.freeze
   CRM_PROCESS_MUTEX = 'CRM_PROCESS_MUTEX::%<hook_id>s'.freeze
+
+  ## SocialWise Flow Debounce Keys
+  # Stores pending messages for debouncing before sending to SocialWise Flow
+  SOCIALWISE_DEBOUNCE_MESSAGES = 'SOCIALWISE_DEBOUNCE::%<conversation_id>d::MESSAGES'.freeze
+  # Lock key to prevent race conditions during debounce processing
+  SOCIALWISE_DEBOUNCE_LOCK = 'SOCIALWISE_DEBOUNCE::%<conversation_id>d::LOCK'.freeze
 end

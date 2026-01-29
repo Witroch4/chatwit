@@ -3,7 +3,95 @@
 class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcessorService
   pattr_initialize [:event_name!, :hook!, :event_data!]
 
+  # Override perform to add debounce logic
+  def perform
+    message = event_data[:message]
+    return unless should_run_processor?(message)
+
+    # Check if debounce is enabled
+    debounce_ms = debounce_duration_ms
+    if debounce_ms.positive?
+      enqueue_for_debounce(message, debounce_ms)
+    else
+      # No debounce, process immediately
+      process_content(message)
+    end
+  rescue StandardError => e
+    ChatwootExceptionTracker.new(e, account: hook&.account).capture_exception
+  end
+
   private
+
+  # Get debounce duration from ENV variable (default: 0 = disabled)
+  def debounce_duration_ms
+    ENV.fetch('SOCIALWISE_DEBOUNCE_MS', '0').to_i
+  end
+
+  # Enqueue message for debounced processing
+  def enqueue_for_debounce(message, debounce_ms)
+    conversation = message.conversation
+    content = message_content(message)
+
+    return if content.blank?
+
+    Rails.logger.info "[SOCIALWISE-DEBOUNCE] Enqueueing message #{message.id} for debounce (#{debounce_ms}ms)"
+
+    # Store message in Redis list
+    messages_key = format(Redis::Alfred::SOCIALWISE_DEBOUNCE_MESSAGES, conversation_id: conversation.id)
+
+    message_data = {
+      message_id: message.id,
+      content: content,
+      timestamp: Time.current.to_f
+    }.to_json
+
+    Redis::Alfred.lpush(messages_key, message_data)
+
+    # Set expiry on the key (debounce time + buffer)
+    expiry_seconds = ((debounce_ms / 1000.0) * 2).ceil + 60 # 2x debounce + 60s buffer
+    $alfred.with { |conn| conn.expire(messages_key, expiry_seconds) }
+
+    # Schedule the debounce job
+    # The job will wait for the debounce period before processing
+    SocialwiseDebounceJob.set(wait: (debounce_ms / 1000.0).seconds).perform_later(
+      conversation.id,
+      hook.id,
+      event_name
+    )
+
+    Rails.logger.info "[SOCIALWISE-DEBOUNCE] Message #{message.id} enqueued, job scheduled in #{debounce_ms}ms"
+  end
+
+  # Expose should_run_processor? and process_content for use by DebounceProcessorService
+  def should_run_processor?(message)
+    return if message.private?
+    return unless processable_message?(message)
+    return unless conversation.pending?
+
+    true
+  end
+
+  def conversation
+    message = event_data[:message]
+    @conversation ||= message.conversation
+  end
+
+  def process_content(message)
+    content = message_content(message)
+    response = get_response(conversation.contact_inbox.source_id, content) if content.present?
+    process_response(message, response) if response.present?
+  end
+
+  def processable_message?(message)
+    return unless message.reportable?
+    return if message.outgoing? && !processable_outgoing_message?(message)
+
+    true
+  end
+
+  def processable_outgoing_message?(message)
+    event_name == 'message.updated' && ['input_select'].include?(message.content_type)
+  end
 
   def message_content(message)
     return message.content_attributes['submitted_values']&.first&.dig('value') if event_name == 'message.updated'
@@ -499,11 +587,25 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
 
   def send_whatsapp_reaction_text(conversation, text, response)
     # Send contextual text to WhatsApp API
+    response_message_id = nil
+
     begin
       whatsapp_payload = response['whatsapp']
       if whatsapp_payload && whatsapp_payload['message_id'].present?
-        send_whatsapp_contextual_message_to_api(conversation, whatsapp_payload['message_id'], text)
-        Rails.logger.info '[SOCIALWISE-FLOW] WhatsApp contextual text sent to API successfully'
+        api_response = send_whatsapp_contextual_message_to_api(
+          conversation,
+          whatsapp_payload['message_id'],
+          text
+        )
+
+        parsed_response = api_response&.parsed_response
+        response_message_id = Array(parsed_response && parsed_response['messages']).first&.dig('id')
+
+        if response_message_id.present?
+          Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp contextual text sent successfully, source_id: #{response_message_id}"
+        else
+          Rails.logger.warn '[SOCIALWISE-FLOW] WhatsApp contextual text sent but no message_id returned'
+        end
       else
         Rails.logger.warn '[SOCIALWISE-FLOW] Missing WhatsApp message_id for contextual text'
       end
@@ -517,6 +619,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       content: text,
       account_id: conversation.account_id,
       inbox_id: conversation.inbox_id,
+      source_id: response_message_id,
       content_attributes: {
         'button_reaction_response' => true,
         'button_id' => response['buttonId'],
@@ -525,7 +628,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       additional_attributes: { skip_send_reply: true }
     )
 
-    Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction text message created: #{text_message.id}"
+    Rails.logger.info "[SOCIALWISE-FLOW] WhatsApp reaction text message created: #{text_message.id}, source_id stored: #{response_message_id.presence || 'none'}"
   end
 
   def send_facebook_reaction_text(conversation, text, response)
