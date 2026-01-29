@@ -14,36 +14,6 @@ NO_ENTERPRISE=false
 DISABLE_TELEMETRY=true
 NO_CACHE=false
 NO_PUSH=false
-DOCKER_USER=""
-SKIP_LOGIN=false
-USE_SYSTEM_DOCKER_CONFIG=false
-
-# Carrega token do Docker Hub de .env (chave: docker_dckr_pat) sem executar o arquivo
-load_docker_pat_from_dotenv() {
-  if [ -n "${DOCKER_PWD:-}" ]; then
-    echo "$DOCKER_PWD"
-    return 0
-  fi
-  if [ -n "${DOCKER_PAT:-}" ]; then
-    echo "$DOCKER_PAT"
-    return 0
-  fi
-  if [ -f .env ]; then
-    local line
-    line=$(grep -m1 -E "^\s*docker_dckr_pat\s*=" .env 2>/dev/null || true)
-    if [ -n "$line" ]; then
-      local value
-      value=$(printf '%s' "$line" | sed -E 's/^[^=]*=//')
-      value="${value%\"}"
-      value="${value#\"}"
-      value="${value%\'}"
-      value="${value#\'}"
-      echo "$value"
-      return 0
-    fi
-  fi
-  return 1
-}
 
 # Função de ajuda
 show_help() {
@@ -62,9 +32,6 @@ OPTIONS:
     --enable-telemetry        Habilita telemetria (padrão: desabilitada)
     --no-cache                Build sem cache
     --no-push                 Não faz push para o registry
-    --docker-user USER        Usuário para docker login (padrão: REGISTRY)
-    --skip-login              Pula docker login
-    --system-docker-config    Usa ~/.docker/config.json (padrão: usa config temporário limpo)
     -h, --help                Mostra esta ajuda
 
 EXAMPLES:
@@ -110,18 +77,6 @@ while [[ $# -gt 0 ]]; do
             NO_PUSH=true
             shift
             ;;
-        --docker-user)
-            DOCKER_USER="$2"
-            shift 2
-            ;;
-        --skip-login)
-            SKIP_LOGIN=true
-            shift
-            ;;
-        --system-docker-config)
-            USE_SYSTEM_DOCKER_CONFIG=true
-            shift
-            ;;
         -h|--help)
             show_help
             exit 0
@@ -152,45 +107,6 @@ else
 fi
 
 echo -e "\033[32m[BUILD] Building ${FULL_IMAGE} with tags: ${TAGS[*]}\033[0m"
-
-# Definir usuário de login no Docker (padrão: mesmo valor de REGISTRY)
-if [ -z "$DOCKER_USER" ]; then
-  DOCKER_USER="$REGISTRY"
-fi
-
-# Configurar DOCKER_CONFIG temporário por padrão para evitar helpers do sistema (ex.: docker-credential-desktop.exe)
-TMP_DOCKER_CONFIG=""
-if [ "$USE_SYSTEM_DOCKER_CONFIG" = false ]; then
-  TMP_DOCKER_CONFIG=$(mktemp -d)
-  umask 077
-  mkdir -p "$TMP_DOCKER_CONFIG"
-  echo '{}' > "$TMP_DOCKER_CONFIG/config.json"
-  export DOCKER_CONFIG="$TMP_DOCKER_CONFIG"
-  trap 'if [ -n "$TMP_DOCKER_CONFIG" ] && [ -d "$TMP_DOCKER_CONFIG" ]; then rm -rf "$TMP_DOCKER_CONFIG"; fi' EXIT
-  echo -e "\033[36m[INFO] Usando DOCKER_CONFIG temporário em $DOCKER_CONFIG\033[0m"
-else
-  echo -e "\033[36m[INFO] Usando DOCKER_CONFIG do sistema (~/.docker)\033[0m"
-fi
-
-# Login no Docker Hub (se não pulado)
-if [ "$SKIP_LOGIN" = false ]; then
-  DOCKER_PAT=$(load_docker_pat_from_dotenv || true)
-  if [ -n "$DOCKER_PAT" ]; then
-    echo -e "\033[36m[LOGIN] Autenticando docker user '$DOCKER_USER' via --password-stdin\033[0m"
-    if ! printf '%s' "$DOCKER_PAT" | docker login --username "$DOCKER_USER" --password-stdin; then
-      echo -e "\033[31m[ERROR] Falha no docker login com token do .env/variável.\033[0m"
-      exit 1
-    fi
-  else
-    echo -e "\033[33m[LOGIN] Token não encontrado (.env docker_dckr_pat ou DOCKER_PWD). Tentando login interativo...\033[0m"
-    if ! docker login --username "$DOCKER_USER"; then
-      echo -e "\033[31m[ERROR] Falha no docker login interativo.\033[0m"
-      exit 1
-    fi
-  fi
-else
-  echo -e "\033[33m[INFO] Login docker pulado (--skip-login).\033[0m"
-fi
 
 # Preparar argumentos de build
 BUILD_ARGS=()

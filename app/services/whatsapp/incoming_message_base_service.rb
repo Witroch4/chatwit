@@ -38,9 +38,18 @@ class Whatsapp::IncomingMessageBaseService
   end
 
   def process_statuses
-    return unless find_message_by_source_id(@processed_params[:statuses].first[:id])
+    status_payload = @processed_params[:statuses]&.first
+    unless status_payload
+      Rails.logger.warn 'WhatsApp status webhook received without statuses payload'
+      return
+    end
 
-    update_message_with_status(@message, @processed_params[:statuses].first)
+    unless find_message_by_source_id(status_payload[:id])
+      Rails.logger.info "WhatsApp status webhook skipped: no message with source_id=#{status_payload[:id]}"
+      return
+    end
+
+    update_message_with_status(@message, status_payload)
   rescue ArgumentError => e
     Rails.logger.error "Error while processing whatsapp status update #{e.message}"
   end
@@ -157,7 +166,7 @@ class Whatsapp::IncomingMessageBaseService
     return {} unless message[:type] == 'interactive'
 
     interactive_data = {}
-    
+
     # Extract button reply data
     if message.dig(:interactive, :button_reply)
       button_reply = message[:interactive][:button_reply]
@@ -167,7 +176,7 @@ class Whatsapp::IncomingMessageBaseService
       }
       interactive_data[:interaction_type] = 'button_reply'
     end
-    
+
     # Extract list reply data
     if message.dig(:interactive, :list_reply)
       list_reply = message[:interactive][:list_reply]
@@ -178,10 +187,10 @@ class Whatsapp::IncomingMessageBaseService
       }
       interactive_data[:interaction_type] = 'list_reply'
     end
-    
+
     # Store the full interactive payload for debugging/future use
     interactive_data[:interactive_payload] = message[:interactive] if interactive_data.any?
-    
+
     interactive_data
   end
 
