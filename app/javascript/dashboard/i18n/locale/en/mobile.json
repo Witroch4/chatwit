@@ -194,6 +194,10 @@
       "CONVERSATIONS": "Conversations",
       "MESSAGES": "Messages",
       "CONTACTS": "Contacts"
+    },
+    "MENTIONS": {
+      "TITLE": "Mention an agent",
+      "EMPTY": "No agents found"
     }
   }
 }

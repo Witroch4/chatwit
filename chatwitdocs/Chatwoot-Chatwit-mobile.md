@@ -244,6 +244,16 @@ Terceira leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan
 
 Haptics em todas as superfícies novas (`v-haptic-tap` + haptic síncrono); chaves `MOBILE.CONTACT.*` em `en`/`pt`/`pt_BR`; desktop intocado (tudo em `components-next/mobile/`).
 
+### 2026-06-11 — Lote D (Task 1): @menções em notas privadas
+
+Item 1 do roadmap (`chatwitdocs/mobile-roadmap-execution-plan.md`, Lote D):
+
+- **`MobileMentionSheet.vue` (novo).** Lista de agentes ancorada acima do composer (`absolute bottom-full` no `MobileReplyBox.vue`, que fica acima do teclado via `useKeyboardResize` já existente). Conecta o MESMO getter desktop usado pelo `TagAgents.vue`: `agents/getVerifiedAgents` (dados já carregados pelo `agents/get` que o `MobileChatView.vue` despacha no mount), filtrado pelo termo digitado após o `@`. Avatar reusa `components-next/avatar/Avatar.vue` (o mesmo do TagAgents desktop).
+- **`MobileReplyBox.vue`.** No `input` do textarea, quando o modo nota privada está ativo (`effectivePrivate`), o trecho até o cursor é testado com `/@([\w]*)$/`; match abre o sheet com o termo. Ao selecionar, o `@termo` é substituído pelo MESMO markdown de menção que o editor desktop serializa (`@chatwoot/prosemirror-schema` `serializer.js`/`schema.js`): `[@Nome](mention://user/<id>/<encodeURIComponent(nome)>)`, e o foco volta ao textarea com o cursor após a menção. Menção indisponível em resposta pública (sheet fecha ao destravar o cadeado) — mesmo comportamento do desktop, onde o fluxo de mention só existe em nota privada. O backend processa a notificação do agente mencionado pelo mesmo pipeline de sempre (nenhuma chamada nova).
+- **i18n:** chaves `MOBILE.MENTIONS.*` (`TITLE`, `EMPTY`) em `en`/`pt`/`pt_BR`.
+
+Haptics: linhas de agente com `v-haptic-tap` + `selection()` síncrono no handler. Isolamento preservado: mudanças só em `components-next/mobile/` + `locale/*/mobile.json`; nenhum componente/store desktop alterado.
+
 ### 2026-06-11 — Lote D (Task 2): busca de conversas, mensagens e contatos
 
 Item 2 do roadmap (`chatwitdocs/mobile-roadmap-execution-plan.md`, Lote D):
