@@ -224,6 +224,14 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-11 — Lote E do roadmap: execução de macros na conversa
+
+Item 7 do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`):
+
+- **Execução de macros (item 7).** Novo `MobileMacrosSheet.vue` conectando a store desktop `macros` exatamente como o `MacroItem.vue` do desktop: `macros/get` no open do sheet, lista via getter `macros/getMacros`, tap em uma macro despacha `macros/execute` com `{ macroId, conversationIds: [conversationId] }` (mesma assinatura de `api/macros.js`), com o MESMO tracking `CONVERSATION_EVENTS.EXECUTED_A_MACRO` do desktop, spinner na linha durante a execução e toast de sucesso/erro via `useAlert`. Nova linha "Macros" na seção "Mais ações" do `MobileConversationActionsView.vue`, seguindo o padrão das linhas mute/share. Chaves `MOBILE.MACROS.*` em `en`/`pt`/`pt_BR`.
+
+Haptics: linha "Macros" e itens do sheet com `v-haptic-tap` + `medium()` síncrono antes do dispatch. Desktop intocado — mudanças em `components-next/mobile/` e `locale/*/mobile.json`.
+
 ### 2026-06-11 — Lote B do roadmap: lightbox touch e snooze customizado
 
 Segunda leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`):

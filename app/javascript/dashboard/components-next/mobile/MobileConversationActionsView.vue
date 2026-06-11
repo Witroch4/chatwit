@@ -14,6 +14,7 @@ import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import wootConstants from 'dashboard/constants/globals';
 import MobileActionPickerSheet from './MobileActionPickerSheet.vue';
+import MobileMacrosSheet from './MobileMacrosSheet.vue';
 import MobileMultiPickerSheet from './MobileMultiPickerSheet.vue';
 import MobileSnoozeSheet from './MobileSnoozeSheet.vue';
 
@@ -38,6 +39,7 @@ const showTeamSheet = ref(false);
 const showPrioritySheet = ref(false);
 const showLabelsSheet = ref(false);
 const showParticipantsSheet = ref(false);
+const showMacrosSheet = ref(false);
 
 const conversation = computed(() => {
   if (currentChat.value?.id === props.conversationId) {
@@ -417,6 +419,11 @@ const handleMuteToggle = async () => {
   }
 };
 
+const handleOpenMacros = () => {
+  medium();
+  showMacrosSheet.value = true;
+};
+
 const handleShareConversation = async () => {
   medium();
   const url = `${window.location.origin}${frontendURL(
@@ -721,6 +728,24 @@ watch(
         <button
           v-haptic-tap
           class="flex w-full items-center gap-3 border-t border-n-weak px-4 py-3 text-left active:bg-n-alpha-2"
+          @click="handleOpenMacros"
+        >
+          <span
+            class="flex size-9 shrink-0 items-center justify-center rounded-full bg-n-surface-2 text-n-slate-11"
+          >
+            <span class="i-lucide-zap size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-medium text-n-slate-12">
+              {{ t('MOBILE.MACROS.TITLE') }}
+            </p>
+          </div>
+          <span class="i-lucide-chevron-right size-4 text-n-slate-9" />
+        </button>
+
+        <button
+          v-haptic-tap
+          class="flex w-full items-center gap-3 border-t border-n-weak px-4 py-3 text-left active:bg-n-alpha-2"
           @click="handleShareConversation"
         >
           <span
@@ -800,6 +825,12 @@ watch(
       :open="showSnoozeSheet"
       @close="showSnoozeSheet = false"
       @select="handleSnoozeSelect"
+    />
+
+    <MobileMacrosSheet
+      :open="showMacrosSheet"
+      :conversation-id="conversationId"
+      @close="showMacrosSheet = false"
     />
 
     <ConversationResolveAttributesModal

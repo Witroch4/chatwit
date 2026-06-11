@@ -147,6 +147,13 @@
       "IOS_INSTALL_REQUIRED": "Adicione à Tela de Início primeiro para receber notificações",
       "UPDATE_ERROR": "Não foi possível atualizar as notificações push"
     },
+    "MACROS": {
+      "TITLE": "Macros",
+      "LOADING": "Carregando macros...",
+      "EMPTY": "Nenhuma macro disponível",
+      "SUCCESS": "Macro executada com sucesso",
+      "ERROR": "Não foi possível executar a macro"
+    },
     "SNOOZE": {
       "TITLE": "Adiar até",
       "NEXT_REPLY": "Até a próxima resposta",
