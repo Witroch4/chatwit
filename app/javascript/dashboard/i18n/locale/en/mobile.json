@@ -147,6 +147,11 @@
       "IOS_INSTALL_REQUIRED": "Add to Home Screen first to receive notifications",
       "UPDATE_ERROR": "Could not update push notifications"
     },
+    "NOTIF_PREFS": {
+      "TITLE": "Notification preferences",
+      "EMAIL_TITLE": "Email notifications",
+      "PUSH_TITLE": "Push notifications"
+    },
     "MACROS": {
       "TITLE": "Macros",
       "LOADING": "Loading macros...",

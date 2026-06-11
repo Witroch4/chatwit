@@ -147,6 +147,11 @@
       "IOS_INSTALL_REQUIRED": "Adicione à Tela de Início primeiro para receber notificações",
       "UPDATE_ERROR": "Não foi possível atualizar as notificações push"
     },
+    "NOTIF_PREFS": {
+      "TITLE": "Preferências de notificação",
+      "EMAIL_TITLE": "Notificações por e-mail",
+      "PUSH_TITLE": "Notificações push"
+    },
     "MACROS": {
       "TITLE": "Macros",
       "LOADING": "Carregando macros...",

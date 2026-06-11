@@ -224,13 +224,14 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
-### 2026-06-11 — Lote E do roadmap: execução de macros na conversa
+### 2026-06-11 — Lote E do roadmap: execução de macros na conversa e preferências de notificação
 
-Item 7 do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`):
+Itens 7 e 8 do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`):
 
 - **Execução de macros (item 7).** Novo `MobileMacrosSheet.vue` conectando a store desktop `macros` exatamente como o `MacroItem.vue` do desktop: `macros/get` no open do sheet, lista via getter `macros/getMacros`, tap em uma macro despacha `macros/execute` com `{ macroId, conversationIds: [conversationId] }` (mesma assinatura de `api/macros.js`), com o MESMO tracking `CONVERSATION_EVENTS.EXECUTED_A_MACRO` do desktop, spinner na linha durante a execução e toast de sucesso/erro via `useAlert`. Nova linha "Macros" na seção "Mais ações" do `MobileConversationActionsView.vue`, seguindo o padrão das linhas mute/share. Chaves `MOBILE.MACROS.*` em `en`/`pt`/`pt_BR`.
+- **Preferências de notificação (item 8).** Novo `MobileNotificationPrefsView.vue` (página full-screen via Teleport, header com `MobileBackButton`) conectando a store desktop `userNotificationSettings` exatamente como `NotificationPreferences.vue` do desktop: `userNotificationSettings/get` no mount, flags via getters `getSelectedEmailFlags`/`getSelectedPushFlags`, toggles agrupados em E-mail/Push usando os MESMOS `NOTIFICATION_TYPES` de `settings/profile/constants.js` (labels reusam as chaves desktop `PROFILE_SETTINGS.FORM.NOTIFICATIONS.TYPES.*`, flags SLA escondidas sem o feature flag `FEATURE_FLAGS.SLA`, igual ao desktop). Cada toggle despacha `userNotificationSettings/update` com o set completo de flags (mesmo contrato `selectedEmailFlags`/`selectedPushFlags`), com toast de erro reaproveitando `PROFILE_SETTINGS.FORM.API.UPDATE_ERROR`. Nova linha "Notificações" na lista do `MobileSettingsView.vue` (reusa a chave `MOBILE.SETTINGS.NOTIFICATIONS` já existente). Chaves novas `MOBILE.NOTIF_PREFS.*` (título e títulos de grupo) em `en`/`pt`/`pt_BR`.
 
-Haptics: linha "Macros" e itens do sheet com `v-haptic-tap` + `medium()` síncrono antes do dispatch. Desktop intocado — mudanças em `components-next/mobile/` e `locale/*/mobile.json`.
+Haptics: linha "Macros" e itens do sheet com `v-haptic-tap` + `medium()` síncrono antes do dispatch; toggles de notificação e linhas da lista de settings com `v-haptic-tap` + `selection()` síncrono no handler. Desktop intocado — mudanças em `components-next/mobile/` e `locale/*/mobile.json`.
 
 ### 2026-06-11 — Lote B do roadmap: lightbox touch e snooze customizado
 

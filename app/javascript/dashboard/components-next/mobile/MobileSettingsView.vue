@@ -13,6 +13,9 @@ import allLocales from 'shared/constants/locales';
 import MobileSettingsHeader from './MobileSettingsHeader.vue';
 import MobileAvailabilityToggle from './MobileAvailabilityToggle.vue';
 import MobileBottomSheet from './MobileBottomSheet.vue';
+import MobileNotificationPrefsView from './MobileNotificationPrefsView.vue';
+import { useHaptics } from 'dashboard/composables/useHaptics';
+import { vHapticTap } from './hapticTap';
 import {
   hasPushPermissions,
   requestPushPermissions,
@@ -39,6 +42,9 @@ const canSwitchAccount = computed(() => currentUserAccounts.value.length > 1);
 const currentLocale = computed(() => uiSettings.value?.locale ?? '');
 const isLanguageSheetOpen = ref(false);
 const isAccountSheetOpen = ref(false);
+const isNotificationPrefsOpen = ref(false);
+
+const { selection } = useHaptics();
 
 // Push notification state
 const pushEnabled = ref(false);
@@ -269,7 +275,18 @@ const changeAccount = accountId => {
   window.location.href = `/app/accounts/${accountId}/dashboard`;
 };
 
+const onOpenNotificationPrefs = () => {
+  selection();
+  isNotificationPrefsOpen.value = true;
+};
+
 const settingsItems = computed(() => [
+  {
+    icon: 'i-lucide-bell-ring',
+    label: t('MOBILE.SETTINGS.NOTIFICATIONS'),
+    action: 'notification-preferences',
+    onClick: onOpenNotificationPrefs,
+  },
   {
     icon: 'i-lucide-globe',
     label: t('MOBILE.SETTINGS.LANGUAGE'),
@@ -412,6 +429,7 @@ const settingsItems = computed(() => [
       <button
         v-for="item in settingsItems"
         :key="item.action"
+        v-haptic-tap
         class="flex items-center gap-3 px-4 py-3.5 text-left text-n-slate-12 active:bg-n-alpha-1 border-b border-n-weak"
         :class="{ 'opacity-60': item.disabled }"
         :disabled="item.disabled"
@@ -441,6 +459,11 @@ const settingsItems = computed(() => [
         {{ t('MOBILE.SETTINGS.LOGOUT') }}
       </button>
     </div>
+
+    <MobileNotificationPrefsView
+      v-if="isNotificationPrefsOpen"
+      @back="isNotificationPrefsOpen = false"
+    />
 
     <MobileBottomSheet
       v-if="isLanguageSheetOpen"
