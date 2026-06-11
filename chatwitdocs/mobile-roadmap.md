@@ -64,7 +64,7 @@ Capacidades da plataforma web que o PWA pode ter e que aproximam — ou superam 
 | # | Capability | API / Suporte | O que entrega | Esforço |
 |---|-----------|---------------|----------------|---------|
 | 12 | **Badge no ícone do app** ✅ 2026-06-11 | `navigator.setAppBadge()` — iOS 16.4+ (PWA instalado) e Android/Chrome | Contador de não lidas no ícone da home screen, igual app nativo. Atualizar no push (SW) e ao ler conversas | P |
-| 13 | **Ações nos push notifications** | `Notification.actions` — Android/Chrome (iOS ignora) | Botões "Resolver"/"Responder" direto na notificação | M |
+| 13 | **Ações nos push notifications** ✅ 2026-06-11 | `Notification.actions` — Android/Chrome (iOS ignora) | Botões "Resolver"/"Responder" direto na notificação | M |
 | 14 | **Shell offline + cache** | SW precache (Workbox ou manual) | App abre instantâneo e mostra últimas conversas sem rede; elimina tela branca em rede ruim | M/G |
 | 15 | **Fila offline de envio** | Background Sync API (Android); fallback retry em memória no iOS | Mensagem enviada sem rede sai quando a conexão volta | M |
 | 16 | **Atalhos do ícone** ✅ 2026-06-11 | `manifest.shortcuts` — Android (iOS ignora) | Long-press no ícone → "Conversas", "Inbox" | P |
