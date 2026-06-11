@@ -224,6 +224,17 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-11 — Lote F do roadmap: View Transitions lista↔chat (item 18)
+
+Transição de página com sensação nativa entre a lista de conversas e o chat, usando a **View Transitions API** (cross-fade de root, Chrome 111+/Safari 18+). Progressive enhancement puro: em browsers sem `document.startViewTransition`, a navegação roda exatamente como antes — zero mudança de comportamento.
+
+- **Helper novo:** `components-next/mobile/viewTransition.js` — `withViewTransition(navigate)` envolve a navegação com `document.startViewTransition`, aguardando a promise do router + `nextTick()` para a API capturar o novo DOM; `afterNextNavigation(router)` resolve após a próxima navegação concluída (com timeout de segurança de 300ms), necessário porque `router.back()` não retorna promise.
+- **Pontos de navegação envolvidos (todos em `MobileLayout.vue`):**
+  - `onOpenConversation` — lista→chat (usado pelas tabs Inbox e Conversas via emit `open-conversation`);
+  - `onBack` — chat→lista, **apenas quando o back vem do botão do header**. Quando o back vem do gesto de swipe-back (`isChatSwiping`), a navegação segue sem view transition, pois o `useSwipeBack` já anima a saída do chat (slide Liquid Glass) — evita animação dupla.
+- **Sem CSS novo:** ficou só o cross-fade de root padrão da API (sem `::view-transition-*` nem `view-transition-name` por elemento), eliminando qualquer risco de vazar estilo para o desktop.
+- **Isolamento desktop:** o helper só é invocado por `MobileLayout.vue`, que renderiza exclusivamente sob `isSmallScreen` (<768px) — o desktop nunca executa `startViewTransition`. Haptics inalterados (nenhum handler de toque foi movido para depois de `await`).
+
 ### 2026-06-11 — Lote F do roadmap: ações no push auditadas como entregues (item 13)
 
 Quarta leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`). A auditoria pedida pela Task 13 confirmou que o fluxo completo de ações nos push notifications **já está implementado e testado** — nenhum código novo foi necessário:

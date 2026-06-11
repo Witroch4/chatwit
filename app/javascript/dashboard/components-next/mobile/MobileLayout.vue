@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAppBadge } from './useAppBadge';
 import { consumeMobileTabDeepLink } from './mobileDeepLink';
+import { withViewTransition, afterNextNavigation } from './viewTransition';
 import MobileBottomTabBar from './MobileBottomTabBar.vue';
 import MobileInboxView from './MobileInboxView.vue';
 import MobileConversationList from './MobileConversationList.vue';
@@ -63,22 +64,36 @@ const onTabChange = tabId => {
 };
 
 const onOpenConversation = conversationId => {
-  router.push(
-    accountScopedRoute('inbox_conversation', {
-      conversation_id: conversationId,
-    })
+  withViewTransition(() =>
+    router.push(
+      accountScopedRoute('inbox_conversation', {
+        conversation_id: conversationId,
+      })
+    )
   );
 };
 
 const isChatSwiping = ref(false);
 const chatSwipeProgress = ref(0);
 
-const onBack = () => {
+const navigateBack = () => {
   if (window.history.state?.back) {
     router.back();
-  } else {
-    router.replace(accountScopedRoute('home'));
+    // router.back não retorna promise; aguarda a navegação para a
+    // view transition capturar o novo estado do DOM.
+    return afterNextNavigation(router);
   }
+  return router.replace(accountScopedRoute('home'));
+};
+
+const onBack = () => {
+  // O swipe-back já anima a saída do chat; view transition apenas
+  // quando o back vem do botão (sem animação própria).
+  if (isChatSwiping.value) {
+    navigateBack();
+    return;
+  }
+  withViewTransition(navigateBack);
 };
 
 const onSwipeProgress = progress => {

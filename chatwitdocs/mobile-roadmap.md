@@ -69,7 +69,7 @@ Capacidades da plataforma web que o PWA pode ter e que aproximam — ou superam 
 | 15 | **Fila offline de envio** | Background Sync API (Android); fallback retry em memória no iOS | Mensagem enviada sem rede sai quando a conexão volta | M |
 | 16 | **Atalhos do ícone** ✅ 2026-06-11 | `manifest.shortcuts` — Android (iOS ignora) | Long-press no ícone → "Conversas", "Inbox" | P |
 | 17 | **Compartilhar PARA o Chatwit** | `manifest.share_target` — Android (iOS não suporta) | Compartilhar foto/arquivo de outro app direto para uma conversa | M |
-| 18 | **Transições de página nativas** | View Transitions API — Safari 18+/Chrome | Transição suave lista↔chat↔ações, sensação de navegação nativa | M |
+| 18 | **Transições de página nativas** ✅ 2026-06-11 | View Transitions API — Safari 18+/Chrome | Transição suave lista↔chat↔ações, sensação de navegação nativa | M |
 | 19 | **Captura direta de câmera** ✅ 2026-06-11 | `<input capture="environment">` | Botão "tirar foto" no composer abrindo a câmera direto | P |
 
 > Itens 12–19 não existem no app RN da mesma forma (badge/push existem lá via APNs/FCM; aqui entregamos via web platform sem Firebase, mantendo a regra VAPID-only).
