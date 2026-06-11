@@ -224,6 +224,16 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-11 — Lote G do roadmap: shell offline + fila offline de envio
+
+Itens 14 e 15 do plano de execução (entregues antes de D/E/F por serem independentes):
+
+- **Shell offline (item 14).** `public/sw.js` ganhou cache versionado `chatwit-shell-v1`: navegações são **network-first** com fallback ao cache (online o comportamento é byte-idêntico; offline o app abre com o último HTML servido), assets de build (`/vite/`, `/packs/`) são **stale-while-revalidate**, e `/api/`/`/cable` nunca passam pelo cache. Versões antigas do cache são limpas no `activate`.
+- **Snapshot de conversas offline (item 14).** `MobileConversationList.vue` persiste um snapshot leve (30 conversas: nome, preview, timestamp, status) em `localStorage` a cada atualização da lista; sem rede e sem dados na store, a lista renderiza o snapshot somente-leitura com banner âmbar "Sem conexão" (`useOnline` do `@vueuse/core`).
+- **Fila offline de envio (item 15).** Novo `components-next/mobile/useOfflineOutbox.js`: mensagens de **texto** enviadas sem rede entram numa fila em `localStorage` (toast "será enviada quando a rede voltar") e são drenadas em ordem pelo MESMO `createPendingMessageAndSend` do envio normal quando o evento `online` dispara (flush montado no `MobileLayout.vue`, com toast de confirmação). Falhas pós-flush seguem o fluxo padrão de mensagem failed/retry. **Limitação documentada:** anexos não entram na fila (objetos `File` não são serializáveis) — envio com anexo offline mostra o erro normal.
+
+Chaves `MOBILE.OFFLINE.*` em `en`/`pt`/`pt_BR`. Desktop intocado: SW só adiciona handlers (push segue idêntico) e o restante vive em `components-next/mobile/`.
+
 ### 2026-06-11 — Lote C do roadmap: detalhes do contato + labels do contato
 
 Terceira leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`), itens 3 e 9:

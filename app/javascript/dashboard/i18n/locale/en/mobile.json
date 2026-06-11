@@ -178,6 +178,11 @@
       "UPDATED": "Contact updated",
       "LABELS_UPDATED": "Contact labels updated",
       "UPDATE_ERROR": "Could not update the contact"
+    },
+    "OFFLINE": {
+      "BANNER": "No connection — showing recent conversations",
+      "QUEUED": "No connection. Message will be sent when you are back online",
+      "FLUSHED": "Connection restored: {count} pending message(s) sent"
     }
   }
 }

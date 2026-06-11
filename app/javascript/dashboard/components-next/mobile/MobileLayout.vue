@@ -2,7 +2,10 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useI18n } from 'vue-i18n';
+import { useAlert } from 'dashboard/composables';
 import { useAppBadge } from './useAppBadge';
+import { useOfflineOutbox } from './useOfflineOutbox';
 import { consumeMobileTabDeepLink } from './mobileDeepLink';
 import MobileBottomTabBar from './MobileBottomTabBar.vue';
 import MobileInboxView from './MobileInboxView.vue';
@@ -14,7 +17,12 @@ const route = useRoute();
 const router = useRouter();
 const { accountScopedRoute } = useAccount();
 
+const { t } = useI18n();
+
 useAppBadge();
+useOfflineOutbox({
+  onFlushed: count => useAlert(t('MOBILE.OFFLINE.FLUSHED', { count })),
+});
 
 const activeTab = ref(1);
 

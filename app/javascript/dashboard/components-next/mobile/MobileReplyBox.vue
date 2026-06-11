@@ -17,6 +17,7 @@ import { emitter } from 'shared/helpers/mitt';
 import { AUDIO_FORMATS } from 'shared/constants/messages';
 import { useHaptics } from 'dashboard/composables/useHaptics';
 import { vHapticTap } from './hapticTap';
+import { enqueueOutboxMessage } from './useOfflineOutbox';
 import WhatsappTemplates from 'dashboard/components/widgets/conversation/WhatsappTemplates/Modal.vue';
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
 
@@ -184,6 +185,17 @@ const onSend = async () => {
   // Haptic fires at tap time: iOS drops the Taptic switch trick once the
   // user activation expires across an await.
   success();
+
+  // Sem rede e sem anexos (File não é serializável): a mensagem entra na
+  // fila offline e sai sozinha quando a conexão voltar (useOfflineOutbox).
+  if (!navigator.onLine && !attachedFiles.value.length) {
+    enqueueOutboxMessage(messagePayload);
+    message.value = '';
+    nextTick(resizeTextarea);
+    useAlert(t('MOBILE.OFFLINE.QUEUED'));
+    return;
+  }
+
   try {
     await store.dispatch('createPendingMessageAndSend', messagePayload);
     emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
