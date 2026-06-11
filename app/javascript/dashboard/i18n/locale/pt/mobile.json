@@ -178,6 +178,26 @@
       "SEARCH": "Pesquisar conversa...",
       "EMPTY": "Sem conversas recentes",
       "UNNAMED": "Contacto sem nome"
+    },
+    "OFFLINE": {
+      "BANNER": "Sem conexão — mostrando conversas recentes",
+      "QUEUED": "Sem conexão. A mensagem será enviada quando a rede voltar",
+      "FLUSHED": "Conexão restaurada: {count} mensagem(ns) pendente(s) enviada(s)"
+    },
+    "SEARCH": {
+      "OPEN": "Pesquisar",
+      "PLACEHOLDER": "Pesquisar conversas, mensagens, contactos",
+      "BACK": "Fechar pesquisa",
+      "CLEAR": "Limpar pesquisa",
+      "HINT": "Escreva para pesquisar",
+      "NO_RESULTS": "Sem resultados para \"{query}\"",
+      "CONVERSATIONS": "Conversas",
+      "MESSAGES": "Mensagens",
+      "CONTACTS": "Contactos"
+    },
+    "MENTIONS": {
+      "TITLE": "Mencionar um agente",
+      "EMPTY": "Nenhum agente encontrado"
     }
   }
 }

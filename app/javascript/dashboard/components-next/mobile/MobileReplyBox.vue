@@ -17,8 +17,10 @@ import { emitter } from 'shared/helpers/mitt';
 import { AUDIO_FORMATS } from 'shared/constants/messages';
 import { useHaptics } from 'dashboard/composables/useHaptics';
 import { vHapticTap } from './hapticTap';
+import { enqueueOutboxMessage } from './useOfflineOutbox';
 import WhatsappTemplates from 'dashboard/components/widgets/conversation/WhatsappTemplates/Modal.vue';
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
+import MobileMentionSheet from './MobileMentionSheet.vue';
 
 const store = useStore();
 const { t } = useI18n();
@@ -40,6 +42,11 @@ const recordingAudioDurationText = ref('00:00');
 const audioRecorderRef = ref(null);
 
 const showWhatsAppTemplatesModal = ref(false);
+
+// @mention state (private notes only)
+const showMentionSheet = ref(false);
+const mentionSearchKey = ref('');
+const MENTION_TRIGGER_REGEX = /@([\w]*)$/;
 
 const currentChat = useMapGetter('getSelectedChat');
 const currentUser = useMapGetter('getCurrentUser');
@@ -184,11 +191,23 @@ const onSend = async () => {
   // Haptic fires at tap time: iOS drops the Taptic switch trick once the
   // user activation expires across an await.
   success();
+
+  // Sem rede e sem anexos (File não é serializável): a mensagem entra na
+  // fila offline e sai sozinha quando a conexão voltar (useOfflineOutbox).
+  if (!navigator.onLine && !attachedFiles.value.length) {
+    enqueueOutboxMessage(messagePayload);
+    message.value = '';
+    nextTick(resizeTextarea);
+    useAlert(t('MOBILE.OFFLINE.QUEUED'));
+    return;
+  }
+
   try {
     await store.dispatch('createPendingMessageAndSend', messagePayload);
     emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
     message.value = '';
     attachedFiles.value = [];
+    showMentionSheet.value = false;
     // Reset audio state after sending
     resetAudioRecorder();
     nextTick(resizeTextarea);
@@ -322,6 +341,52 @@ const onTyping = () => {
   });
 };
 
+// --- @mention methods (private notes only) ---
+
+const updateMentionState = () => {
+  if (!effectivePrivate.value) {
+    showMentionSheet.value = false;
+    return;
+  }
+  const el = textareaRef.value;
+  if (!el) return;
+  const cursor = el.selectionStart ?? el.value.length;
+  const match = el.value.slice(0, cursor).match(MENTION_TRIGGER_REGEX);
+  if (match) {
+    mentionSearchKey.value = match[1];
+    showMentionSheet.value = true;
+  } else {
+    showMentionSheet.value = false;
+  }
+};
+
+const onInput = () => {
+  onTyping();
+  updateMentionState();
+};
+
+// Same markdown the desktop ReplyBox editor serializes for mention nodes:
+// [@Name](mention://user/<id>/<encoded name>)
+const onMentionSelect = agent => {
+  const el = textareaRef.value;
+  if (!el) return;
+  const cursor = el.selectionStart ?? message.value.length;
+  const mention = `[@${agent.name}](mention://user/${agent.id}/${encodeURIComponent(agent.name)}) `;
+  const beforeCursor = message.value
+    .slice(0, cursor)
+    .replace(MENTION_TRIGGER_REGEX, () => mention);
+  message.value = beforeCursor + message.value.slice(cursor);
+  showMentionSheet.value = false;
+  nextTick(() => {
+    el.focus();
+    el.setSelectionRange(beforeCursor.length, beforeCursor.length);
+  });
+};
+
+watch(effectivePrivate, isPrivateNote => {
+  if (!isPrivateNote) showMentionSheet.value = false;
+});
+
 const onTypingOff = () => {
   store.dispatch('conversationTypingStatus/toggleTyping', {
     status: 'off',
@@ -389,7 +454,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col border-t border-n-weak bg-n-background">
+  <div class="relative flex flex-col border-t border-n-weak bg-n-background">
+    <!-- @mention picker (private notes only), anchored above the composer -->
+    <MobileMentionSheet
+      v-if="showMentionSheet && effectivePrivate"
+      :search-key="mentionSearchKey"
+      @select-agent="onMentionSelect"
+    />
     <!-- Attachment preview -->
     <div
       v-if="attachedFiles.length"
@@ -549,7 +620,7 @@ onBeforeUnmount(() => {
           class="mobile-reply-textarea flex-1 min-w-0 w-full bg-transparent text-sm text-n-slate-12 placeholder:text-n-slate-9 placeholder:text-xs resize-none outline-none max-h-[120px] h-5 leading-5 overflow-y-hidden"
           :class="{ 'opacity-50 cursor-not-allowed': isEditorDisabled }"
           @keydown="onKeydown"
-          @input="onTyping"
+          @input="onInput"
           @blur="onInputBlur"
           @focus="isFocused = true"
         />

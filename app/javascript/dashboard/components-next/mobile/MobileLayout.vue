@@ -5,7 +5,9 @@ import { useI18n } from 'vue-i18n';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useHaptics } from 'dashboard/composables/useHaptics';
+import { useAlert } from 'dashboard/composables';
 import { useAppBadge } from './useAppBadge';
+import { useOfflineOutbox } from './useOfflineOutbox';
 import { consumeMobileTabDeepLink } from './mobileDeepLink';
 import {
   consumeMobileShareText,
@@ -25,6 +27,9 @@ const { accountScopedRoute } = useAccount();
 const { selection } = useHaptics();
 
 useAppBadge();
+useOfflineOutbox({
+  onFlushed: count => useAlert(t('MOBILE.OFFLINE.FLUSHED', { count })),
+});
 
 const activeTab = ref(1);
 

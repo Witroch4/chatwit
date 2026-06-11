@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed, provide, onMounted, watch } from 'vue';
+import { useOnline } from '@vueuse/core';
+import { dynamicTime } from 'shared/helpers/timeHelper';
 import {
   useStore,
   useMapGetter,
@@ -22,6 +24,7 @@ import ChatTypeTabs from 'dashboard/components/widgets/ChatTypeTabs.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import IntersectionObserver from 'dashboard/components/IntersectionObserver.vue';
 import MobileConversationHeader from './MobileConversationHeader.vue';
+import MobileSearchView from './MobileSearchView.vue';
 import MobileFilterSheet from './MobileFilterSheet.vue';
 import MobileConversationStatusSheet from './MobileConversationStatusSheet.vue';
 import MobileSnoozeSheet from './MobileSnoozeSheet.vue';
@@ -43,6 +46,13 @@ provide('swipeOpenRowId', swipeOpenRowId);
 const listRef = ref(null);
 const isPullRefreshing = ref(false);
 const showFilterSheet = ref(false);
+const showSearchView = ref(false);
+
+// Shell offline: snapshot leve das últimas conversas para a lista abrir sem
+// rede (render somente leitura + banner). O SW cobre HTML/assets; os dados
+// vêm deste snapshot em localStorage.
+const SNAPSHOT_KEY = 'chatwit_mobile_conversations_snapshot';
+const isOnline = useOnline();
 const showStatusSheet = ref(false);
 const selectedConversation = ref(null);
 const showSnoozeSheet = ref(false);
@@ -348,6 +358,39 @@ const onRefreshEnd = () => {
 
 const onRefresh = () => fetchConversations({ preserveRecords: true });
 
+const persistOfflineSnapshot = () => {
+  if (!chatLists.value.length) return;
+  const snapshot = chatLists.value.slice(0, 30).map(chat => ({
+    id: chat.id,
+    name: chat.meta?.sender?.name || '',
+    preview:
+      chat.last_non_activity_message?.content ||
+      chat.messages?.[chat.messages.length - 1]?.content ||
+      '',
+    timestamp: chat.timestamp,
+    status: chat.status,
+  }));
+  try {
+    window.localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    // snapshot é best-effort
+  }
+};
+
+watch(
+  () => chatLists.value.map(chat => `${chat.id}:${chat.timestamp}`).join(','),
+  persistOfflineSnapshot
+);
+
+const offlineSnapshot = computed(() => {
+  if (isOnline.value || chatLists.value.length) return [];
+  try {
+    return JSON.parse(window.localStorage.getItem(SNAPSHOT_KEY)) || [];
+  } catch {
+    return [];
+  }
+});
+
 const onFilterApply = filters => {
   if (filters.status) activeStatus.value = filters.status;
   if (filters.assigneeType) activeAssigneeTab.value = filters.assigneeType;
@@ -372,7 +415,17 @@ watch(conversationFilters, newFilters => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <MobileConversationHeader @open-filter="showFilterSheet = true" />
+    <MobileConversationHeader
+      @open-filter="showFilterSheet = true"
+      @open-search="showSearchView = true"
+    />
+    <div
+      v-if="!isOnline"
+      class="flex items-center justify-center gap-2 bg-n-amber-3 px-4 py-1.5 text-xs font-medium text-n-amber-11"
+    >
+      <span class="i-lucide-wifi-off size-3.5" />
+      {{ t('MOBILE.OFFLINE.BANNER') }}
+    </div>
     <ChatTypeTabs
       :items="assigneeTabItems"
       :active-tab="activeAssigneeTab"
@@ -394,6 +447,28 @@ watch(conversationFilters, newFilters => {
           class="flex items-center justify-center py-8"
         >
           <Spinner class="text-n-brand" />
+        </div>
+        <div
+          v-else-if="offlineSnapshot.length"
+          class="flex flex-col gap-0.5 px-2"
+        >
+          <div
+            v-for="item in offlineSnapshot"
+            :key="item.id"
+            class="rounded-lg bg-white dark:bg-n-background px-4 py-3 opacity-80"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <p class="truncate text-sm font-semibold text-n-slate-12">
+                {{ item.name }}
+              </p>
+              <span class="shrink-0 text-xs text-n-slate-10">
+                {{ dynamicTime(item.timestamp) }}
+              </span>
+            </div>
+            <p class="mt-0.5 truncate text-sm text-n-slate-11">
+              {{ item.preview }}
+            </p>
+          </div>
         </div>
         <div
           v-else-if="!chatLists.length"
@@ -449,6 +524,11 @@ watch(conversationFilters, newFilters => {
         </template>
       </div>
     </MobilePullToRefresh>
+    <MobileSearchView
+      v-if="showSearchView"
+      @close="showSearchView = false"
+      @open-conversation="emit('openConversation', $event)"
+    />
     <MobileFilterSheet
       v-if="showFilterSheet"
       :status="activeStatus"

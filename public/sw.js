@@ -359,12 +359,93 @@ const updateAppBadge = async () => {
   }
 };
 
-self.addEventListener('install', () => {
+// Offline shell: navigations are network-first with cache fallback, hashed
+// build assets are stale-while-revalidate. API/websocket traffic is never
+// touched, so online behavior stays byte-identical.
+const SHELL_CACHE = 'chatwit-shell-v1';
+const SHELL_PRECACHE_URLS = [
+  '/manifest.json',
+  '/android-icon-192x192.png',
+  '/favicon-96x96.png',
+];
+const BUILD_ASSET_RE = /\/(vite|vite-dev|packs|assets)\//;
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches
+      .open(SHELL_CACHE)
+      .then(cache => cache.addAll(SHELL_PRECACHE_URLS))
+      .catch(() => {})
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter(
+            key => key.startsWith('chatwit-shell-') && key !== SHELL_CACHE
+          )
+          .map(key => caches.delete(key))
+      );
+      await self.clients.claim();
+    })()
+  );
+});
+
+self.addEventListener('fetch', event => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch (e) {
+    return;
+  }
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/cable')) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(SHELL_CACHE);
+        try {
+          const response = await fetch(request);
+          if (response.ok) cache.put(request, response.clone());
+          return response;
+        } catch (err) {
+          const cached = await cache.match(request, { ignoreSearch: true });
+          if (cached) return cached;
+          const fallback = await cache.match('/app', { ignoreSearch: true });
+          if (fallback) return fallback;
+          throw err;
+        }
+      })()
+    );
+    return;
+  }
+
+  if (BUILD_ASSET_RE.test(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(SHELL_CACHE);
+        const cached = await cache.match(request);
+        const network = fetch(request)
+          .then(response => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          })
+          .catch(() => null);
+        return cached || (await network) || Response.error();
+      })()
+    );
+  }
 });
 
 self.addEventListener('message', event => {

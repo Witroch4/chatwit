@@ -235,6 +235,16 @@ Item 17 do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`):
 
 Chaves `MOBILE.SHARE_TARGET.*` em `en`/`pt`/`pt_BR`; desktop intocado (manifest é plataforma-neutro e o restante vive em `components-next/mobile/`). Item 17 marcado como entregue no roadmap.
 
+### 2026-06-11 — Lote G do roadmap: shell offline + fila offline de envio
+
+Itens 14 e 15 do plano de execução (entregues antes de D/E/F por serem independentes):
+
+- **Shell offline (item 14).** `public/sw.js` ganhou cache versionado `chatwit-shell-v1`: navegações são **network-first** com fallback ao cache (online o comportamento é byte-idêntico; offline o app abre com o último HTML servido), assets de build (`/vite/`, `/packs/`) são **stale-while-revalidate**, e `/api/`/`/cable` nunca passam pelo cache. Versões antigas do cache são limpas no `activate`.
+- **Snapshot de conversas offline (item 14).** `MobileConversationList.vue` persiste um snapshot leve (30 conversas: nome, preview, timestamp, status) em `localStorage` a cada atualização da lista; sem rede e sem dados na store, a lista renderiza o snapshot somente-leitura com banner âmbar "Sem conexão" (`useOnline` do `@vueuse/core`).
+- **Fila offline de envio (item 15).** Novo `components-next/mobile/useOfflineOutbox.js`: mensagens de **texto** enviadas sem rede entram numa fila em `localStorage` (toast "será enviada quando a rede voltar") e são drenadas em ordem pelo MESMO `createPendingMessageAndSend` do envio normal quando o evento `online` dispara (flush montado no `MobileLayout.vue`, com toast de confirmação). Falhas pós-flush seguem o fluxo padrão de mensagem failed/retry. **Limitação documentada:** anexos não entram na fila (objetos `File` não são serializáveis) — envio com anexo offline mostra o erro normal.
+
+Chaves `MOBILE.OFFLINE.*` em `en`/`pt`/`pt_BR`. Desktop intocado: SW só adiciona handlers (push segue idêntico) e o restante vive em `components-next/mobile/`.
+
 ### 2026-06-11 — Lote C do roadmap: detalhes do contato + labels do contato
 
 Terceira leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`), itens 3 e 9:
@@ -244,6 +254,26 @@ Terceira leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan
 - **Entrada:** novo card do contato no topo do `MobileConversationActionsView.vue` (avatar + nome + telefone/e-mail + "Ver"), emitindo `openContact` para o chat abrir a página.
 
 Haptics em todas as superfícies novas (`v-haptic-tap` + haptic síncrono); chaves `MOBILE.CONTACT.*` em `en`/`pt`/`pt_BR`; desktop intocado (tudo em `components-next/mobile/`).
+
+### 2026-06-11 — Lote D (Task 1): @menções em notas privadas
+
+Item 1 do roadmap (`chatwitdocs/mobile-roadmap-execution-plan.md`, Lote D):
+
+- **`MobileMentionSheet.vue` (novo).** Lista de agentes ancorada acima do composer (`absolute bottom-full` no `MobileReplyBox.vue`, que fica acima do teclado via `useKeyboardResize` já existente). Conecta o MESMO getter desktop usado pelo `TagAgents.vue`: `agents/getVerifiedAgents` (dados já carregados pelo `agents/get` que o `MobileChatView.vue` despacha no mount), filtrado pelo termo digitado após o `@`. Avatar reusa `components-next/avatar/Avatar.vue` (o mesmo do TagAgents desktop).
+- **`MobileReplyBox.vue`.** No `input` do textarea, quando o modo nota privada está ativo (`effectivePrivate`), o trecho até o cursor é testado com `/@([\w]*)$/`; match abre o sheet com o termo. Ao selecionar, o `@termo` é substituído pelo MESMO markdown de menção que o editor desktop serializa (`@chatwoot/prosemirror-schema` `serializer.js`/`schema.js`): `[@Nome](mention://user/<id>/<encodeURIComponent(nome)>)`, e o foco volta ao textarea com o cursor após a menção. Menção indisponível em resposta pública (sheet fecha ao destravar o cadeado) — mesmo comportamento do desktop, onde o fluxo de mention só existe em nota privada. O backend processa a notificação do agente mencionado pelo mesmo pipeline de sempre (nenhuma chamada nova).
+- **i18n:** chaves `MOBILE.MENTIONS.*` (`TITLE`, `EMPTY`) em `en`/`pt`/`pt_BR`.
+
+Haptics: linhas de agente com `v-haptic-tap` + `selection()` síncrono no handler. Isolamento preservado: mudanças só em `components-next/mobile/` + `locale/*/mobile.json`; nenhum componente/store desktop alterado.
+
+### 2026-06-11 — Lote D (Task 2): busca de conversas, mensagens e contatos
+
+Item 2 do roadmap (`chatwitdocs/mobile-roadmap-execution-plan.md`, Lote D):
+
+- **`MobileSearchView.vue` (novo).** View fullscreen (Teleport no body, acima do tab bar) com input autofocus no topo e debounce de 300ms via `useDebounceFn` do `@vueuse/core`. Conecta o MESMO store desktop `conversationSearch`: dispatch `conversationSearch/fullSearch` com `{ q, page: 1 }` (precedido de `clearSearchResults`, igual ao `SearchView.vue` desktop, já que as mutations de resultado são append-only) e `clearSearchResults` no unmount/fechar. Resultados via getters `getConversationRecords`, `getMessageRecords`, `getContactRecords` e `getUIFlags`, em 3 grupos (Conversas / Mensagens / Contatos). Tap em conversa ou mensagem reusa a navegação por URL da lista (`openConversation` → `inbox_conversation` no `MobileLayout.vue`). Estados: dica "digite para buscar", carregando (`MobilePetalLoader` spinning) e "sem resultados" (baseado em `isSearchCompleted`). Contatos são exibidos como informação (nome + e-mail/telefone) sem navegação — o registro de contato da busca não carrega conversa associada e o mobile não tem tela de contato; nada de lógica paralela foi criada.
+- **`MobileConversationHeader.vue`.** Ícone de lupa ao lado do filtro emitindo `openSearch`; `MobileConversationList.vue` apenas abre/fecha a view e re-emite `openConversation`.
+- **i18n:** chaves `MOBILE.SEARCH.*` em `en`/`pt`/`pt_BR`.
+
+Haptics: lupa, voltar, limpar e resultados com `v-haptic-tap` + haptic síncrono no handler (`light()`/`selection()`). Isolamento preservado: nenhum arquivo desktop tocado — tudo em `components-next/mobile/` + `locale/*/mobile.json`.
 
 ### 2026-06-11 — Lote B do roadmap: lightbox touch e snooze customizado
 
