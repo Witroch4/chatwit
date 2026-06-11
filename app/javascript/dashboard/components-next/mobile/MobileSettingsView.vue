@@ -15,7 +15,7 @@ import MobileAvailabilityToggle from './MobileAvailabilityToggle.vue';
 import MobileBottomSheet from './MobileBottomSheet.vue';
 import MobileNotificationPrefsView from './MobileNotificationPrefsView.vue';
 import { useHaptics } from 'dashboard/composables/useHaptics';
-import { vHapticTap } from './hapticTap';
+import { vHapticTap as hapticTapDirective } from './hapticTap';
 import {
   hasPushPermissions,
   requestPushPermissions,
@@ -45,6 +45,18 @@ const isAccountSheetOpen = ref(false);
 const isNotificationPrefsOpen = ref(false);
 
 const { selection } = useHaptics();
+
+// Value-gated wrapper so the trusted-tap overlay applies only to rows that
+// opt in (currently just the notifications row), leaving pre-existing rows
+// with their original behavior.
+const vHapticTap = {
+  mounted(el, binding) {
+    if (binding.value) hapticTapDirective.mounted(el, binding);
+  },
+  unmounted(el, binding) {
+    hapticTapDirective.unmounted(el, binding);
+  },
+};
 
 // Push notification state
 const pushEnabled = ref(false);
@@ -286,6 +298,7 @@ const settingsItems = computed(() => [
     label: t('MOBILE.SETTINGS.NOTIFICATIONS'),
     action: 'notification-preferences',
     onClick: onOpenNotificationPrefs,
+    haptic: true,
   },
   {
     icon: 'i-lucide-globe',
@@ -429,7 +442,7 @@ const settingsItems = computed(() => [
       <button
         v-for="item in settingsItems"
         :key="item.action"
-        v-haptic-tap
+        v-haptic-tap="item.haptic"
         class="flex items-center gap-3 px-4 py-3.5 text-left text-n-slate-12 active:bg-n-alpha-1 border-b border-n-weak"
         :class="{ 'opacity-60': item.disabled }"
         :disabled="item.disabled"

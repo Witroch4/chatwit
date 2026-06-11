@@ -88,6 +88,10 @@ const updateNotificationSettings = async () => {
       selectedPushFlags: selectedPushFlags.value,
     });
   } catch (error) {
+    // Re-sync local state with the server-backed store so the toggles
+    // revert instead of displaying a state that failed to persist.
+    selectedEmailFlags.value = emailFlags.value || [];
+    selectedPushFlags.value = pushFlags.value || [];
     useAlert(t('PROFILE_SETTINGS.FORM.API.UPDATE_ERROR'));
   }
 };
@@ -119,7 +123,7 @@ const handleToggle = (type, value) => {
       </header>
 
       <div
-        class="flex-1 overflow-y-auto px-4 pb-[calc(24px+env(safe-area-inset-bottom))]"
+        class="flex-1 overflow-y-auto overscroll-y-contain px-4 pb-[calc(24px+env(safe-area-inset-bottom))]"
       >
         <section v-for="group in groups" :key="group.key" class="pt-5">
           <span
