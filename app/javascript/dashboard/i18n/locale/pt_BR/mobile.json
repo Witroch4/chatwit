@@ -92,7 +92,14 @@
         "MUTE": "Silenciar conversa",
         "UNMUTE": "Reativar notificações",
         "SHARE": "Compartilhar link da conversa",
-        "LINK_COPIED": "Link da conversa copiado"
+        "LINK_COPIED": "Link da conversa copiado",
+        "TRANSCRIPT": "Enviar transcrição por e-mail",
+        "TRANSCRIPT_TITLE": "Enviar transcrição",
+        "TRANSCRIPT_EMAIL_LABEL": "Enviar para o e-mail",
+        "TRANSCRIPT_EMAIL_PLACEHOLDER": "email@exemplo.com",
+        "TRANSCRIPT_SEND": "Enviar",
+        "TRANSCRIPT_SUCCESS": "Transcrição enviada com sucesso",
+        "TRANSCRIPT_ERROR": "Não foi possível enviar a transcrição, tente novamente"
       }
     },
     "SETTINGS": {

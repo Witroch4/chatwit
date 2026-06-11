@@ -14,6 +14,7 @@ import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import wootConstants from 'dashboard/constants/globals';
 import MobileActionPickerSheet from './MobileActionPickerSheet.vue';
+import MobileBottomSheet from './MobileBottomSheet.vue';
 import MobileMacrosSheet from './MobileMacrosSheet.vue';
 import MobileMultiPickerSheet from './MobileMultiPickerSheet.vue';
 import MobileSnoozeSheet from './MobileSnoozeSheet.vue';
@@ -31,6 +32,7 @@ const { medium, success } = useHaptics();
 const { checkMissingAttributes } = useConversationRequiredAttributes();
 const currentChat = useMapGetter('getSelectedChat');
 const currentAccountId = useMapGetter('auth/getCurrentAccountId');
+const currentUser = useMapGetter('getCurrentUser');
 
 const resolveAttributesModalRef = ref(null);
 const showAssigneeSheet = ref(false);
@@ -40,6 +42,9 @@ const showPrioritySheet = ref(false);
 const showLabelsSheet = ref(false);
 const showParticipantsSheet = ref(false);
 const showMacrosSheet = ref(false);
+const showTranscriptSheet = ref(false);
+const transcriptEmail = ref('');
+const isSendingTranscript = ref(false);
 
 const conversation = computed(() => {
   if (currentChat.value?.id === props.conversationId) {
@@ -424,6 +429,37 @@ const handleOpenMacros = () => {
   showMacrosSheet.value = true;
 };
 
+const isTranscriptEmailValid = computed(() =>
+  /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(transcriptEmail.value.trim())
+);
+
+const handleOpenTranscript = () => {
+  medium();
+  transcriptEmail.value = currentUser.value?.email || '';
+  showTranscriptSheet.value = true;
+};
+
+const handleSendTranscript = async () => {
+  if (!isTranscriptEmailValid.value || isSendingTranscript.value) return;
+
+  // Haptic fires at tap time: iOS drops the Taptic switch trick once the
+  // user activation expires across an await.
+  medium();
+  isSendingTranscript.value = true;
+  try {
+    await store.dispatch('sendEmailTranscript', {
+      conversationId: props.conversationId,
+      email: transcriptEmail.value.trim(),
+    });
+    useAlert(t('MOBILE.ACTIONS.MORE.TRANSCRIPT_SUCCESS'));
+    showTranscriptSheet.value = false;
+  } catch (error) {
+    useAlert(t('MOBILE.ACTIONS.MORE.TRANSCRIPT_ERROR'));
+  } finally {
+    isSendingTranscript.value = false;
+  }
+};
+
 const handleShareConversation = async () => {
   medium();
   const url = `${window.location.origin}${frontendURL(
@@ -746,6 +782,24 @@ watch(
         <button
           v-haptic-tap
           class="flex w-full items-center gap-3 border-t border-n-weak px-4 py-3 text-left active:bg-n-alpha-2"
+          @click="handleOpenTranscript"
+        >
+          <span
+            class="flex size-9 shrink-0 items-center justify-center rounded-full bg-n-surface-2 text-n-slate-11"
+          >
+            <span class="i-lucide-mail size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-medium text-n-slate-12">
+              {{ t('MOBILE.ACTIONS.MORE.TRANSCRIPT') }}
+            </p>
+          </div>
+          <span class="i-lucide-chevron-right size-4 text-n-slate-9" />
+        </button>
+
+        <button
+          v-haptic-tap
+          class="flex w-full items-center gap-3 border-t border-n-weak px-4 py-3 text-left active:bg-n-alpha-2"
           @click="handleShareConversation"
         >
           <span
@@ -832,6 +886,39 @@ watch(
       :conversation-id="conversationId"
       @close="showMacrosSheet = false"
     />
+
+    <MobileBottomSheet
+      v-if="showTranscriptSheet"
+      :title="t('MOBILE.ACTIONS.MORE.TRANSCRIPT_TITLE')"
+      @close="showTranscriptSheet = false"
+    >
+      <p class="mb-2 text-[13px] font-medium text-n-slate-10">
+        {{ t('MOBILE.ACTIONS.MORE.TRANSCRIPT_EMAIL_LABEL') }}
+      </p>
+      <div class="flex items-center gap-3">
+        <input
+          v-model="transcriptEmail"
+          type="email"
+          inputmode="email"
+          autocapitalize="none"
+          autocomplete="email"
+          :placeholder="t('MOBILE.ACTIONS.MORE.TRANSCRIPT_EMAIL_PLACEHOLDER')"
+          class="h-10 min-w-0 flex-1 rounded-lg border border-n-weak bg-white dark:bg-n-background px-3 text-sm text-n-slate-12"
+        />
+        <button
+          v-haptic-tap
+          class="flex h-10 items-center gap-2 rounded-lg bg-n-brand px-4 text-sm font-medium text-white active:opacity-90 disabled:opacity-40"
+          :disabled="!isTranscriptEmailValid || isSendingTranscript"
+          @click="handleSendTranscript"
+        >
+          <span
+            v-if="isSendingTranscript"
+            class="i-lucide-loader-circle size-4 animate-spin"
+          />
+          {{ t('MOBILE.ACTIONS.MORE.TRANSCRIPT_SEND') }}
+        </button>
+      </div>
+    </MobileBottomSheet>
 
     <ConversationResolveAttributesModal
       ref="resolveAttributesModalRef"

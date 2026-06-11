@@ -92,7 +92,14 @@
         "MUTE": "Mute conversation",
         "UNMUTE": "Unmute conversation",
         "SHARE": "Share conversation link",
-        "LINK_COPIED": "Conversation link copied"
+        "LINK_COPIED": "Conversation link copied",
+        "TRANSCRIPT": "Send transcript via email",
+        "TRANSCRIPT_TITLE": "Send transcript",
+        "TRANSCRIPT_EMAIL_LABEL": "Send to email",
+        "TRANSCRIPT_EMAIL_PLACEHOLDER": "email@example.com",
+        "TRANSCRIPT_SEND": "Send",
+        "TRANSCRIPT_SUCCESS": "Transcript sent successfully",
+        "TRANSCRIPT_ERROR": "Could not send the transcript, please try again"
       }
     },
     "SETTINGS": {
