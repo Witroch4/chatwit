@@ -244,6 +244,16 @@ Terceira leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan
 
 Haptics em todas as superfícies novas (`v-haptic-tap` + haptic síncrono); chaves `MOBILE.CONTACT.*` em `en`/`pt`/`pt_BR`; desktop intocado (tudo em `components-next/mobile/`).
 
+### 2026-06-11 — Lote D (Task 2): busca de conversas, mensagens e contatos
+
+Item 2 do roadmap (`chatwitdocs/mobile-roadmap-execution-plan.md`, Lote D):
+
+- **`MobileSearchView.vue` (novo).** View fullscreen (Teleport no body, acima do tab bar) com input autofocus no topo e debounce de 300ms via `useDebounceFn` do `@vueuse/core`. Conecta o MESMO store desktop `conversationSearch`: dispatch `conversationSearch/fullSearch` com `{ q, page: 1 }` (precedido de `clearSearchResults`, igual ao `SearchView.vue` desktop, já que as mutations de resultado são append-only) e `clearSearchResults` no unmount/fechar. Resultados via getters `getConversationRecords`, `getMessageRecords`, `getContactRecords` e `getUIFlags`, em 3 grupos (Conversas / Mensagens / Contatos). Tap em conversa ou mensagem reusa a navegação por URL da lista (`openConversation` → `inbox_conversation` no `MobileLayout.vue`). Estados: dica "digite para buscar", carregando (`MobilePetalLoader` spinning) e "sem resultados" (baseado em `isSearchCompleted`). Contatos são exibidos como informação (nome + e-mail/telefone) sem navegação — o registro de contato da busca não carrega conversa associada e o mobile não tem tela de contato; nada de lógica paralela foi criada.
+- **`MobileConversationHeader.vue`.** Ícone de lupa ao lado do filtro emitindo `openSearch`; `MobileConversationList.vue` apenas abre/fecha a view e re-emite `openConversation`.
+- **i18n:** chaves `MOBILE.SEARCH.*` em `en`/`pt`/`pt_BR`.
+
+Haptics: lupa, voltar, limpar e resultados com `v-haptic-tap` + haptic síncrono no handler (`light()`/`selection()`). Isolamento preservado: nenhum arquivo desktop tocado — tudo em `components-next/mobile/` + `locale/*/mobile.json`.
+
 ### 2026-06-11 — Lote B do roadmap: lightbox touch e snooze customizado
 
 Segunda leva do plano de execução (`chatwitdocs/mobile-roadmap-execution-plan.md`):

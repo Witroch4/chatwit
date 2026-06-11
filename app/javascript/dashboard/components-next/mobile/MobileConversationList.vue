@@ -24,6 +24,7 @@ import ChatTypeTabs from 'dashboard/components/widgets/ChatTypeTabs.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import IntersectionObserver from 'dashboard/components/IntersectionObserver.vue';
 import MobileConversationHeader from './MobileConversationHeader.vue';
+import MobileSearchView from './MobileSearchView.vue';
 import MobileFilterSheet from './MobileFilterSheet.vue';
 import MobileConversationStatusSheet from './MobileConversationStatusSheet.vue';
 import MobileSnoozeSheet from './MobileSnoozeSheet.vue';
@@ -45,6 +46,7 @@ provide('swipeOpenRowId', swipeOpenRowId);
 const listRef = ref(null);
 const isPullRefreshing = ref(false);
 const showFilterSheet = ref(false);
+const showSearchView = ref(false);
 
 // Shell offline: snapshot leve das últimas conversas para a lista abrir sem
 // rede (render somente leitura + banner). O SW cobre HTML/assets; os dados
@@ -413,7 +415,10 @@ watch(conversationFilters, newFilters => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <MobileConversationHeader @open-filter="showFilterSheet = true" />
+    <MobileConversationHeader
+      @open-filter="showFilterSheet = true"
+      @open-search="showSearchView = true"
+    />
     <div
       v-if="!isOnline"
       class="flex items-center justify-center gap-2 bg-n-amber-3 px-4 py-1.5 text-xs font-medium text-n-amber-11"
@@ -519,6 +524,11 @@ watch(conversationFilters, newFilters => {
         </template>
       </div>
     </MobilePullToRefresh>
+    <MobileSearchView
+      v-if="showSearchView"
+      @close="showSearchView = false"
+      @open-conversation="emit('openConversation', $event)"
+    />
     <MobileFilterSheet
       v-if="showFilterSheet"
       :status="activeStatus"

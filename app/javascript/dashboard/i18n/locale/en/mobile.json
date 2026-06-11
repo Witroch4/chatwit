@@ -183,6 +183,17 @@
       "BANNER": "No connection — showing recent conversations",
       "QUEUED": "No connection. Message will be sent when you are back online",
       "FLUSHED": "Connection restored: {count} pending message(s) sent"
+    },
+    "SEARCH": {
+      "OPEN": "Search",
+      "PLACEHOLDER": "Search conversations, messages, contacts",
+      "BACK": "Close search",
+      "CLEAR": "Clear search",
+      "HINT": "Type to search",
+      "NO_RESULTS": "No results for \"{query}\"",
+      "CONVERSATIONS": "Conversations",
+      "MESSAGES": "Messages",
+      "CONTACTS": "Contacts"
     }
   }
 }
