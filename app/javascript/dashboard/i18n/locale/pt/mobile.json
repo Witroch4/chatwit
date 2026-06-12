@@ -22,7 +22,13 @@
       "TYPE_MESSAGE": "Digite uma mensagem",
       "PRIVATE_PLACEHOLDER": "Visivel apenas para agentes",
       "USE_TEMPLATE": "Use template para responder",
-      "TAKE_PHOTO": "Tirar foto"
+      "TAKE_PHOTO": "Tirar foto",
+      "AI": {
+        "ASSIST": "Assistente de IA",
+        "SUMMARIZE": "Resumir conversa",
+        "SUGGEST_REPLY": "Sugerir resposta",
+        "GENERATING": "Gerando…"
+      }
     },
     "ACTIONS": {
       "SECTIONS": {
