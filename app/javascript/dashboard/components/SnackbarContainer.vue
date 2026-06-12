@@ -58,7 +58,7 @@ onUnmounted(() => {
   <div
     ref="snackbarContainer"
     popover="manual"
-    class="fixed top-4 left-1/2 -translate-x-1/2 max-w-[25rem] w-[calc(100%-2rem)] text-center bg-transparent border-0 p-0 m-0 outline-none overflow-visible"
+    class="fixed top-[calc(1rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 max-w-[25rem] w-[calc(100%-2rem)] text-center bg-transparent border-0 p-0 m-0 outline-none overflow-visible"
   >
     <transition-group name="toast-fade" tag="div">
       <WootSnackbar
