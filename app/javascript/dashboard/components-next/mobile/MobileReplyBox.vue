@@ -16,15 +16,22 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { emitter } from 'shared/helpers/mitt';
 import { AUDIO_FORMATS } from 'shared/constants/messages';
 import { useHaptics } from 'dashboard/composables/useHaptics';
+import { useCaptain } from 'dashboard/composables/useCaptain';
 import { vHapticTap } from './hapticTap';
 import { enqueueOutboxMessage } from './useOfflineOutbox';
 import WhatsappTemplates from 'dashboard/components/widgets/conversation/WhatsappTemplates/Modal.vue';
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
 import MobileMentionSheet from './MobileMentionSheet.vue';
+import MobileActionPickerSheet from './MobileActionPickerSheet.vue';
 
 const store = useStore();
 const { t } = useI18n();
 const { success, light } = useHaptics();
+const {
+  captainEnabled,
+  summarizeConversation,
+  getReplySuggestion,
+} = useCaptain();
 
 const message = ref('');
 const isPrivate = ref(false);
@@ -42,6 +49,10 @@ const recordingAudioDurationText = ref('00:00');
 const audioRecorderRef = ref(null);
 
 const showWhatsAppTemplatesModal = ref(false);
+
+// Captain AI assist (summarize / suggest reply)
+const showAiSheet = ref(false);
+const isAiGenerating = ref(false);
 
 // @mention state (private notes only)
 const showMentionSheet = ref(false);
@@ -420,6 +431,55 @@ const onSendWhatsAppReply = async messagePayload => {
   }
 };
 
+// Show the AI assist button when Captain is available and the composer is active
+const showAiAssist = computed(() => {
+  return (
+    captainEnabled.value && !isEditorDisabled.value && !showAudioRecorderEditor.value
+  );
+});
+
+const aiMenuItems = computed(() => [
+  {
+    key: 'reply_suggestion',
+    label: t('MOBILE.CHAT.AI.SUGGEST_REPLY'),
+    icon: 'i-lucide-message-circle',
+  },
+  {
+    key: 'summarize',
+    label: t('MOBILE.CHAT.AI.SUMMARIZE'),
+    icon: 'i-lucide-text',
+  },
+]);
+
+const onAiButtonClick = () => {
+  if (isAiGenerating.value) return;
+  light();
+  showAiSheet.value = true;
+};
+
+const onAiSelect = async item => {
+  showAiSheet.value = false;
+  if (!currentChat.value?.id || isAiGenerating.value) return;
+
+  isAiGenerating.value = true;
+  try {
+    const { message: generated } =
+      item.key === 'summarize'
+        ? await summarizeConversation()
+        : await getReplySuggestion();
+
+    if (generated) {
+      message.value = generated;
+      nextTick(() => {
+        resizeTextarea();
+        textareaRef.value?.focus();
+      });
+    }
+  } finally {
+    isAiGenerating.value = false;
+  }
+};
+
 const focusReplyTextarea = (payload = {}) => {
   if (isEditorDisabled.value) return;
   const conversationId = payload?.conversationId;
@@ -673,6 +733,51 @@ onBeforeUnmount(() => {
         }}</span>
       </div>
 
+      <!-- AI assist button (Captain: summarize / suggest reply) -->
+      <button
+        v-if="showAiAssist"
+        v-haptic-tap
+        class="flex items-center justify-center w-9 h-9 flex-shrink-0 text-n-brand mb-0.5 disabled:opacity-50"
+        :aria-label="t('MOBILE.CHAT.AI.ASSIST')"
+        :disabled="isAiGenerating"
+        @click="onAiButtonClick"
+      >
+        <svg
+          v-if="isAiGenerating"
+          class="animate-spin"
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+        <svg
+          v-else
+          xmlns="http://www.w3.org/2000/svg"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M9.5 3 11 7.5 15.5 9 11 10.5 9.5 15 8 10.5 3.5 9 8 7.5 9.5 3z"
+          />
+          <path d="M18 4v4" />
+          <path d="M20 6h-4" />
+          <path d="M17.5 15.5 18.5 18l2.5 1-2.5 1-1 2.5-1-2.5L14 19l2.5-1 1-2.5z" />
+        </svg>
+      </button>
+
       <!-- Send button (when has content, including recorded audio) -->
       <button
         v-if="hasContent && !isEditorDisabled"
@@ -772,6 +877,15 @@ onBeforeUnmount(() => {
       @on-send="onSendWhatsAppReply"
       @cancel="showWhatsAppTemplatesModal = false"
       @close="showWhatsAppTemplatesModal = false"
+    />
+
+    <!-- AI assist action sheet -->
+    <MobileActionPickerSheet
+      :open="showAiSheet"
+      :title="t('MOBILE.CHAT.AI.ASSIST')"
+      :items="aiMenuItems"
+      @close="showAiSheet = false"
+      @select="onAiSelect"
     />
   </div>
 </template>

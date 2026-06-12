@@ -504,4 +504,12 @@ watch(
 .mobile-chat-messages :deep(.rich-cards-container img) {
   max-width: 100%;
 }
+
+/* System/activity messages: clean centered text, no bubble background */
+.mobile-chat-messages :deep([data-bubble-name='activity']) {
+  background-color: transparent !important;
+  text-align: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
 </style>
