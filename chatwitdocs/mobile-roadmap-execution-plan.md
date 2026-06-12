@@ -48,7 +48,7 @@
 
 **Fonte desktop:** getter `notifications/getUnreadCount` (o mesmo já usado em `MobileBottomTabBar.vue:18`).
 
-- [ ] **Step 1: composable que espelha o unread count no ícone**
+- [x] **Step 1: composable que espelha o unread count no ícone**
 
 ```js
 // components-next/mobile/useAppBadge.js
@@ -73,10 +73,10 @@ export const useAppBadge = () => {
 };
 ```
 
-- [ ] **Step 2: montar em `MobileLayout.vue`** — no `<script setup>`, `import { useAppBadge } from './useAppBadge';` e chamar `useAppBadge();` no topo (roda só quando o layout mobile existe → zero efeito desktop).
-- [ ] **Step 3: badge no SW** — em `public/sw.js`, dentro do handler `push` (após montar a notificação), incrementar via `self.navigator.setAppBadge?.()` sem contagem precisa não é possível; usar o campo `unread_count` se presente no payload, senão `navigator.setAppBadge()` (badge "dot"). No `notificationclick`, `self.navigator.clearAppBadge?.()` não deve ser chamado (quem limpa é o app ao carregar via Step 1). Manter mudanças no SW puramente aditivas.
-- [ ] **Step 4: validar** — eslint nos arquivos; instalar PWA no iPhone, receber push com app fechado → badge aparece; abrir app e ler → badge some. Desktop inalterado.
-- [ ] **Step 5: changelog + commit** `feat(mobile): app icon unread badge via Badging API`
+- [x] **Step 2: montar em `MobileLayout.vue`** — no `<script setup>`, `import { useAppBadge } from './useAppBadge';` e chamar `useAppBadge();` no topo (roda só quando o layout mobile existe → zero efeito desktop).
+- [x] **Step 3: badge no SW** — em `public/sw.js`, dentro do handler `push` (após montar a notificação), incrementar via `self.navigator.setAppBadge?.()` sem contagem precisa não é possível; usar o campo `unread_count` se presente no payload, senão `navigator.setAppBadge()` (badge "dot"). No `notificationclick`, `self.navigator.clearAppBadge?.()` não deve ser chamado (quem limpa é o app ao carregar via Step 1). Manter mudanças no SW puramente aditivas.
+- [x] **Step 4: validar** — eslint nos arquivos; instalar PWA no iPhone, receber push com app fechado → badge aparece; abrir app e ler → badge some. Desktop inalterado.
+- [x] **Step 5: changelog + commit** `feat(mobile): app icon unread badge via Badging API`
 
 ### Task 6: Filtro por inbox na lista de conversas
 
@@ -86,10 +86,10 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** getter `inboxes/getInboxes`; a action de fetch da lista mobile já aceita `inboxId` (mesmo contrato de `conversations/fetchAllConversations`, que lê `inboxId` dos `conversationFilters`).
 
-- [ ] **Step 1:** em `MobileConversationList.vue`, adicionar `const selectedInboxId = ref(0);` e incluir `inboxId: selectedInboxId.value || undefined` no payload do fetch existente (mesmo lugar onde já vão `status`/`assigneeType`); resetar paginação ao mudar.
-- [ ] **Step 2:** em `MobileFilterSheet.vue`, nova seção com lista de inboxes (`useMapGetter('inboxes/getInboxes')`), opção "Todas" (id 0) + uma linha por inbox (nome + ícone do canal), `v-haptic-tap` + `selection()` no tap, emit `update:inboxId`.
-- [ ] **Step 3:** i18n `MOBILE.FILTERS.INBOX.TITLE`, `MOBILE.FILTERS.INBOX.ALL` nos 3 idiomas.
-- [ ] **Step 4:** validar (eslint, mobile: filtrar por inbox atualiza lista; desktop intocado), changelog, commit `feat(mobile): inbox filter in conversation list`.
+- [x] **Step 1:** em `MobileConversationList.vue`, adicionar `const selectedInboxId = ref(0);` e incluir `inboxId: selectedInboxId.value || undefined` no payload do fetch existente (mesmo lugar onde já vão `status`/`assigneeType`); resetar paginação ao mudar.
+- [x] **Step 2:** em `MobileFilterSheet.vue`, nova seção com lista de inboxes (`useMapGetter('inboxes/getInboxes')`), opção "Todas" (id 0) + uma linha por inbox (nome + ícone do canal), `v-haptic-tap` + `selection()` no tap, emit `update:inboxId`.
+- [x] **Step 3:** i18n `MOBILE.FILTERS.INBOX.TITLE`, `MOBILE.FILTERS.INBOX.ALL` nos 3 idiomas.
+- [x] **Step 4:** validar (eslint, mobile: filtrar por inbox atualiza lista; desktop intocado), changelog, commit `feat(mobile): inbox filter in conversation list`.
 
 ### Task 19: Captura direta de câmera no composer
 
@@ -98,16 +98,16 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** o mesmo fluxo de upload do `fileInput` existente (`onFileChange` → `DirectUpload`/`FileReader`, linha ~253).
 
-- [ ] **Step 1:** segundo input oculto `<input ref="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onFileChange" />` (reusa `onFileChange` literal).
-- [ ] **Step 2:** botão câmera ao lado do clipe (ícone `i-lucide-camera`, mesmo estilo do botão attach), `v-haptic-tap`, `@click="cameraInput?.click()"` com `light()` no handler. i18n do `aria-label`: `MOBILE.REPLY.CAMERA`.
-- [ ] **Step 3:** validar (iPhone: abre câmera direto; arquivo cai no mesmo preview de anexo), changelog, commit `feat(mobile): direct camera capture in composer`.
+- [x] **Step 1:** segundo input oculto `<input ref="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onFileChange" />` (reusa `onFileChange` literal).
+- [x] **Step 2:** botão câmera ao lado do clipe (ícone `i-lucide-camera`, mesmo estilo do botão attach), `v-haptic-tap`, `@click="cameraInput?.click()"` com `light()` no handler. i18n do `aria-label`: `MOBILE.REPLY.CAMERA`.
+- [x] **Step 3:** validar (iPhone: abre câmera direto; arquivo cai no mesmo preview de anexo), changelog, commit `feat(mobile): direct camera capture in composer`.
 
 ### Task 16: Atalhos do ícone (manifest shortcuts)
 
 **Files:**
 - Modify: `public/manifest.json`
 
-- [ ] **Step 1:** adicionar ao manifest:
+- [x] **Step 1:** adicionar ao manifest:
 
 ```json
 "shortcuts": [
@@ -117,8 +117,8 @@ export const useAppBadge = () => {
 ```
 
 (usar ícones que já existam em `public/`; conferir nomes reais antes).
-- [ ] **Step 2:** em `MobileLayout.vue`, ler `mobile_tab` da query string no mount e ativar a tab correspondente (mapa `{ inbox: 0, conversations: 1, settings: 2 }`), removendo o param da URL via `history.replaceState`. Android only por plataforma; iOS ignora silenciosamente.
-- [ ] **Step 3:** validar (Android: long-press no ícone mostra atalhos; desktop e iOS sem efeito), changelog, commit `feat(mobile): manifest shortcuts for icon long-press`.
+- [x] **Step 2:** em `MobileLayout.vue`, ler `mobile_tab` da query string no mount e ativar a tab correspondente (mapa `{ inbox: 0, conversations: 1, settings: 2 }`), removendo o param da URL via `history.replaceState`. Android only por plataforma; iOS ignora silenciosamente.
+- [x] **Step 3:** validar (Android: long-press no ícone mostra atalhos; desktop e iOS sem efeito), changelog, commit `feat(mobile): manifest shortcuts for icon long-press`.
 
 ---
 
@@ -132,10 +132,10 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** `components/widgets/conversation/components/GalleryView.vue` — props `attachment`, `allAttachments`, `show` (v-model), emite `close`; já tem zoom/rotação/navegação.
 
-- [ ] **Step 1:** PREFERIR reutilizar `GalleryView.vue` direto dentro de um wrapper mobile (`MobileImageLightbox.vue` só controla `show`/lista e adapta safe-areas/gestos de fechar por swipe-down). Só criar viewer próprio se o GalleryView depender de layout desktop que quebre <768px — nesse caso o wrapper replica a UX (pinch-zoom via `touch-action: pinch-zoom` + double-tap) mas continua usando os mesmos objetos `attachment` do payload da mensagem.
-- [ ] **Step 2:** interceptar o tap na imagem da bolha mobile: em vez de `window.open`, abrir o lightbox com `allAttachments` = todas as imagens da conversa atual (filtrar `message.attachments` por `file_type === 'image'` nas mensagens carregadas).
-- [ ] **Step 3:** haptics `light()` ao abrir/fechar + `v-haptic-tap` no botão fechar; i18n `MOBILE.LIGHTBOX.CLOSE`.
-- [ ] **Step 4:** validar (zoom com 2 dedos, swipe entre imagens, fechar por swipe-down; desktop GalleryView intocado), changelog, commit `feat(mobile): fullscreen image lightbox with zoom`.
+- [x] **Step 1:** PREFERIR reutilizar `GalleryView.vue` direto dentro de um wrapper mobile (`MobileImageLightbox.vue` só controla `show`/lista e adapta safe-areas/gestos de fechar por swipe-down). Só criar viewer próprio se o GalleryView depender de layout desktop que quebre <768px — nesse caso o wrapper replica a UX (pinch-zoom via `touch-action: pinch-zoom` + double-tap) mas continua usando os mesmos objetos `attachment` do payload da mensagem.
+- [x] **Step 2:** interceptar o tap na imagem da bolha mobile: em vez de `window.open`, abrir o lightbox com `allAttachments` = todas as imagens da conversa atual (filtrar `message.attachments` por `file_type === 'image'` nas mensagens carregadas).
+- [x] **Step 3:** haptics `light()` ao abrir/fechar + `v-haptic-tap` no botão fechar; i18n `MOBILE.LIGHTBOX.CLOSE`.
+- [x] **Step 4:** validar (zoom com 2 dedos, swipe entre imagens, fechar por swipe-down; desktop GalleryView intocado), changelog, commit `feat(mobile): fullscreen image lightbox with zoom`.
 
 ### Task 5: Snooze com horário customizado
 
@@ -145,10 +145,10 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** `helper/snoozeHelpers.js` — `findSnoozeTime`, `generateSnoozeSuggestions`, `snoozedReopenTime`; modal desktop de referência `components/CustomSnoozeModal.vue`; action `toggleStatus` com `snoozedUntil` (já usada no mobile).
 
-- [ ] **Step 1:** `MobileSnoozeSheet.vue` sobre `MobileBottomSheet`: opções `UNTIL_NEXT_REPLY`, `AN_HOUR_FROM_NOW`, `UNTIL_TOMORROW`, `UNTIL_NEXT_WEEK` (labels via i18n, horário calculado exibido ao lado via `snoozedReopenTime(findSnoozeTime(key))`) + opção "Escolher data e hora" com `<input type="datetime-local">` nativo (UI nativa iOS). Emite `select` com timestamp.
-- [ ] **Step 2:** nos dois pontos de uso, trocar o snooze fixo atual por abrir o sheet; no select, despachar o `toggleStatus` existente com `snoozedUntil` do sheet (haptic `medium()` no tap da opção, `v-haptic-tap` nas linhas).
-- [ ] **Step 3:** i18n `MOBILE.SNOOZE.*` (TITLE, NEXT_REPLY, AN_HOUR, TOMORROW, NEXT_WEEK, CUSTOM, CONFIRM) nos 3 idiomas.
-- [ ] **Step 4:** validar + changelog + commit `feat(mobile): custom snooze time sheet`.
+- [x] **Step 1:** `MobileSnoozeSheet.vue` sobre `MobileBottomSheet`: opções `UNTIL_NEXT_REPLY`, `AN_HOUR_FROM_NOW`, `UNTIL_TOMORROW`, `UNTIL_NEXT_WEEK` (labels via i18n, horário calculado exibido ao lado via `snoozedReopenTime(findSnoozeTime(key))`) + opção "Escolher data e hora" com `<input type="datetime-local">` nativo (UI nativa iOS). Emite `select` com timestamp.
+- [x] **Step 2:** nos dois pontos de uso, trocar o snooze fixo atual por abrir o sheet; no select, despachar o `toggleStatus` existente com `snoozedUntil` do sheet (haptic `medium()` no tap da opção, `v-haptic-tap` nas linhas).
+- [x] **Step 3:** i18n `MOBILE.SNOOZE.*` (TITLE, NEXT_REPLY, AN_HOUR, TOMORROW, NEXT_WEEK, CUSTOM, CONFIRM) nos 3 idiomas.
+- [x] **Step 4:** validar + changelog + commit `feat(mobile): custom snooze time sheet`.
 
 ---
 
@@ -162,10 +162,10 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** `routes/dashboard/conversation/ContactPanel.vue`; actions `contacts/show`, `contacts/update`; `contactLabels/get`, `contactLabels/update`; referência RN `ContactDetailsScreen.tsx` (layout apenas).
 
-- [ ] **Step 1:** view com: avatar+nome+canal, telefone/e-mail (tap = `tel:`/`mailto:`), atributos do contato, labels do contato (reusar `MobileMultiPickerSheet` com store `labels/getLabels` para opções e `contactLabels/update` no apply), conversas anteriores do contato (getter já usado pelo ContactPanel).
-- [ ] **Step 2:** carregar via `store.dispatch('contacts/show', { id: contactId })` no mount; edição mínima (nome/e-mail/telefone) via `contacts/update` — happy path, sem formulário completo.
-- [ ] **Step 3:** navegação: empurrada como página sobre a tela de ações (mesmo padrão de transição do pager existente), back físico/edge-swipe volta.
-- [ ] **Step 4:** `v-haptic-tap` em todas as linhas tocáveis; i18n `MOBILE.CONTACT.*`; validar; changelog; commit `feat(mobile): contact details screen with contact labels`.
+- [x] **Step 1:** view com: avatar+nome+canal, telefone/e-mail (tap = `tel:`/`mailto:`), atributos do contato, labels do contato (reusar `MobileMultiPickerSheet` com store `labels/getLabels` para opções e `contactLabels/update` no apply), conversas anteriores do contato (getter já usado pelo ContactPanel).
+- [x] **Step 2:** carregar via `store.dispatch('contacts/show', { id: contactId })` no mount; edição mínima (nome/e-mail/telefone) via `contacts/update` — happy path, sem formulário completo.
+- [x] **Step 3:** navegação: empurrada como página sobre a tela de ações (mesmo padrão de transição do pager existente), back físico/edge-swipe volta.
+- [x] **Step 4:** `v-haptic-tap` em todas as linhas tocáveis; i18n `MOBILE.CONTACT.*`; validar; changelog; commit `feat(mobile): contact details screen with contact labels`.
 
 ---
 
@@ -179,10 +179,10 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** store `conversationSearch` — actions `fullSearch`, `clearSearchResults`; getters `getConversationRecords`, `getMessageRecords`, `getContactRecords`, `getUIFlags`; UI de referência `modules/search/components/SearchView.vue`.
 
-- [ ] **Step 1:** view fullscreen com input no topo (autofocus, debounce 300ms via `useDebounceFn` do `@vueuse/core` já usado no projeto), dispatch `conversationSearch/fullSearch` com `{ q }`; `clearSearchResults` ao fechar.
-- [ ] **Step 2:** resultados em 3 grupos (Conversas / Mensagens / Contatos) usando os getters acima; tap em resultado navega para a conversa (mesma navegação por URL já usada na lista) — `v-haptic-tap` + `selection()`.
-- [ ] **Step 3:** estados: vazio ("digite para buscar"), carregando (reusar `MobilePetalLoader`), sem resultados. i18n `MOBILE.SEARCH.*`.
-- [ ] **Step 4:** validar + changelog + commit `feat(mobile): conversation and message search`.
+- [x] **Step 1:** view fullscreen com input no topo (autofocus, debounce 300ms via `useDebounceFn` do `@vueuse/core` já usado no projeto), dispatch `conversationSearch/fullSearch` com `{ q }`; `clearSearchResults` ao fechar.
+- [x] **Step 2:** resultados em 3 grupos (Conversas / Mensagens / Contatos) usando os getters acima; tap em resultado navega para a conversa (mesma navegação por URL já usada na lista) — `v-haptic-tap` + `selection()`.
+- [x] **Step 3:** estados: vazio ("digite para buscar"), carregando (reusar `MobilePetalLoader`), sem resultados. i18n `MOBILE.SEARCH.*`.
+- [x] **Step 4:** validar + changelog + commit `feat(mobile): conversation and message search`.
 
 ### Task 1: @Menções em notas privadas
 
@@ -192,10 +192,10 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** `components/widgets/conversation/TagAgents.vue` (getter `agents/getVerifiedAgents`, emite `selectAgent`); formato de menção que o backend espera: o mesmo que o ReplyBox desktop produz — **ler o ReplyBox desktop antes para copiar o formato exato do markdown de menção** (`[@Nome](mention://user/<id>/<nome>)`).
 
-- [ ] **Step 1:** no textarea do modo nota privada, detectar `@` no cursor (regex no `input` event sobre o trecho até o cursor: `/@([\w]*)$/`), abrir `MobileMentionSheet` filtrando `agents/getVerifiedAgents` pelo termo.
-- [ ] **Step 2:** ao selecionar (tap com `v-haptic-tap` + `selection()`), substituir o trecho `@termo` pelo markdown de menção do desktop e devolver foco ao textarea com cursor após a menção.
-- [ ] **Step 3:** só ativo quando `effectivePrivate === true` (menção não existe em resposta pública). i18n `MOBILE.MENTIONS.TITLE`/`EMPTY`.
-- [ ] **Step 4:** validar (a menção notifica o agente como no desktop — conferir no sino/notificação), changelog, commit `feat(mobile): agent mentions in private notes`.
+- [x] **Step 1:** no textarea do modo nota privada, detectar `@` no cursor (regex no `input` event sobre o trecho até o cursor: `/@([\w]*)$/`), abrir `MobileMentionSheet` filtrando `agents/getVerifiedAgents` pelo termo.
+- [x] **Step 2:** ao selecionar (tap com `v-haptic-tap` + `selection()`), substituir o trecho `@termo` pelo markdown de menção do desktop e devolver foco ao textarea com cursor após a menção.
+- [x] **Step 3:** só ativo quando `effectivePrivate === true` (menção não existe em resposta pública). i18n `MOBILE.MENTIONS.TITLE`/`EMPTY`.
+- [x] **Step 4:** validar (a menção notifica o agente como no desktop — conferir no sino/notificação), changelog, commit `feat(mobile): agent mentions in private notes`.
 
 ---
 
@@ -254,17 +254,17 @@ export const useAppBadge = () => {
 
 **Estado atual:** o SW **já monta** actions (REPLY, MARK_READ, OPEN — linhas ~73-80) e recebe `reply_enabled`/`notification_id` no payload.
 
-- [ ] **Step 1:** auditar o handler `notificationclick`: garantir que `action === 'reply'` (com `event.reply` do inline reply Android) poste a resposta via fetch à API com o token disponível ao SW, e `mark_read` marque a notificação lida; o que faltar, completar usando os endpoints que o app já usa (conferir `pushHelper.js` e os endpoints de notifications). iOS ignora actions — sem fallback necessário.
-- [ ] **Step 2:** testar em Android real/emulado (push com botões; Resolver/Responder funcionam com app fechado); changelog; commit `feat(mobile): actionable push notifications on Android`.
+- [x] **Step 1:** auditar o handler `notificationclick`: garantir que `action === 'reply'` (com `event.reply` do inline reply Android) poste a resposta via fetch à API com o token disponível ao SW, e `mark_read` marque a notificação lida; o que faltar, completar usando os endpoints que o app já usa (conferir `pushHelper.js` e os endpoints de notifications). iOS ignora actions — sem fallback necessário.
+- [x] **Step 2:** testar em Android real/emulado (push com botões; Resolver/Responder funcionam com app fechado); changelog; commit `feat(mobile): actionable push notifications on Android`.
 
 ### Task 18: View Transitions lista↔chat
 
 **Files:**
 - Modify: `MobileLayout.vue` / `MobileChatView.vue` (pontos onde a navegação por URL acontece)
 
-- [ ] **Step 1:** wrapper utilitário local (função no próprio componente ou `components-next/mobile/useViewTransition.js`): `const navigate = fn => (document.startViewTransition ? document.startViewTransition(fn) : fn());` aplicado às trocas lista→chat e chat→lista. Progressive enhancement puro — sem `document.startViewTransition`, comportamento idêntico ao atual.
-- [ ] **Step 2:** `view-transition-name` via classes utilitárias apenas em elementos mobile (ex.: avatar da conversa) se o efeito ficar bom; caso contrário, transição de root já basta. NUNCA tocar transição desktop.
-- [ ] **Step 3:** validar (Safari 18+/Chrome: transição suave; browsers antigos: sem mudança); changelog; commit `feat(mobile): view transitions between list and chat`.
+- [x] **Step 1:** wrapper utilitário local (função no próprio componente ou `components-next/mobile/useViewTransition.js`): `const navigate = fn => (document.startViewTransition ? document.startViewTransition(fn) : fn());` aplicado às trocas lista→chat e chat→lista. Progressive enhancement puro — sem `document.startViewTransition`, comportamento idêntico ao atual.
+- [x] **Step 2:** `view-transition-name` via classes utilitárias apenas em elementos mobile (ex.: avatar da conversa) se o efeito ficar bom; caso contrário, transição de root já basta. NUNCA tocar transição desktop.
+- [x] **Step 3:** validar (Safari 18+/Chrome: transição suave; browsers antigos: sem mudança); changelog; commit `feat(mobile): view transitions between list and chat`.
 
 ---
 
@@ -275,9 +275,9 @@ export const useAppBadge = () => {
 **Files:**
 - Modify: `public/sw.js`
 
-- [ ] **Step 1:** estratégia mínima sem Workbox: no `install`, `cache.addAll` do shell (`/`, manifest, ícones); no `fetch`, network-first com fallback a cache para navegação (`request.mode === 'navigate'`) e stale-while-revalidate para assets do Vite (`/vite/assets/`). **Nunca** cachear chamadas de API (`/api/`).
-- [ ] **Step 2:** snapshot leve das últimas conversas: ao renderizar a lista, `MobileConversationList.vue` salva um JSON enxuto (id, nome, último texto, timestamp) em `localStorage` (`chatwit_mobile_last_conversations`); offline, a lista renderiza o snapshot com banner "sem conexão" (i18n `MOBILE.OFFLINE.BANNER`).
-- [ ] **Step 3:** versionar o cache (`chatwit-shell-v1`) e limpar versões antigas no `activate`. Validar: modo avião → app abre, mostra shell + snapshot; rede volta → dados frescos. Desktop não usa o SW para nada novo além do que já usava. Changelog; commit `feat(mobile): offline shell and conversation snapshot`.
+- [x] **Step 1:** estratégia mínima sem Workbox: no `install`, `cache.addAll` do shell (`/`, manifest, ícones); no `fetch`, network-first com fallback a cache para navegação (`request.mode === 'navigate'`) e stale-while-revalidate para assets do Vite (`/vite/assets/`). **Nunca** cachear chamadas de API (`/api/`).
+- [x] **Step 2:** snapshot leve das últimas conversas: ao renderizar a lista, `MobileConversationList.vue` salva um JSON enxuto (id, nome, último texto, timestamp) em `localStorage` (`chatwit_mobile_last_conversations`); offline, a lista renderiza o snapshot com banner "sem conexão" (i18n `MOBILE.OFFLINE.BANNER`).
+- [x] **Step 3:** versionar o cache (`chatwit-shell-v1`) e limpar versões antigas no `activate`. Validar: modo avião → app abre, mostra shell + snapshot; rede volta → dados frescos. Desktop não usa o SW para nada novo além do que já usava. Changelog; commit `feat(mobile): offline shell and conversation snapshot`.
 
 ### Task 15: Fila offline de envio
 
@@ -285,9 +285,9 @@ export const useAppBadge = () => {
 - Create: `app/javascript/dashboard/components-next/mobile/useOfflineQueue.js`
 - Modify: `MobileReplyBox.vue`
 
-- [ ] **Step 1:** composable com fila em `localStorage` (`chatwit_mobile_outbox`): `enqueue(payload)`, `flush()` (tenta despachar cada item via o MESMO `store.dispatch('createPendingMessageAndSend', payload)` do envio normal), listener de `online` + flush no mount.
-- [ ] **Step 2:** em `onSend`, se `!navigator.onLine`, `enqueue` + bolha local com estado "aguardando conexão" (i18n `MOBILE.OFFLINE.QUEUED`); quando `flush` enviar, o fluxo normal do store substitui a pendente.
-- [ ] **Step 3:** somente texto no MVP (anexos exigem blob persistente — fora do happy path; documentar a limitação no changelog). Validar (modo avião → enviar → volta rede → mensagem sai sozinha); commit `feat(mobile): offline send queue for text messages`.
+- [x] **Step 1:** composable com fila em `localStorage` (`chatwit_mobile_outbox`): `enqueue(payload)`, `flush()` (tenta despachar cada item via o MESMO `store.dispatch('createPendingMessageAndSend', payload)` do envio normal), listener de `online` + flush no mount.
+- [x] **Step 2:** em `onSend`, se `!navigator.onLine`, `enqueue` + bolha local com estado "aguardando conexão" (i18n `MOBILE.OFFLINE.QUEUED`); quando `flush` enviar, o fluxo normal do store substitui a pendente.
+- [x] **Step 3:** somente texto no MVP (anexos exigem blob persistente — fora do happy path; documentar a limitação no changelog). Validar (modo avião → enviar → volta rede → mensagem sai sozinha); commit `feat(mobile): offline send queue for text messages`.
 
 ---
 
