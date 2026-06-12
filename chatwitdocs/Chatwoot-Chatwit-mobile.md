@@ -88,6 +88,41 @@ Dashboard.vue
 
 URL-based navigation: Vue Router updates the URL when entering a chat, so browser back button works and links are shareable.
 
+## HAPTICS — CONTRATO TÉCNICO (anti-regressão)
+
+> **Por que isto importa:** o feedback tátil dos botões do PWA dependeu de **três** correções encadeadas até finalmente funcionar em iPhones atualizados. Cada uma é frágil e fácil de quebrar sem perceber (não há erro de compilação — o haptic só fica mudo no aparelho). As invariantes abaixo estão **travadas por testes** — não altere `hapticTap.js`/`useHaptics.js` sem rodá-los.
+>
+> **Testes:** `components-next/mobile/specs/hapticTap.spec.js` e `composables/spec/useHaptics.spec.js` (`pnpm test <arquivo>`).
+
+### Por que finalmente deu certo (a cadeia completa)
+
+O iOS **não implementa** `navigator.vibrate` (nem no Safari 26). O único caminho web para o Taptic Engine é o controle `<input type="checkbox" switch>` (Safari/iOS 17.4+). Três obstáculos foram resolvidos, nesta ordem:
+
+1. **`navigator.vibrate` não existe no iOS** → `useHaptics.js` togglava um `<input switch>` escondido por script (`label.click()`). Funcionou no iOS 17.4–26.4.
+2. **A user activation expira após `await`** → haptic disparado *depois* de um `await` de rede nunca chegava ao Taptic Engine. **Correção:** todo call site mobile chama o haptic **sincronamente, no momento do toque**, antes de qualquer `dispatch`/`await`.
+3. **iOS 26.5 patcheou o toggle programático** → `label.click()` por script deixou de disparar o haptic; só um **tap trusted do usuário que aterrissa fisicamente no switch** ainda dispara. **Correção (a que destravou tudo):** a diretiva **`v-haptic-tap`** sobrepõe um `<input type="checkbox" switch>` **transparente** sobre o elemento tocável — o dedo real toca o switch (haptic do sistema) e o clique borbulha para o handler do botão.
+
+### Invariantes travadas pelos testes (NÃO quebrar)
+
+**Diretiva `v-haptic-tap` (`hapticTap.js`) — caminho iOS (sem Vibration API):**
+- Injeta um overlay `<input type="checkbox" switch>` **transparente** (`opacity:0`), `position:absolute`, `inset:0` (cobre 100% do host), `aria-hidden="true"`, `tabindex=-1`. *(Se o overlay não cobrir o host inteiro ou não for transparente, o tap não cai no switch → sem haptic.)*
+- Promove host `static` para `position:relative` (para o overlay ancorar); host já posicionado é deixado intacto.
+- Só **tap trusted** (`event.isTrusted`) chama `notifyTrustedHapticTap()`. Clique sintético/programático é ignorado — espelha a regra da Apple. *(Não troque por um listener que dispare em clique programático: mascara o teste e não reflete o device.)*
+- Host `disabled`/`aria-disabled` → toggle cancelado (`preventDefault`), sem feedback em controle morto.
+- `unmounted` remove o overlay e limpa o `WeakMap`.
+
+**Diretiva — caminho Android (Vibration API presente):**
+- **Não** injeta overlay (no-op). O haptic vem de `navigator.vibrate` via `useHaptics`. *(Injetar o overlay no Android sobreporia um switch clicável invisível sobre os botões.)*
+
+**`useHaptics.js` — caminho programático + supressão:**
+- Android: cada método chama `navigator.vibrate` com o padrão UIKit (`light:10`, `medium:25`, `selection:5`, etc.) e **nunca** toca no switch.
+- iOS sem tap trusted recente: pulsa o switch escondido (fallback para iOS 17.4–26.4 e para feedback **de gesto** — swipe threshold, pull-to-refresh — onde nenhum tap real atinge um switch; em iOS ≥ 26.5 degrada em silêncio, limitação de plataforma).
+- **Supressão de duplo-feedback:** após um tap trusted (`notifyTrustedHapticTap()`), o burst programático do mesmo gesto é suprimido por **400 ms**. Passada a janela, o fallback volta a disparar. *(Sem essa janela, iOS ≤ 26.4 vibra duas vezes por toque.)*
+
+### Regra para qualquer componente mobile novo
+
+Toda superfície tocável que mereça feedback recebe **`v-haptic-tap`** no elemento nativo (`<button>` ou raiz single-root) **E** mantém a chamada `useHaptics()` no handler, **síncrona, antes de qualquer `await`** (cobre Android e o gesto). Nunca dispare haptic depois de um `await`.
+
 ## Components Created
 
 All under `app/javascript/dashboard/components-next/mobile/`:
@@ -223,6 +258,16 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 ---
 
 ## Changelog
+
+### 2026-06-12 — Testes anti-regressão de haptics + contrato técnico documentado
+
+Confirmado em aparelho: os botões do PWA finalmente vibram em iPhones atualizados (iOS 26.5+). Para travar o mecanismo (que dependeu de 3 correções encadeadas e quebra silenciosamente — sem erro de build, só fica mudo no device), foram adicionados testes e uma referência técnica durável:
+
+- **`components-next/mobile/specs/hapticTap.spec.js`** (10 testes) — trava o contrato da diretiva `v-haptic-tap`: overlay `<input switch>` transparente/full-size/`aria-hidden`/`tabindex=-1`, promoção de host `static`→`relative`, **só tap trusted** chama `notifyTrustedHapticTap()` (clique sintético é ignorado), guarda de host `disabled`/`aria-disabled`, limpeza no `unmounted`, e **no-op no Android** (Vibration API presente → sem overlay).
+- **`composables/spec/useHaptics.spec.js`** (4 testes) — trava o caminho programático: Android vibra com o padrão UIKit e nunca toca no switch; iOS pulsa o switch escondido como fallback; e a **supressão de 400 ms** após tap trusted (anti duplo-feedback em iOS ≤ 26.4) com reativação após a janela.
+- **Seção "HAPTICS — CONTRATO TÉCNICO (anti-regressão)"** no topo deste doc explica a cadeia completa (vibrate inexistente → user activation expira após `await` → patch do iOS 26.5) e lista as invariantes que os testes protegem.
+
+Sem mudança de código de produção — apenas testes (`app/**/spec*`) e documentação. Desktop intocado.
 
 ### 2026-06-11 — Lote H do roadmap: share target Android (compartilhar PARA o Chatwit)
 
