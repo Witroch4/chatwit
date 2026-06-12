@@ -51,11 +51,11 @@ Coberto e em produção:
 
 | # | Feature | Referência RN | Lógica desktop a conectar | Esforço | Impacto |
 |---|---------|---------------|---------------------------|---------|---------|
-| 7 | Execução de macros | `MacrosList.tsx` | store `macros` (`macros/get`, run) | P/M | Médio — power users |
-| 8 | Preferências de notificação | `NotificationPreferences.tsx` | `NotificationPreferences.vue` + API existente | M | Médio |
+| 7 | **Execução de macros** ✅ 2026-06-11 | `MacrosList.tsx` | store `macros` (`macros/get`, run) | P/M | Médio — power users |
+| 8 | **Preferências de notificação** ✅ 2026-06-11 | `NotificationPreferences.tsx` | `NotificationPreferences.vue` + API existente | M | Médio |
 | 9 | Labels do contato (além da conversa) | `ContactLabelActions.tsx` | store `contactLabels` | P | Baixo/Médio |
-| 10 | Transcript por e-mail | — (desktop only) | `sendEmailTranscript` action | P | Baixo |
-| 11 | Read receipts completos (READ p/ WhatsApp) | `DeliveryStatus.tsx` | status já presente no payload da mensagem | P | Baixo/Médio |
+| 10 | **Transcript por e-mail** ✅ 2026-06-11 | — (desktop only) | `sendEmailTranscript` action | P | Baixo |
+| 11 | **Read receipts completos (READ p/ WhatsApp)** ✅ 2026-06-11 | `DeliveryStatus.tsx` | status já presente no payload da mensagem | P | Baixo/Médio |
 
 ## Fase 3 — Superpoderes PWA (além do app nativo)
 
