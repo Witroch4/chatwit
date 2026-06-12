@@ -86,7 +86,14 @@
         "MUTE": "Silenciar conversa",
         "UNMUTE": "Reativar notificações",
         "SHARE": "Partilhar link da conversa",
-        "LINK_COPIED": "Link da conversa copiado"
+        "LINK_COPIED": "Link da conversa copiado",
+        "TRANSCRIPT": "Enviar transcrição por e-mail",
+        "TRANSCRIPT_TITLE": "Enviar transcrição",
+        "TRANSCRIPT_EMAIL_LABEL": "Enviar para o e-mail",
+        "TRANSCRIPT_EMAIL_PLACEHOLDER": "email@exemplo.com",
+        "TRANSCRIPT_SEND": "Enviar",
+        "TRANSCRIPT_SUCCESS": "Transcrição enviada com sucesso",
+        "TRANSCRIPT_ERROR": "Não foi possível enviar a transcrição, tente novamente"
       }
     },
     "SETTINGS": {
@@ -140,6 +147,18 @@
       "DENIED_HELP": "Para ativar notificações, vá às configurações do navegador ou dispositivo e permita notificações para este site.",
       "IOS_INSTALL_REQUIRED": "Adicione à Tela de Início primeiro para receber notificações",
       "UPDATE_ERROR": "Não foi possível atualizar as notificações push"
+    },
+    "NOTIF_PREFS": {
+      "TITLE": "Preferências de notificação",
+      "EMAIL_TITLE": "Notificações por e-mail",
+      "PUSH_TITLE": "Notificações push"
+    },
+    "MACROS": {
+      "TITLE": "Macros",
+      "LOADING": "A carregar macros...",
+      "EMPTY": "Nenhuma macro disponível",
+      "SUCCESS": "Macro executada com sucesso",
+      "ERROR": "Não foi possível executar a macro"
     },
     "SNOOZE": {
       "TITLE": "Adiar até",

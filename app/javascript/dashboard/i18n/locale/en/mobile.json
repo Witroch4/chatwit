@@ -92,7 +92,14 @@
         "MUTE": "Mute conversation",
         "UNMUTE": "Unmute conversation",
         "SHARE": "Share conversation link",
-        "LINK_COPIED": "Conversation link copied"
+        "LINK_COPIED": "Conversation link copied",
+        "TRANSCRIPT": "Send transcript via email",
+        "TRANSCRIPT_TITLE": "Send transcript",
+        "TRANSCRIPT_EMAIL_LABEL": "Send to email",
+        "TRANSCRIPT_EMAIL_PLACEHOLDER": "email@example.com",
+        "TRANSCRIPT_SEND": "Send",
+        "TRANSCRIPT_SUCCESS": "Transcript sent successfully",
+        "TRANSCRIPT_ERROR": "Could not send the transcript, please try again"
       }
     },
     "SETTINGS": {
@@ -146,6 +153,18 @@
       "DENIED_HELP": "To enable notifications, go to your browser or device settings and allow notifications for this site.",
       "IOS_INSTALL_REQUIRED": "Add to Home Screen first to receive notifications",
       "UPDATE_ERROR": "Could not update push notifications"
+    },
+    "NOTIF_PREFS": {
+      "TITLE": "Notification preferences",
+      "EMAIL_TITLE": "Email notifications",
+      "PUSH_TITLE": "Push notifications"
+    },
+    "MACROS": {
+      "TITLE": "Macros",
+      "LOADING": "Loading macros...",
+      "EMPTY": "No macros available",
+      "SUCCESS": "Macro executed successfully",
+      "ERROR": "Could not run the macro"
     },
     "SNOOZE": {
       "TITLE": "Snooze until",

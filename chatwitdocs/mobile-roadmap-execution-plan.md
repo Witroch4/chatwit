@@ -209,8 +209,8 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** store `macros` — `macros/get` (lista), `macros/execute` (rodar na conversa); getter `macros/getMacros`; UI de referência: `MacrosList` dentro do `ContactPanel.vue`.
 
-- [ ] **Step 1:** sheet listando `getMacros` (dispatch `macros/get` no open); tap (`v-haptic-tap` + `medium()`) → `store.dispatch('macros/execute', { macroId, conversationIds: [conversationId] })` (conferir assinatura real na store antes) → toast de sucesso.
-- [ ] **Step 2:** i18n `MOBILE.MACROS.*`; validar; changelog; commit `feat(mobile): run macros from conversation actions`.
+- [x] **Step 1:** sheet listando `getMacros` (dispatch `macros/get` no open); tap (`v-haptic-tap` + `medium()`) → `store.dispatch('macros/execute', { macroId, conversationIds: [conversationId] })` (conferir assinatura real na store antes) → toast de sucesso.
+- [x] **Step 2:** i18n `MOBILE.MACROS.*`; validar; changelog; commit `feat(mobile): run macros from conversation actions`.
 
 ### Task 8: Preferências de notificação
 
@@ -220,8 +220,8 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** store `userNotificationSettings` — `get`, `update`; getters `getSelectedEmailFlags`, `getSelectedPushFlags`; UI de referência `routes/dashboard/settings/profile/NotificationPreferences.vue`.
 
-- [ ] **Step 1:** view com toggles agrupados (E-mail / Push) espelhando as flags do desktop; cada toggle dispara `userNotificationSettings/update` com o set completo de flags (mesmo contrato do desktop); `v-haptic-tap` + `selection()` nos toggles.
-- [ ] **Step 2:** i18n `MOBILE.NOTIF_PREFS.*` (títulos de grupo; labels de flag podem reusar chaves desktop existentes se já houver); validar; changelog; commit `feat(mobile): notification preferences screen`.
+- [x] **Step 1:** view com toggles agrupados (E-mail / Push) espelhando as flags do desktop; cada toggle dispara `userNotificationSettings/update` com o set completo de flags (mesmo contrato do desktop); `v-haptic-tap` + `selection()` nos toggles.
+- [x] **Step 2:** i18n `MOBILE.NOTIF_PREFS.*` (títulos de grupo; labels de flag podem reusar chaves desktop existentes se já houver); validar; changelog; commit `feat(mobile): notification preferences screen`.
 
 ### Task 10: Transcript por e-mail
 
@@ -230,8 +230,8 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** action `conversations/sendEmailTranscript` (store `conversations/actions.js:462`; API `sendEmailTranscript({ conversationId, email })`); modal de referência `EmailTranscriptModal.vue`.
 
-- [ ] **Step 1:** linha com `v-haptic-tap` → sheet simples (input e-mail pré-preenchido com o e-mail do agente atual + botão enviar) → `store.dispatch('sendEmailTranscript', { conversationId, email })` → toast. i18n `MOBILE.ACTIONS.MORE.TRANSCRIPT*`.
-- [ ] **Step 2:** validar; changelog; commit `feat(mobile): email transcript action`.
+- [x] **Step 1:** linha com `v-haptic-tap` → sheet simples (input e-mail pré-preenchido com o e-mail do agente atual + botão enviar) → `store.dispatch('sendEmailTranscript', { conversationId, email })` → toast. i18n `MOBILE.ACTIONS.MORE.TRANSCRIPT*`.
+- [x] **Step 2:** validar; changelog; commit `feat(mobile): email transcript action`.
 
 ### Task 11: Read receipts completos (✓✓ azul)
 
@@ -240,8 +240,8 @@ export const useAppBadge = () => {
 
 **Fonte desktop:** `components-next/message/MessageStatus.vue`; constantes `shared/constants/messages.js` (`MESSAGE_STATUS.SENT/DELIVERED/READ`).
 
-- [ ] **Step 1:** PREFERIR importar `MessageStatus.vue` direto na bolha mobile (é components-next, mobile-safe). Se o mobile já desenha ticks próprios, alinhar o mapeamento: sent = ✓ cinza, delivered = ✓✓ cinza, read = ✓✓ azul (`message.status` do payload — sem chamadas novas).
-- [ ] **Step 2:** validar nos canais que reportam read (WhatsApp); changelog; commit `feat(mobile): full read receipts with blue double check`.
+- [x] **Step 1:** PREFERIR importar `MessageStatus.vue` direto na bolha mobile (é components-next, mobile-safe). Se o mobile já desenha ticks próprios, alinhar o mapeamento: sent = ✓ cinza, delivered = ✓✓ cinza, read = ✓✓ azul (`message.status` do payload — sem chamadas novas).
+- [x] **Step 2:** validar nos canais que reportam read (WhatsApp); changelog; commit `feat(mobile): full read receipts with blue double check`.
 
 ---
 
