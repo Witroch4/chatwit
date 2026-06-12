@@ -33,6 +33,7 @@ Coberto e em produção:
 - A diretiva chama `notifyTrustedHapticTap()` no tap trusted; o burst programático do mesmo gesto é suprimido (400ms) para não duplicar em iOS ≤ 26.4. No Android, `navigator.vibrate` cobre tudo e o overlay é no-op.
 - Requisito do aparelho: iOS 17.4+, Ajustes → Sons e Tato → Resposta Háptica ativa.
 - **Regra para novos componentes mobile:** toda superfície tocável que mereça feedback tátil recebe `v-haptic-tap` no elemento nativo (`<button>`/raiz de componente single-root) **e** mantém a chamada `useHaptics()` no handler (cobre Android).
+- **Anti-regressão:** as invariantes acima estão travadas por `components-next/mobile/specs/hapticTap.spec.js` e `composables/spec/useHaptics.spec.js`. O contrato completo (com o porquê de cada regra) está em `chatwitdocs/Chatwoot-Chatwit-mobile.md` → seção "HAPTICS — CONTRATO TÉCNICO". Não altere `hapticTap.js`/`useHaptics.js` sem rodar esses testes.
 
 ---
 
