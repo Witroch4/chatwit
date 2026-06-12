@@ -214,15 +214,23 @@ onUnmounted(() => {
         class="absolute inset-0 z-0 pb-[calc(52px+env(safe-area-inset-bottom))]"
         :class="{ 'pointer-events-none': isInChatView && !isChatSwiping }"
       >
-        <MobileInboxView
-          v-if="activeTab === 0"
-          @open-conversation="onOpenConversation"
-        />
-        <MobileConversationList
-          v-else-if="activeTab === 1"
-          @open-conversation="onOpenConversation"
-        />
-        <MobileSettingsView v-else />
+        <!-- KeepAlive caches each tab instance after its first visit, so
+             switching tabs no longer unmounts/remounts the view. Without it,
+             every tab switch re-ran onMounted -> emptyAllConversations + full
+             refetch (white flash, "reload from scratch"). Now each list fetches
+             once and the global websocket keeps the store fresh, matching the
+             native app's load-once-then-live-update feel. -->
+        <KeepAlive>
+          <MobileInboxView
+            v-if="activeTab === 0"
+            @open-conversation="onOpenConversation"
+          />
+          <MobileConversationList
+            v-else-if="activeTab === 1"
+            @open-conversation="onOpenConversation"
+          />
+          <MobileSettingsView v-else />
+        </KeepAlive>
       </div>
 
       <!-- Dim overlay on background during swipe -->
