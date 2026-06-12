@@ -259,6 +259,14 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-12 — Fix: troca de aba não recarrega mais do zero (cache + websocket, igual app nativo)
+
+**Sintoma:** cada toque em Inbox/Conversas/Settings deixava a tela branca e recarregava tudo do zero — sem cache, sem reuso do websocket. O app nativo carrega uma vez e depois só atualiza via websocket.
+
+**Causa:** as três abas em `MobileLayout.vue` eram renderizadas com `v-if`/`v-else-if`/`v-else`, então cada troca **desmontava e remontava** a view. No remount, o `onMounted` da lista chamava `fetchConversations()` → `emptyAllConversations` (apagava a lista da store) → `chatListLoading` true → spinner (tela branca) → refetch completo da API. O websocket (ActionCable) já mantém a store de conversas/notificações fresca **globalmente**, então a destruição dos dados era gratuita.
+
+**Correção:** envolver as três views em **`<KeepAlive>`**. Cada aba agora monta e busca **uma única vez**; ao voltar, é reativada do cache (sem remount, sem `emptyAllConversations`, sem spinner) renderizando o que o websocket manteve atualizado. Bônus: a posição de scroll de cada aba é preservada. Comportamento idêntico ao app nativo (load-once + live-update). Mudança de 1 arquivo, só no módulo mobile — desktop intocado.
+
 ### 2026-06-12 — Testes anti-regressão de haptics + contrato técnico documentado
 
 Confirmado em aparelho: os botões do PWA finalmente vibram em iPhones atualizados (iOS 26.5+). Para travar o mecanismo (que dependeu de 3 correções encadeadas e quebra silenciosamente — sem erro de build, só fica mudo no device), foram adicionados testes e uma referência técnica durável:
