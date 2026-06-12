@@ -179,6 +179,12 @@
       "LABELS_UPDATED": "Contact labels updated",
       "UPDATE_ERROR": "Could not update the contact"
     },
+    "SHARE_TARGET": {
+      "TITLE": "Share to...",
+      "SEARCH": "Search conversation...",
+      "EMPTY": "No recent conversations",
+      "UNNAMED": "Unknown contact"
+    },
     "OFFLINE": {
       "BANNER": "No connection — showing recent conversations",
       "QUEUED": "No connection. Message will be sent when you are back online",
