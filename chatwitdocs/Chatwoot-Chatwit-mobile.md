@@ -259,6 +259,14 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-13 — Fix: fundo branco "estourando" por trás do chat em tema escuro
+
+**Sintoma:** no tema escuro, o fundo atrás do chat aparecia branco — embaixo da view de ações, nas bordas e principalmente durante o "page peel" (swipe entre mensagens e ações).
+
+**Causa:** o container do pager em `MobileChatView.vue` tinha um **gradiente claro hardcoded** (`#f8fafc → #eef2f7`) sem variante dark. O backdrop escuro sobreposto (`bg-slate-950`) ia no máximo a `opacity 0.08` (`pagerBackdropStyle`), então o fundo permanecia ~92% claro mesmo no escuro. A pill de dica "Deslize para detalhes" também era `bg-white/80` fixa.
+
+**Correção:** variante `dark:` no gradiente do pager (slate-900 → slate-950, casando com `bg-n-surface-1`/`bg-slate-950` do tema escuro) e `dark:bg-slate-800/80` na pill. As bolinhas dos toggles seguem `bg-white` de propósito (corretas nos dois temas). Mudança só de classes Tailwind em 1 arquivo do módulo mobile — desktop intocado.
+
 ### 2026-06-12 — Fix: troca de aba não recarrega mais do zero (cache + websocket, igual app nativo)
 
 **Sintoma:** cada toque em Inbox/Conversas/Settings deixava a tela branca e recarregava tudo do zero — sem cache, sem reuso do websocket. O app nativo carrega uma vez e depois só atualiza via websocket.

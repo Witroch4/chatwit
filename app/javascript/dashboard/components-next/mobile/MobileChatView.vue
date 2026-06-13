@@ -369,7 +369,7 @@ watch(
       @open-actions="openActionsPanel"
     />
     <div
-      class="relative flex flex-1 min-h-0 overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_42%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)]"
+      class="relative flex flex-1 min-h-0 overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.08),_transparent_42%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] dark:bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.10),_transparent_42%),linear-gradient(180deg,#0f172a_0%,#020617_100%)]"
       @touchstart.passive="onPanelTouchStart"
       @touchmove.passive="onPanelTouchMove"
       @touchend="onPanelTouchEnd"
@@ -381,7 +381,7 @@ watch(
       />
 
       <div
-        class="pointer-events-none absolute right-3 top-3 z-20 rounded-full bg-white/80 px-2.5 py-1 shadow-sm backdrop-blur"
+        class="pointer-events-none absolute right-3 top-3 z-20 rounded-full bg-white/80 dark:bg-slate-800/80 px-2.5 py-1 shadow-sm backdrop-blur"
         :class="{ 'transition-all duration-300': !isPanelDragging }"
         :style="hintPillStyle"
       >
