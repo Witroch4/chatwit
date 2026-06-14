@@ -30,6 +30,10 @@
         "GENERATING": "Generating…"
       }
     },
+    "STICKERS": {
+      "TITLE": "Stickers",
+      "ADD": "Add"
+    },
     "ACTIONS": {
       "SECTIONS": {
         "SETTINGS": "Settings",

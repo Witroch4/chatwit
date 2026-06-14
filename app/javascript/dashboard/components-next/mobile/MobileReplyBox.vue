@@ -23,15 +23,13 @@ import WhatsappTemplates from 'dashboard/components/widgets/conversation/Whatsap
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
 import MobileMentionSheet from './MobileMentionSheet.vue';
 import MobileActionPickerSheet from './MobileActionPickerSheet.vue';
+import MobileStickerSheet from './MobileStickerSheet.vue';
 
 const store = useStore();
 const { t } = useI18n();
 const { success, light } = useHaptics();
-const {
-  captainEnabled,
-  summarizeConversation,
-  getReplySuggestion,
-} = useCaptain();
+const { captainEnabled, summarizeConversation, getReplySuggestion } =
+  useCaptain();
 
 const message = ref('');
 const isPrivate = ref(false);
@@ -53,6 +51,9 @@ const showWhatsAppTemplatesModal = ref(false);
 // Captain AI assist (summarize / suggest reply)
 const showAiSheet = ref(false);
 const isAiGenerating = ref(false);
+
+// Sticker picker (WhatsApp only)
+const showStickerSheet = ref(false);
 
 // @mention state (private notes only)
 const showMentionSheet = ref(false);
@@ -156,7 +157,7 @@ const resizeTextarea = () => {
   nextTick(() => {
     const el = textareaRef.value;
     if (!el) return;
-    el.style.height = '20px';
+    el.style.height = '24px';
     const maxHeight = 120; // ~5 lines
     const newHeight = Math.min(el.scrollHeight, maxHeight);
     el.style.height = `${newHeight}px`;
@@ -434,9 +435,19 @@ const onSendWhatsAppReply = async messagePayload => {
 // Show the AI assist button when Captain is available and the composer is active
 const showAiAssist = computed(() => {
   return (
-    captainEnabled.value && !isEditorDisabled.value && !showAudioRecorderEditor.value
+    captainEnabled.value &&
+    !isEditorDisabled.value &&
+    !showAudioRecorderEditor.value
   );
 });
+
+// Show the sticker button only for active WhatsApp replies (not private notes)
+const showStickers = computed(
+  () =>
+    !effectivePrivate.value &&
+    !isEditorDisabled.value &&
+    channelType.value === 'Channel::Whatsapp'
+);
 
 const aiMenuItems = computed(() => [
   {
@@ -663,7 +674,7 @@ onBeforeUnmount(() => {
       <!-- Text input area (hidden when recording) -->
       <div
         v-if="!showAudioRecorderEditor"
-        class="mobile-reply-input flex-1 flex items-center rounded-2xl border px-3 py-1.5 transition-colors min-h-[36px]"
+        class="mobile-reply-input flex-1 flex items-center rounded-2xl border px-3 py-2 transition-colors min-h-[40px]"
         :class="[
           effectivePrivate
             ? 'bg-n-amber-2 border-n-amber-5'
@@ -677,7 +688,7 @@ onBeforeUnmount(() => {
           :placeholder="placeholder"
           :disabled="isEditorDisabled"
           rows="1"
-          class="mobile-reply-textarea flex-1 min-w-0 w-full bg-transparent text-sm text-n-slate-12 placeholder:text-n-slate-9 placeholder:text-xs resize-none outline-none max-h-[120px] h-5 leading-5 overflow-y-hidden"
+          class="mobile-reply-textarea flex-1 min-w-0 w-full bg-transparent text-base text-n-slate-12 placeholder:text-n-slate-9 placeholder:text-base resize-none outline-none max-h-[120px] h-6 leading-6 overflow-y-hidden"
           :class="{ 'opacity-50 cursor-not-allowed': isEditorDisabled }"
           @keydown="onKeydown"
           @input="onInput"
@@ -685,6 +696,31 @@ onBeforeUnmount(() => {
           @focus="isFocused = true"
         />
 
+        <!-- Sticker button (WhatsApp only) -->
+        <button
+          v-if="showStickers"
+          v-haptic-tap
+          class="flex items-center justify-center flex-shrink-0 ml-1 w-7 h-7 text-n-slate-9"
+          :aria-label="t('MOBILE.STICKERS.TITLE')"
+          @click="showStickerSheet = true"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9l7-7V5a2 2 0 0 0-2-2z"
+            />
+            <path d="M14 21v-5a2 2 0 0 1 2-2h5" />
+          </svg>
+        </button>
         <!-- Lock toggle -->
         <button
           class="flex items-center justify-center w-7 h-7 flex-shrink-0 ml-1 transition-colors"
@@ -727,7 +763,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <!-- Audio recorder duration display -->
-      <div v-else class="flex-1 flex items-center justify-center min-h-[36px]">
+      <div v-else class="flex-1 flex items-center justify-center min-h-[40px]">
         <span class="text-sm font-mono text-n-slate-11">{{
           recordingAudioDurationText
         }}</span>
@@ -774,7 +810,9 @@ onBeforeUnmount(() => {
           />
           <path d="M18 4v4" />
           <path d="M20 6h-4" />
-          <path d="M17.5 15.5 18.5 18l2.5 1-2.5 1-1 2.5-1-2.5L14 19l2.5-1 1-2.5z" />
+          <path
+            d="M17.5 15.5 18.5 18l2.5 1-2.5 1-1 2.5-1-2.5L14 19l2.5-1 1-2.5z"
+          />
         </svg>
       </button>
 
@@ -886,6 +924,13 @@ onBeforeUnmount(() => {
       :items="aiMenuItems"
       @close="showAiSheet = false"
       @select="onAiSelect"
+    />
+
+    <!-- Sticker picker sheet (WhatsApp only) -->
+    <MobileStickerSheet
+      :open="showStickerSheet"
+      :conversation-id="currentChat?.id"
+      @close="showStickerSheet = false"
     />
   </div>
 </template>
