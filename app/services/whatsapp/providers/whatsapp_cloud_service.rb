@@ -264,8 +264,12 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     process_response(response, message)
   end
 
+  # WhatsApp rejects stickers sent by link ("Sticker file could not be processed").
+  # The webp must be uploaded to /media first and sent by its media id.
   def send_sticker_message(phone_number, message)
-    attachment = message.attachments.first
+    media_id = upload_sticker_media(message)
+    return if media_id.blank?
+
     response = HTTParty.post(
       "#{phone_id_path}/messages",
       headers: api_headers,
@@ -274,11 +278,57 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
         context: whatsapp_reply_context(message),
         to: phone_number,
         type: 'sticker',
-        sticker: { link: attachment.download_url }
+        sticker: { id: media_id }
       }.to_json
     )
 
     process_response(response, message)
+  end
+
+  def upload_sticker_media(message)
+    attachment = message.attachments.first
+    return if attachment.blank?
+
+    response = attachment.file.blob.open { |file| post_sticker_media(file.read) }
+    return JSON.parse(response.body)['id'] if response.code.to_i == 200
+
+    fail_sticker_upload(message, response)
+    nil
+  rescue StandardError => e
+    Rails.logger.error "[STICKER] media upload failed: #{e.message}"
+    nil
+  end
+
+  def post_sticker_media(data)
+    boundary = "----chatwit#{SecureRandom.hex(8)}"
+    uri = URI.parse("#{phone_id_path}/media")
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = uri.scheme == 'https'
+    request = Net::HTTP::Post.new(uri.request_uri)
+    request['Authorization'] = "Bearer #{whatsapp_channel.provider_config['api_key']}"
+    request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
+    request.body = sticker_media_body(boundary, data)
+    http.request(request)
+  end
+
+  def sticker_media_body(boundary, data)
+    body = +''.b
+    body << "--#{boundary}\r\nContent-Disposition: form-data; name=\"messaging_product\"\r\n\r\nwhatsapp\r\n".b
+    body << "--#{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"sticker.webp\"\r\nContent-Type: image/webp\r\n\r\n".b
+    body << data.to_s.b
+    body << "\r\n--#{boundary}--\r\n".b
+    body
+  end
+
+  def fail_sticker_upload(message, response)
+    Rails.logger.error "[STICKER] media upload error: #{response.body}"
+    message.update!(status: :failed, external_error: parse_sticker_error(response.body) || 'Sticker upload failed')
+  end
+
+  def parse_sticker_error(body)
+    JSON.parse(body).dig('error', 'message')
+  rescue JSON::ParserError
+    nil
   end
 
   def error_message(response)

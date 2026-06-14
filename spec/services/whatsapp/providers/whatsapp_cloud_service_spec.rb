@@ -122,7 +122,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
         expect(service.send_message('+123456789', message)).to eq 'message_id'
       end
 
-      it 'calls message endpoints with sticker type for sticker messages' do
+      it 'uploads the sticker to /media and sends it by media id' do
         sticker_message = create(:message, conversation: conversation, message_type: :outgoing, content: nil,
                                            content_type: 'sticker', inbox: whatsapp_channel.inbox)
         sticker_message.attachments.create!(
@@ -135,13 +135,16 @@ describe Whatsapp::Providers::WhatsappCloudService do
           }
         )
 
+        stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/media')
+          .to_return(status: 200, body: { id: 'sticker-media-id' }.to_json, headers: response_headers)
         stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
           .to_return(status: 200, body: { messages: [{ id: 'wamid.sticker' }] }.to_json, headers: response_headers)
 
         expect(service.send_message('+123456789', sticker_message)).to eq 'wamid.sticker'
+        expect(WebMock).to have_requested(:post, 'https://graph.facebook.com/v22.0/123456789/media')
         expect(WebMock).to(have_requested(:post, 'https://graph.facebook.com/v22.0/123456789/messages').with do |req|
           body = JSON.parse(req.body)
-          body['type'] == 'sticker' && body['sticker']['link'].present?
+          body['type'] == 'sticker' && body['sticker']['id'] == 'sticker-media-id'
         end)
       end
     end
