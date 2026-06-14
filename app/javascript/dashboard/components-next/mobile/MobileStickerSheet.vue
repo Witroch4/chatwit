@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStickers } from 'dashboard/composables/useStickers';
 import MobileBottomSheet from './MobileBottomSheet.vue';
@@ -14,8 +14,21 @@ const { t } = useI18n();
 const { stickers, recent, fetchLibrary, createFromFile, send } = useStickers();
 
 const fileInput = ref(null);
+const activeTab = ref('recent');
 
-onMounted(fetchLibrary);
+const tabs = [
+  { key: 'recent', label: 'MOBILE.STICKERS.RECENT' },
+  { key: 'all', label: 'MOBILE.STICKERS.ALL' },
+];
+
+const displayed = computed(() =>
+  activeTab.value === 'recent' ? recent.value : stickers.value
+);
+
+onMounted(async () => {
+  await fetchLibrary();
+  activeTab.value = recent.value.length ? 'recent' : 'all';
+});
 
 const onSend = async sticker => {
   if (!props.conversationId) return;
@@ -38,6 +51,21 @@ const onFile = async e => {
     :title="t('MOBILE.STICKERS.TITLE')"
     @close="emit('close')"
   >
+    <div class="flex items-center gap-1 mb-2">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors"
+        :class="
+          activeTab === tab.key
+            ? 'bg-n-alpha-2 text-n-slate-12'
+            : 'text-n-slate-11'
+        "
+        @click="activeTab = tab.key"
+      >
+        {{ t(tab.label) }}
+      </button>
+    </div>
     <div class="grid grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto">
       <button
         class="flex items-center justify-center border border-dashed rounded-lg aspect-square border-n-weak text-n-slate-11"
@@ -47,7 +75,7 @@ const onFile = async e => {
         <span class="text-xl i-lucide-plus" aria-hidden="true" />
       </button>
       <button
-        v-for="sticker in [...recent, ...stickers]"
+        v-for="sticker in displayed"
         :key="sticker.id"
         class="flex items-center justify-center rounded-lg aspect-square active:bg-n-alpha-2"
         @click="onSend(sticker)"

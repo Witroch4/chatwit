@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStickers } from 'dashboard/composables/useStickers';
 
@@ -13,8 +13,21 @@ const { stickers, recent, isLoading, fetchLibrary, createFromFile, send } =
   useStickers();
 
 const fileInput = ref(null);
+const activeTab = ref('recent');
 
-onMounted(fetchLibrary);
+const tabs = [
+  { key: 'recent', label: 'STICKERS.RECENT' },
+  { key: 'all', label: 'STICKERS.ALL' },
+];
+
+const displayed = computed(() =>
+  activeTab.value === 'recent' ? recent.value : stickers.value
+);
+
+onMounted(async () => {
+  await fetchLibrary();
+  activeTab.value = recent.value.length ? 'recent' : 'all';
+});
 
 const onSend = async sticker => {
   await send({ stickerId: sticker.id, conversationId: props.conversationId });
@@ -37,9 +50,21 @@ const onFile = async e => {
     <div
       class="flex items-center justify-between px-3 py-2 border-b border-n-weak"
     >
-      <span class="text-sm font-medium text-n-slate-12">{{
-        t('STICKERS.TITLE')
-      }}</span>
+      <div class="flex gap-1">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="px-2 py-1 text-xs font-medium rounded-md transition-colors"
+          :class="
+            activeTab === tab.key
+              ? 'bg-n-alpha-2 text-n-slate-12'
+              : 'text-n-slate-11 hover:text-n-slate-12'
+          "
+          @click="activeTab = tab.key"
+        >
+          {{ t(tab.label) }}
+        </button>
+      </div>
       <button class="text-xs text-n-brand" @click="onPick">
         {{ t('STICKERS.ADD') }}
       </button>
@@ -47,9 +72,15 @@ const onFile = async e => {
     <div v-if="isLoading" class="p-4 text-sm text-center text-n-slate-11">
       {{ t('STICKERS.LOADING') }}
     </div>
+    <div
+      v-else-if="!displayed.length"
+      class="p-6 text-sm text-center text-n-slate-11"
+    >
+      {{ t('STICKERS.EMPTY') }}
+    </div>
     <div v-else class="grid grid-cols-4 gap-2 p-3 overflow-y-auto">
       <button
-        v-for="sticker in [...recent, ...stickers]"
+        v-for="sticker in displayed"
         :key="sticker.id"
         class="flex items-center justify-center rounded-lg aspect-square hover:bg-n-alpha-2"
         @click="onSend(sticker)"

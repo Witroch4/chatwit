@@ -35,7 +35,9 @@
       "ADD": "Adicionar",
       "SAVE": "Salvar como figurinha",
       "SAVED": "Figurinha salva",
-      "SAVE_FAILED": "Não foi possível salvar a figurinha"
+      "SAVE_FAILED": "Não foi possível salvar a figurinha",
+      "ALL": "Todas",
+      "RECENT": "Recentes"
     },
     "ACTIONS": {
       "SECTIONS": {

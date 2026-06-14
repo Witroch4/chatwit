@@ -35,7 +35,9 @@
       "ADD": "Add",
       "SAVE": "Save as sticker",
       "SAVED": "Sticker saved",
-      "SAVE_FAILED": "Could not save sticker"
+      "SAVE_FAILED": "Could not save sticker",
+      "ALL": "All",
+      "RECENT": "Recent"
     },
     "ACTIONS": {
       "SECTIONS": {

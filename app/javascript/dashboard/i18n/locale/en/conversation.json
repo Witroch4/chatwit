@@ -5,7 +5,10 @@
     "LOADING": "Loading…",
     "SAVE": "Save as sticker",
     "SAVED": "Sticker saved",
-    "SAVE_FAILED": "Could not save sticker"
+    "SAVE_FAILED": "Could not save sticker",
+    "ALL": "All",
+    "RECENT": "Recent",
+    "EMPTY": "No stickers yet"
   },
   "CONVERSATION": {
     "SELECT_A_CONVERSATION": "Please select a conversation from left pane",
