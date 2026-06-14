@@ -5,7 +5,8 @@ class Stickers::ConverterService
   MAX_INPUT_BYTES = 5.megabytes
   STATIC_MAX_BYTES = 100.kilobytes
   ANIMATED_MAX_BYTES = 500.kilobytes
-  QUALITY_STEPS = [80, 70, 60, 50, 40, 30].freeze
+  QUALITY_STEPS = [85, 75, 65, 55, 45, 35].freeze
+  WEBP_EFFORT = 6
 
   class InvalidSource < StandardError; end
 
@@ -51,11 +52,14 @@ class Stickers::ConverterService
     1
   end
 
+  # Matches the proven WhatsApp-accepted recipe: center-crop to 512x512 and save
+  # a plain webp. We intentionally do NOT add an alpha channel / transparent
+  # padding here — WhatsApp rejects such artificially-alpha'd webp as stickers
+  # ("Sticker file could not be processed", error 131053). Source transparency
+  # (e.g. a received sticker) is preserved as-is.
   def optimize_static
-    image = Vips::Image.thumbnail_buffer(@bytes, TARGET, height: TARGET, size: :down)
-    image = ensure_rgba(image)
-    square = image.gravity('centre', TARGET, TARGET, extend: :background, background: [0, 0, 0, 0])
-    encode_within(square, STATIC_MAX_BYTES)
+    image = Vips::Image.thumbnail_buffer(@bytes, TARGET, height: TARGET, crop: :centre)
+    encode_within(image, STATIC_MAX_BYTES)
   end
 
   def optimize_animated
@@ -69,18 +73,13 @@ class Stickers::ConverterService
     optimize_static
   end
 
-  # Normalizes any colourspace to 4-band RGBA so padding can be transparent.
-  def ensure_rgba(image)
-    image = image.colourspace(:srgb) if image.bands < 3
-    image = image.bandjoin(255) if image.bands == 3
-    image
-  end
-
+  # strip: true removes ICC/EXIF metadata so opaque stickers serialize as a plain
+  # webp (not the extended VP8X container), which WhatsApp accepts cleanly.
   def encode_within(image, max_bytes)
     QUALITY_STEPS.each do |q|
-      bytes = image.write_to_buffer('.webp', Q: q, effort: 4)
+      bytes = image.write_to_buffer('.webp', Q: q, effort: WEBP_EFFORT, strip: true)
       return bytes if bytes.bytesize <= max_bytes
     end
-    image.write_to_buffer('.webp', Q: QUALITY_STEPS.last, effort: 4)
+    image.write_to_buffer('.webp', Q: QUALITY_STEPS.last, effort: WEBP_EFFORT, strip: true)
   end
 end
