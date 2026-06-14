@@ -37,12 +37,11 @@ class Whatsapp::IncomingMessageBaseService
 
     set_contact
     return unless @contact
-    return if @contact.blocked? && !outgoing_echo
 
-    # Early rejection for blocked contacts - discard message completely
-    if @contact.blocked?
+    # Discard messages from blocked contacts. Logged (instead of returning
+    # silently) so the drop is visible when debugging "message never arrived".
+    if @contact.blocked? && !outgoing_echo
       Rails.logger.info("[WHATSAPP] Discarding message from blocked contact: #{@contact.id}")
-      clear_message_source_id_from_redis
       return
     end
 

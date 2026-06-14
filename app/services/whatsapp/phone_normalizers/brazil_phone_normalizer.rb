@@ -18,6 +18,17 @@ class Whatsapp::PhoneNormalizers::BrazilPhoneNormalizer < Whatsapp::PhoneNormali
     normalized_number
   end
 
+  # Both the 13-digit (with 9th digit, canonical) and 12-digit (without it)
+  # forms, so the same number matches regardless of how it was first stored.
+  def equivalents(waid)
+    return [waid] unless handles_country?(waid)
+
+    ddd = waid[COUNTRY_CODE_LENGTH, DDD_LENGTH]
+    rest = waid[(COUNTRY_CODE_LENGTH + DDD_LENGTH)..] || ''
+    local = rest.start_with?('9') ? rest[1..] : rest
+    ["55#{ddd}9#{local}", "55#{ddd}#{local}"]
+  end
+
   private
 
   def country_code_pattern
