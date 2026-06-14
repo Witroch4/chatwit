@@ -9,6 +9,7 @@ class Sticker < ApplicationRecord
 
   # Appends a sticker id to the per-user recents list (newest first, capped).
   def self.touch_recent(user, sticker_id)
+    sticker_id = sticker_id.to_i
     settings = user.ui_settings || {}
     recents = Array(settings['recent_stickers']).reject { |id| id == sticker_id }
     recents.unshift(sticker_id)

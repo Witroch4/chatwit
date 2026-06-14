@@ -1418,6 +1418,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_160609) do
   add_foreign_key "payment_links", "conversations"
   add_foreign_key "payment_links", "users"
   add_foreign_key "payment_presets", "accounts"
+  add_foreign_key "stickers", "accounts"
   add_foreign_key "whatsapp_interactive_templates", "accounts"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
