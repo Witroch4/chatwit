@@ -10,7 +10,9 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
       send_reaction(phone_number, message.content_attributes['reaction_message_id'], message.content_attributes['reaction_emoji'])
     end
 
-    if message.attachments.present?
+    if message.content_type == 'sticker' && message.attachments.present?
+      send_sticker_message(phone_number, message)
+    elsif message.attachments.present?
       send_attachment_message(phone_number, message)
     elsif message.content_attributes&.dig('rich_media').present?
       send_rich_media_message(phone_number, message, message.content_attributes['rich_media'])
@@ -261,6 +263,23 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
         'to' => phone_number,
         'type' => type,
         type.to_s => type_content
+      }.to_json
+    )
+
+    process_response(response, message)
+  end
+
+  def send_sticker_message(phone_number, message)
+    attachment = message.attachments.first
+    response = HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: {
+        messaging_product: 'whatsapp',
+        context: whatsapp_reply_context(message),
+        to: phone_number,
+        type: 'sticker',
+        sticker: { link: attachment.download_url }
       }.to_json
     )
 
