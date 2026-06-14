@@ -32,7 +32,10 @@
     },
     "STICKERS": {
       "TITLE": "Stickers",
-      "ADD": "Add"
+      "ADD": "Add",
+      "SAVE": "Save as sticker",
+      "SAVED": "Sticker saved",
+      "SAVE_FAILED": "Could not save sticker"
     },
     "ACTIONS": {
       "SECTIONS": {

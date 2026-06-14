@@ -2,7 +2,10 @@
   "STICKERS": {
     "TITLE": "Stickers",
     "ADD": "Add",
-    "LOADING": "Loading…"
+    "LOADING": "Loading…",
+    "SAVE": "Save as sticker",
+    "SAVED": "Sticker saved",
+    "SAVE_FAILED": "Could not save sticker"
   },
   "CONVERSATION": {
     "SELECT_A_CONVERSATION": "Please select a conversation from left pane",

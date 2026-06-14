@@ -6,9 +6,17 @@ const props = defineProps({
   isOpen: { type: Boolean, default: false },
   enabledOptions: { type: Object, default: () => ({}) },
   anchorRect: { type: Object, default: null },
+  stickerAttachmentId: { type: [Number, String], default: null },
 });
 
-const emit = defineEmits(['close', 'reply', 'copy', 'translate', 'delete']);
+const emit = defineEmits([
+  'close',
+  'reply',
+  'copy',
+  'translate',
+  'delete',
+  'saveSticker',
+]);
 
 const VIEWPORT_PADDING = 12;
 const MENU_WIDTH = 240;
@@ -38,6 +46,14 @@ const visibleItems = computed(() => {
       key: 'reply',
       label: t('CONVERSATION.CONTEXT_MENU.REPLY_TO'),
       icon: 'i-lucide-reply',
+      danger: false,
+    });
+  }
+  if (props.stickerAttachmentId) {
+    items.push({
+      key: 'saveSticker',
+      label: t('MOBILE.STICKERS.SAVE'),
+      icon: 'i-lucide-sticker',
       danger: false,
     });
   }
@@ -118,6 +134,7 @@ const handleAction = key => {
   else if (key === 'copy') emit('copy');
   else if (key === 'translate') emit('translate');
   else if (key === 'delete') emit('delete');
+  else if (key === 'saveSticker') emit('saveSticker');
   emit('close');
 };
 </script>

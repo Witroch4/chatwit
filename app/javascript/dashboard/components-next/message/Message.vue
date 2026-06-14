@@ -10,6 +10,7 @@ import { useRoute } from 'vue-router';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
+import { useStickers } from 'dashboard/composables/useStickers';
 import wootConstants from 'dashboard/constants/globals';
 import { ACCOUNT_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
@@ -436,6 +437,26 @@ const contextMenuEnabledOptions = computed(() => {
   };
 });
 
+const { createFromAttachment } = useStickers();
+
+const stickerAttachmentId = computed(() => {
+  if (!Array.isArray(props.attachments)) return null;
+  const imageAttachment = props.attachments.find(
+    attachment => attachment?.fileType === ATTACHMENT_TYPES.IMAGE
+  );
+  return imageAttachment?.id ?? null;
+});
+
+async function handleSaveSticker() {
+  if (!stickerAttachmentId.value) return;
+  try {
+    await createFromAttachment(stickerAttachmentId.value);
+    useAlert(t('STICKERS.SAVED'));
+  } catch (e) {
+    useAlert(e?.response?.data?.error || t('STICKERS.SAVE_FAILED'));
+  }
+}
+
 const shouldRenderMessage = computed(() => {
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
   const isEmailContentType = props.contentType === CONTENT_TYPES.INCOMING_EMAIL;
@@ -788,6 +809,7 @@ provideMessageContext({
         :is-open="showContextMenu"
         :enabled-options="contextMenuEnabledOptions"
         :message="payloadForContextMenu"
+        :sticker-attachment-id="stickerAttachmentId"
         hide-button
         @open="openContextMenu"
         @close="closeContextMenu"
@@ -798,11 +820,13 @@ provideMessageContext({
         :is-open="showMobileContextMenu"
         :enabled-options="contextMenuEnabledOptions"
         :anchor-rect="mobileAnchorRect"
+        :sticker-attachment-id="stickerAttachmentId"
         @close="closeMobileContextMenu"
         @copy="handleMobileCopy"
         @translate="handleMobileTranslate"
         @reply="handleReplyTo"
         @delete="handleMobileDelete"
+        @save-sticker="handleSaveSticker"
       />
     </div>
   </div>

@@ -13,6 +13,8 @@ import {
 } from '../../../helper/AnalyticsHelper/events';
 import MenuItem from '../../../components/widgets/conversation/contextMenu/menuItem.vue';
 import { useTrack } from 'dashboard/composables';
+import { useStickers } from 'dashboard/composables/useStickers';
+import { useI18n } from 'vue-i18n';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
 export default {
@@ -43,13 +45,21 @@ export default {
       type: Boolean,
       default: false,
     },
+    stickerAttachmentId: {
+      type: [Number, String],
+      default: null,
+    },
   },
   emits: ['open', 'close', 'replyTo'],
   setup() {
     const { getPlainText } = useMessageFormatter();
+    const { createFromAttachment } = useStickers();
+    const { t } = useI18n();
 
     return {
       getPlainText,
+      createFromAttachment,
+      t,
     };
   },
   data() {
@@ -131,6 +141,15 @@ export default {
     },
     handleReplyTo() {
       this.$emit('replyTo', this.message);
+      this.handleClose();
+    },
+    async saveAsSticker() {
+      try {
+        await this.createFromAttachment(this.stickerAttachmentId);
+        useAlert(this.t('STICKERS.SAVED'));
+      } catch (e) {
+        useAlert(e?.response?.data?.error || this.t('STICKERS.SAVE_FAILED'));
+      }
       this.handleClose();
     },
     openDeleteModal() {
@@ -223,6 +242,15 @@ export default {
           }"
           variant="icon"
           @click.stop="handleTranslate"
+        />
+        <MenuItem
+          v-if="stickerAttachmentId"
+          :option="{
+            icon: 'emoji-add',
+            label: $t('STICKERS.SAVE'),
+          }"
+          variant="icon"
+          @click.stop="saveAsSticker"
         />
         <hr />
         <MenuItem
