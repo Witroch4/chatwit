@@ -9,8 +9,15 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const { t } = useI18n();
-const { stickers, recent, isLoading, fetchLibrary, createFromFile, send } =
-  useStickers();
+const {
+  stickers,
+  recent,
+  isLoading,
+  fetchLibrary,
+  createFromFile,
+  send,
+  remove,
+} = useStickers();
 
 const fileInput = ref(null);
 const activeTab = ref('recent');
@@ -41,6 +48,8 @@ const onFile = async e => {
   if (file) await createFromFile(file);
   e.target.value = '';
 };
+
+const onDelete = sticker => remove(sticker.id);
 </script>
 
 <template>
@@ -79,14 +88,26 @@ const onFile = async e => {
       {{ t('STICKERS.EMPTY') }}
     </div>
     <div v-else class="grid grid-cols-4 gap-2 p-3 overflow-y-auto">
-      <button
+      <div
         v-for="sticker in displayed"
         :key="sticker.id"
-        class="flex items-center justify-center rounded-lg aspect-square hover:bg-n-alpha-2"
-        @click="onSend(sticker)"
+        class="relative group aspect-square"
       >
-        <img :src="sticker.url" alt="" class="object-contain w-full h-full" />
-      </button>
+        <button
+          class="flex items-center justify-center w-full h-full rounded-lg hover:bg-n-alpha-2"
+          @click="onSend(sticker)"
+          @contextmenu.prevent="onDelete(sticker)"
+        >
+          <img :src="sticker.url" alt="" class="object-contain w-full h-full" />
+        </button>
+        <button
+          class="absolute flex items-center justify-center w-5 h-5 transition-opacity rounded-full opacity-0 -top-1 -right-1 bg-n-slate-12 text-n-slate-1 group-hover:opacity-100"
+          :aria-label="t('STICKERS.DELETE')"
+          @click.stop="onDelete(sticker)"
+        >
+          <span class="text-xs i-lucide-x" aria-hidden="true" />
+        </button>
+      </div>
     </div>
     <input
       ref="fileInput"

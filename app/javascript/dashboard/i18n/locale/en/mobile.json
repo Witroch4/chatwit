@@ -37,7 +37,10 @@
       "SAVED": "Sticker saved",
       "SAVE_FAILED": "Could not save sticker",
       "ALL": "All",
-      "RECENT": "Recent"
+      "RECENT": "Recent",
+      "DELETE": "Delete",
+      "EDIT": "Edit",
+      "DONE": "Done"
     },
     "ACTIONS": {
       "SECTIONS": {

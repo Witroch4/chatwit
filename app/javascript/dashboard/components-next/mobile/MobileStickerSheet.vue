@@ -11,10 +11,12 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const { t } = useI18n();
-const { stickers, recent, fetchLibrary, createFromFile, send } = useStickers();
+const { stickers, recent, fetchLibrary, createFromFile, send, remove } =
+  useStickers();
 
 const fileInput = ref(null);
 const activeTab = ref('recent');
+const editing = ref(false);
 
 const tabs = [
   { key: 'recent', label: 'MOBILE.STICKERS.RECENT' },
@@ -37,6 +39,10 @@ const onSend = async sticker => {
 };
 
 const onPick = () => fileInput.value?.click();
+
+const onDelete = sticker => remove(sticker.id);
+
+const onTap = sticker => (editing.value ? onDelete(sticker) : onSend(sticker));
 
 const onFile = async e => {
   const file = e.target.files?.[0];
@@ -65,23 +71,41 @@ const onFile = async e => {
       >
         {{ t(tab.label) }}
       </button>
+      <button
+        class="px-2 py-1 ml-auto text-sm font-medium text-n-brand"
+        @click="editing = !editing"
+      >
+        {{ editing ? t('MOBILE.STICKERS.DONE') : t('MOBILE.STICKERS.EDIT') }}
+      </button>
     </div>
     <div class="grid grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto">
       <button
+        v-if="!editing"
         class="flex items-center justify-center border border-dashed rounded-lg aspect-square border-n-weak text-n-slate-11"
         :aria-label="t('MOBILE.STICKERS.ADD')"
         @click="onPick"
       >
         <span class="text-xl i-lucide-plus" aria-hidden="true" />
       </button>
-      <button
+      <div
         v-for="sticker in displayed"
         :key="sticker.id"
-        class="flex items-center justify-center rounded-lg aspect-square active:bg-n-alpha-2"
-        @click="onSend(sticker)"
+        class="relative aspect-square"
       >
-        <img :src="sticker.url" alt="" class="object-contain w-full h-full" />
-      </button>
+        <button
+          class="flex items-center justify-center w-full h-full rounded-lg active:bg-n-alpha-2"
+          @click="onTap(sticker)"
+        >
+          <img :src="sticker.url" alt="" class="object-contain w-full h-full" />
+        </button>
+        <span
+          v-if="editing"
+          class="absolute flex items-center justify-center w-5 h-5 text-white rounded-full -top-1 -right-1 bg-n-red-9"
+          aria-hidden="true"
+        >
+          <span class="text-xs i-lucide-x" />
+        </span>
+      </div>
     </div>
     <input
       ref="fileInput"

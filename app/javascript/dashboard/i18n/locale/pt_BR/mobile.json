@@ -37,7 +37,10 @@
       "SAVED": "Figurinha salva",
       "SAVE_FAILED": "Não foi possível salvar a figurinha",
       "ALL": "Todas",
-      "RECENT": "Recentes"
+      "RECENT": "Recentes",
+      "DELETE": "Excluir",
+      "EDIT": "Editar",
+      "DONE": "Concluído"
     },
     "ACTIONS": {
       "SECTIONS": {
