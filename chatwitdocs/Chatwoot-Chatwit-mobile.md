@@ -259,6 +259,17 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-14 — Figurinhas (stickers) no composer mobile
+
+Entrega mobile da feature de figurinhas do WhatsApp (Etapa 3 da migração — doc completa em `chatwitdocs/migration-etapa3-stickers.md`).
+
+- **Botão de figurinha no composer:** novo botão dentro da pill de input em `components-next/mobile/MobileReplyBox.vue`, exibido **apenas** em conversas de canal WhatsApp (mesmo gate do desktop). Abre o sheet de figurinhas.
+- **`components-next/mobile/MobileStickerSheet.vue`:** bottom sheet que **reusa o composable `useStickers()`** (mesmo client de API/estado do desktop — nada de lógica reimplementada). Lista a biblioteca da conta + recentes do usuário, permite enviar com um toque e tem um botão "+" (`MOBILE.STICKERS.ADD`) para criar figurinha a partir de imagem/câmera. O envio passa pelo pipeline nativo de mensagem (`content_type: 'sticker'`), idêntico ao desktop.
+- **"Salvar como figurinha" no menu mobile:** `components-next/mobile/MobileMessageContextMenu.vue` ganhou a ação (`MOBILE.STICKERS.SAVE`) para salvar uma imagem/figurinha recebida na biblioteca, via `stickerAttachmentId` exposto pelo `Message.vue`.
+- **Renderização:** figurinhas chegam como bolha sem borda via `components-next/message/bubbles/Sticker.vue` (componente compartilhado desktop/mobile, registrado no `Message.vue`).
+
+Chaves `MOBILE.STICKERS.*` em `en`/`pt`/`pt_BR`. Escopo WhatsApp Cloud only. Todo o código mobile vive em `components-next/mobile/` — desktop intocado (isolamento total).
+
 ### 2026-06-13 — Fix: fundo branco "estourando" por trás do chat em tema escuro
 
 **Sintoma:** no tema escuro, o fundo atrás do chat aparecia branco — embaixo da view de ações, nas bordas e principalmente durante o "page peel" (swipe entre mensagens e ações).

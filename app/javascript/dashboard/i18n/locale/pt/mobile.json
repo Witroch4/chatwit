@@ -30,6 +30,13 @@
         "GENERATING": "Gerando…"
       }
     },
+    "STICKERS": {
+      "TITLE": "Figurinhas",
+      "ADD": "Adicionar",
+      "SAVE": "Salvar como figurinha",
+      "SAVED": "Figurinha salva",
+      "SAVE_FAILED": "Não foi possível salvar a figurinha"
+    },
     "ACTIONS": {
       "SECTIONS": {
         "SETTINGS": "Configurações",

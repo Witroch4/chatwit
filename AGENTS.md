@@ -89,7 +89,7 @@ Este documento cobre TODOS os contratos de integração:
 |-------|-----------|--------|--------------|
 | 1 | SocialWise Flow (debounce, webhook, mensagens ricas) | Completa | `chatwitdocs/migration-etapa1.md` |
 | 2 | Rich Messages Rendering (WhatsApp/Instagram templates, botões, imagens) | Completa | `chatwitdocs/migration-etapa2.md` |
-| 3 | Stickers (rotas, frontend, upload) | Pendente | - |
+| 3 | Stickers (rotas, frontend, upload) | Completa | `chatwitdocs/migration-etapa3-stickers.md` |
 | 4 | UI/UX customizações | Pendente | - |
 
 ### Arquivos criticos de referencia
