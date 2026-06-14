@@ -5,6 +5,9 @@ class Sticker < ApplicationRecord
   belongs_to :user, optional: true
   has_one_attached :file
 
+  # processing: original attached, background conversion pending; ready: WhatsApp-compliant; failed: conversion errored
+  enum :status, { processing: 0, ready: 1, failed: 2 }, default: :ready
+
   validates :account_id, presence: true
 
   # Appends a sticker id to the per-user recents list (newest first, capped).

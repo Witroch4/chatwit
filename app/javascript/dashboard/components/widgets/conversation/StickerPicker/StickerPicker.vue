@@ -37,6 +37,7 @@ onMounted(async () => {
 });
 
 const onSend = async sticker => {
+  if (sticker.status === 'processing') return;
   await send({ stickerId: sticker.id, conversationId: props.conversationId });
   emit('close');
 };
@@ -99,6 +100,15 @@ const onDelete = sticker => remove(sticker.id);
           @contextmenu.prevent="onDelete(sticker)"
         >
           <img :src="sticker.url" alt="" class="object-contain w-full h-full" />
+          <span
+            v-if="sticker.status === 'processing'"
+            class="absolute inset-0 flex items-center justify-center rounded-lg bg-n-alpha-2"
+          >
+            <span
+              class="w-5 h-5 i-lucide-loader-circle animate-spin text-n-slate-11"
+              aria-hidden="true"
+            />
+          </span>
         </button>
         <button
           class="absolute flex items-center justify-center w-5 h-5 transition-opacity rounded-full opacity-0 -top-1 -right-1 bg-n-slate-12 text-n-slate-1 group-hover:opacity-100"

@@ -184,3 +184,43 @@ Requer app rodando + uma inbox WhatsApp Cloud real (não coberto por teste autom
 
 **Regressão (isolamento desktop):**
 - [ ] No desktop (≥ 768px) nada do layout/composer mudou de comportamento; o módulo mobile não vaza para o desktop.
+
+---
+
+## Correção 2026-06-14 — Figurinhas animadas + anexo .webp (erro 131053)
+
+Dois bugs distintos, ambos confirmados por evidência de produção (logs do webhook de status + DB), corrigidos:
+
+### 1. "Adicionar à biblioteca" falhava em GIFs animados (timeout)
+- **Causa raiz:** o `Stickers::ConverterService` reencodava todos os frames a cada passo de qualidade com `effort: 6`. Um sticker de **50 frames** levava **~48s em produção** (medido), estourando o **`rack-timeout` de 15s** → request abortado → nenhuma figurinha salva. O `createFromFile` não tinha tratamento de erro, então o usuário não via nada ("nao foi").
+- **Correção:** caminho animado agora usa `ANIMATED_WEBP_EFFORT = 2` + `ANIMATED_QUALITY_STEPS = [65,50,40,30]`, atingindo ≤500KB em 1-2 passos (**~5s em prod**, bem abaixo do timeout). Fallback: se nem a menor qualidade couber, degrada para o 1º frame estático (sticker garantidamente enviável). `crop: :centre` **não** é usável em animado (colapsa o strip de frames); animado mantém `size: :down`.
+- **Feedback:** `createFromFile` agora mostra `STICKERS.SAVED` / `STICKERS.SAVE_FAILED` e ativa `isLoading`.
+
+### 2. "Enviar como anexo" (.webp) falhava — `131053: WebP image uploads are not currently supported`
+- **Causa raiz:** o WhatsApp aceita `webp` **somente** como `type: sticker`, nunca como `type: image`. Ao anexar um `.webp` direto (sem ser pela biblioteca), a mensagem ia como `content_type: "text"` → caía no caminho de anexo genérico → `type: image` → rejeitado. Os bytes iam **sem conversão** (589KB crus).
+- **Correção:** `WhatsappCloudService` agora roteia qualquer anexo `image/webp` para `send_sticker_message` (`sticker_message?`), e converte anexos webp não-biblioteca para um webp compatível (512px / ≤limite) antes do upload (`sticker_upload_bytes` → `ConverterService#to_webp`). Stickers da biblioteca, já compatíveis, sobem como estão (sem reconverter).
+
+### Lembrete técnico
+A validação de figurinha do WhatsApp é **assíncrona**: o envio retorna `wamid` (status "sent") e só depois o webhook de status confirma `delivered` ou `failed` com `error_data.details`. Sempre confira o webhook, não só o "enviado" no dashboard.
+
+---
+
+## Correção 2026-06-14 (parte 2) — Velocidade: pular-se-compatível + conversão async
+
+Investigamos por que uma animação "boba" demora ~5s pra salvar. Medição (arquivo real de 50 frames):
+**decodificar 50 frames → ~50MB crus = ~2,9s prod** + **recomprimir (effort:2) = ~1,1s prod**. O gargalo é a *quantidade de imagem* (50 frames), não o código — `effort` alto só piora. Logo, ~5s é o piso da conversão **síncrona**. O fork legado (`StickerImageOptimizerService`) não convertia mais rápido (usava effort:6); ele **mascarava** a latência com UI otimista + cache Redis.
+
+Duas mudanças que atacam a causa de verdade:
+
+### 1. Pular a conversão quando o arquivo já é compatível
+`Stickers::ConverterService#compliant?` lê **só o header** (rápido) e, se a fonte já é webp **exatamente 512×512** dentro do limite (≤500KB animado / ≤100KB estático), retorna os bytes **como estão** — passthrough **instantâneo** (medido: 0ms). Beneficia muito o "salvar figurinha recebida" (já vem webp 512²) e re-uploads. Também acelera a conversão de anexos webp no caminho de envio do WhatsApp.
+
+### 2. Conversão em background (fluxo otimista)
+Quando precisa **reconverter de verdade** (ex.: o meme de 589KB, 89KB acima do teto):
+- `Sticker` ganhou `status` (enum `processing/ready/failed`, migration `add_status_to_stickers`).
+- `StickersController#create`: se `compliant?` → converte na hora (`:ready`); senão cria o registro com `:processing`, anexa o **original como preview** e enfileira `Stickers::ConvertJob`, retornando **na hora**.
+- `Stickers::ConvertJob` (fila `medium`): converte, troca o arquivo pelo webp compatível, marca `:ready` (ou `:failed`).
+- `GET /stickers/:id` (novo) + poll no `useStickers` (`pollUntilReady`, 1,5s) atualizam o card quando fica pronto.
+- Picker (desktop + mobile): figurinha em `processing` mostra **spinner** e **não é enviável**; `send_sticker` recusa no backend se não estiver `:ready` (defesa em profundidade).
+
+Resultado: instantâneo pra quase tudo (passthrough), e "parece instantâneo" pro resto (aparece na hora com spinner, converte em background; à prova de GIF gigante, sem risco de timeout).

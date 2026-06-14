@@ -42,7 +42,11 @@ const onPick = () => fileInput.value?.click();
 
 const onDelete = sticker => remove(sticker.id);
 
-const onTap = sticker => (editing.value ? onDelete(sticker) : onSend(sticker));
+const onTap = sticker => {
+  if (editing.value) return onDelete(sticker);
+  if (sticker.status === 'processing') return undefined;
+  return onSend(sticker);
+};
 
 const onFile = async e => {
   const file = e.target.files?.[0];
@@ -97,6 +101,15 @@ const onFile = async e => {
           @click="onTap(sticker)"
         >
           <img :src="sticker.url" alt="" class="object-contain w-full h-full" />
+          <span
+            v-if="sticker.status === 'processing'"
+            class="absolute inset-0 flex items-center justify-center rounded-lg bg-n-alpha-2"
+          >
+            <span
+              class="w-5 h-5 i-lucide-loader-circle animate-spin text-n-slate-11"
+              aria-hidden="true"
+            />
+          </span>
         </button>
         <span
           v-if="editing"

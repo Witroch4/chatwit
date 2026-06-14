@@ -5,7 +5,7 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     @message = message
     send_reaction_if_present(phone_number, message)
 
-    if message.content_type == 'sticker' && message.attachments.present?
+    if message.attachments.present? && sticker_message?(message)
       send_sticker_message(phone_number, message)
     elsif message.attachments.present?
       send_attachment_message(phone_number, message)
@@ -285,17 +285,41 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     process_response(response, message)
   end
 
-  def upload_sticker_media(message)
-    attachment = message.attachments.first
-    return if attachment.blank?
+  # WhatsApp accepts webp ONLY as a sticker, never as an image ("WebP image uploads
+  # are not currently supported", error 131053). So any webp attachment is routed here.
+  def sticker_message?(message)
+    return true if message.content_type == 'sticker'
 
-    response = attachment.file.blob.open { |file| post_sticker_media(file.read) }
+    message.attachments.first&.file&.content_type == 'image/webp'
+  end
+
+  def upload_sticker_media(message)
+    data = sticker_upload_bytes(message)
+    return if data.blank?
+
+    response = post_sticker_media(data)
     return JSON.parse(response.body)['id'] if response.code.to_i == 200
 
     fail_sticker_upload(message, response)
     nil
   rescue StandardError => e
     Rails.logger.error "[STICKER] media upload failed: #{e.message}"
+    nil
+  end
+
+  def sticker_upload_bytes(message)
+    attachment = message.attachments.first
+    return if attachment.blank?
+
+    bytes = attachment.file.blob.open(&:read)
+    # Library stickers are already a WhatsApp-compliant webp; raw webp attachments
+    # (e.g. a user-dropped .webp) must be converted to 512px / size-capped first.
+    return bytes if message.content_type == 'sticker'
+
+    webp, = Stickers::ConverterService.new(bytes: bytes).to_webp
+    webp
+  rescue Stickers::ConverterService::InvalidSource => e
+    Rails.logger.error "[STICKER] convert failed: #{e.message}"
     nil
   end
 

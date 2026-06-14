@@ -116,7 +116,7 @@ Rails.application.routes.draw do
           resources :macros, only: [:index, :create, :show, :update, :destroy] do
             post :execute, on: :member
           end
-          resources :stickers, only: [:index, :create, :destroy] do
+          resources :stickers, only: [:index, :show, :create, :destroy] do
             member do
               post :send_sticker
             end
