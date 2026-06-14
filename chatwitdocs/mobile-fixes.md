@@ -2,6 +2,31 @@
 
 Date: 2026-03-14
 
+## 2026-06-14 - Composer (MobileReplyBox) com aparência tipo WhatsApp
+
+### Contexto
+
+O input de texto do PWA mobile parecia "cortar" o texto e ficava mais estreito/baixo
+que o campo do WhatsApp. As causas: fonte abaixo de 16px (`text-sm` no texto e
+`text-xs` no placeholder), pílula curta (`min-h-[36px]` + `py-1.5`) e `line-height`
+apertado (`h-5 leading-5`). Fonte < 16px ainda fazia o iOS dar zoom na tela ao focar,
+comportamento que o WhatsApp nunca tem.
+
+### Implementado (somente `components-next/mobile/MobileReplyBox.vue`)
+
+- Texto e placeholder em 16px (`text-base`), eliminando o zoom-on-focus do iOS e
+  igualando o tamanho confortável do WhatsApp.
+- Pílula mais alta e folgada: `min-h-[40px]` + `py-2`, com `h-6 leading-6` (24px) no
+  textarea para dar respiro vertical ao texto.
+- `resizeTextarea` agora parte de `24px` (alinhado ao `leading-6`); o crescimento
+  multi-linha até `max-h-[120px]` com scroll permanece igual (~5 linhas, como o WhatsApp).
+- Linha de duração do gravador de áudio também ajustada para `min-h-[40px]` para não
+  variar a altura da barra ao alternar modos.
+
+### Isolamento
+
+- Mudança 100% visual e restrita ao componente mobile; nenhuma lógica/store/desktop tocada.
+
 ## 2026-03-16 - Push notifications duplicadas após reinstalar o PWA
 
 ### Contexto
