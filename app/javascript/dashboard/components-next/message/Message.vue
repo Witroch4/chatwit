@@ -46,6 +46,7 @@ import VoiceCallBubble from './bubbles/VoiceCall.vue';
 // SocialWise/Chatwit Rich Message Components
 import WhatsAppInteractiveBubble from './bubbles/WhatsAppInteractive.vue';
 import RichCardsBubble from './bubbles/RichCards.vue';
+import StickerBubble from './bubbles/Sticker.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -319,6 +320,10 @@ const componentToRender = computed(() => {
 
   if (props.contentType === CONTENT_TYPES.VOICE_CALL) {
     return VoiceCallBubble;
+  }
+
+  if (props.contentType === CONTENT_TYPES.STICKER) {
+    return StickerBubble;
   }
 
   if (props.contentType === CONTENT_TYPES.INCOMING_EMAIL) {
