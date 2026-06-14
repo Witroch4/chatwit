@@ -58,6 +58,17 @@ class Stickers::ConverterService
     encode_within(square, STATIC_MAX_BYTES)
   end
 
+  def optimize_animated
+    # libvips thumbnail is animation-aware when the loader reads all pages via
+    # the 'n=-1' option string. The result keeps the page/animation metadata,
+    # and webpsave then writes an animated webp.
+    thumb = Vips::Image.thumbnail_buffer(@bytes, TARGET, height: TARGET, size: :down, option_string: 'n=-1')
+    encode_within(thumb, ANIMATED_MAX_BYTES)
+  rescue Vips::Error
+    # Fallback: first frame as a static sticker (still valid for WhatsApp).
+    optimize_static
+  end
+
   # Normalizes any colourspace to 4-band RGBA so padding can be transparent.
   def ensure_rgba(image)
     image = image.colourspace(:srgb) if image.bands < 3
