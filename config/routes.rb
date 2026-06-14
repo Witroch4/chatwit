@@ -116,6 +116,11 @@ Rails.application.routes.draw do
           resources :macros, only: [:index, :create, :show, :update, :destroy] do
             post :execute, on: :member
           end
+          resources :stickers, only: [:index, :create, :destroy] do
+            member do
+              post :send_sticker
+            end
+          end
           resources :sla_policies, only: [:index, :create, :show, :update, :destroy]
           resources :custom_roles, only: [:index, :create, :show, :update, :destroy]
           resources :agent_capacity_policies, only: [:index, :create, :show, :update, :destroy] do
