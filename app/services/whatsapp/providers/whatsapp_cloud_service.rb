@@ -3,12 +3,7 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
   def send_message(phone_number, message)
     @message = message
-
-    # Support for Async Button Reaction (Emoji)
-    # If the message has a reaction_emoji, send it first
-    if message.content_attributes&.dig('reaction_emoji').present? && message.content_attributes&.dig('reaction_message_id').present?
-      send_reaction(phone_number, message.content_attributes['reaction_message_id'], message.content_attributes['reaction_emoji'])
-    end
+    send_reaction_if_present(phone_number, message)
 
     if message.content_type == 'sticker' && message.attachments.present?
       send_sticker_message(phone_number, message)
@@ -351,6 +346,15 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     )
 
     process_response(response, message)
+  end
+
+  # Support for Async Button Reaction (Emoji)
+  # If the message has a reaction_emoji, send it first
+  def send_reaction_if_present(phone_number, message)
+    return unless message.content_attributes&.dig('reaction_emoji').present? &&
+                  message.content_attributes&.dig('reaction_message_id').present?
+
+    send_reaction(phone_number, message.content_attributes['reaction_message_id'], message.content_attributes['reaction_emoji'])
   end
 
   def send_reaction(phone_number, message_id, emoji)
