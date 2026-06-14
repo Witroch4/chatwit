@@ -1,4 +1,9 @@
 {
+  "STICKERS": {
+    "TITLE": "Stickers",
+    "ADD": "Add",
+    "LOADING": "Loading…"
+  },
   "CONVERSATION": {
     "SELECT_A_CONVERSATION": "Please select a conversation from left pane",
     "CSAT_REPLY_MESSAGE": "Please rate the conversation",

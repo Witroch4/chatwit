@@ -31,6 +31,7 @@ import {
 import WhatsappTemplates from './WhatsappTemplates/Modal.vue';
 import ContentTemplates from './ContentTemplates/ContentTemplatesModal.vue';
 import PaymentLinkModal from './PaymentLink/Modal.vue';
+import StickerPicker from './StickerPicker/StickerPicker.vue';
 import { MESSAGE_MAX_LENGTH } from 'shared/helpers/MessageTypeHelper';
 import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 import { trimContent, debounce, getRecipients } from '@chatwoot/utils';
@@ -77,6 +78,7 @@ export default {
     ReplyTopPanel,
     ContentTemplates,
     WhatsappTemplates,
+    StickerPicker,
     WootMessageEditor,
     QuotedEmailPreview,
     CopilotEditorSection,
@@ -128,6 +130,7 @@ export default {
       showWhatsAppTemplatesModal: false,
       showContentTemplatesModal: false,
       showPaymentLinkModal: false,
+      showStickerPicker: false,
       updateEditorSelectionWith: '',
       undefinedVariableMessage: '',
       showMentions: false,
@@ -1430,8 +1433,16 @@ export default {
         @replace-text="replaceText"
         @toggle-insert-article="toggleInsertArticle"
         @toggle-quoted-reply="toggleQuotedReply"
+        @toggle-sticker-picker="showStickerPicker = !showStickerPicker"
       />
     </Transition>
+
+    <StickerPicker
+      v-if="showStickerPicker && isAWhatsAppChannel"
+      :conversation-id="currentChat.id"
+      class="absolute z-50 bottom-16 left-3"
+      @close="showStickerPicker = false"
+    />
 
     <WhatsappTemplates
       :inbox-id="inbox.id"

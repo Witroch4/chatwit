@@ -137,6 +137,7 @@ export default {
     'selectContentTemplate',
     'selectPaymentLink',
     'toggleQuotedReply',
+    'toggleStickerPicker',
   ],
   setup(props) {
     const { setSignatureFlagForInbox, fetchSignatureFlagFromUISettings } =
@@ -370,6 +371,15 @@ export default {
         faded
         sm
         @click="$emit('selectWhatsappTemplate')"
+      />
+      <NextButton
+        v-if="isAWhatsAppChannel && !isNote"
+        v-tooltip.top-end="$t('STICKERS.TITLE')"
+        icon="i-ph-sticker"
+        slate
+        faded
+        sm
+        @click="$emit('toggleStickerPicker')"
       />
       <NextButton
         v-if="enableContentTemplates"
