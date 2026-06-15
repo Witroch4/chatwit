@@ -37,20 +37,32 @@ const { swipeOffset, isSwiping, swipeProgress } = useSwipeBack(
   chatRootRef,
   () => emit('back')
 );
-const { keyboardHeight, isKeyboardOpen } = useKeyboardResize();
+const { keyboardHeight, isKeyboardOpen, viewportHeight, viewportOffsetTop } =
+  useKeyboardResize();
 
 // Liquid Glass swipe-back styles
 const swipeBackStyle = computed(() => {
-  const style = {};
-  if (isKeyboardOpen.value) {
-    style.paddingBottom = `${keyboardHeight.value}px`;
+  // Height tracks the visible viewport (single source of truth): flush above the
+  // keyboard when open, at the screen bottom when closed — no padding to
+  // double-count. translateY compensates if iOS scrolls the layout viewport.
+  const style = { height: `${viewportHeight.value}px` };
+  const transforms = [];
+  if (viewportOffsetTop.value) {
+    transforms.push(`translateY(${viewportOffsetTop.value}px)`);
   }
-  if (swipeOffset.value <= 0) return style;
-  const progress = swipeProgress.value;
-  style.transform = `translateX(${swipeOffset.value}px) scale(${1 - progress * 0.04})`;
-  style.borderRadius = `${progress * 20}px`;
-  style.boxShadow = `-8px 0 30px rgba(0, 0, 0, ${progress * 0.15})`;
-  style.overflow = 'hidden';
+  if (swipeOffset.value > 0) {
+    const progress = swipeProgress.value;
+    transforms.push(
+      `translateX(${swipeOffset.value}px)`,
+      `scale(${1 - progress * 0.04})`
+    );
+    style.borderRadius = `${progress * 20}px`;
+    style.boxShadow = `-8px 0 30px rgba(0, 0, 0, ${progress * 0.15})`;
+    style.overflow = 'hidden';
+  }
+  if (transforms.length) {
+    style.transform = transforms.join(' ');
+  }
   return style;
 });
 
@@ -385,7 +397,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="chatRootRef"
-    class="relative flex flex-col w-full h-full bg-n-surface-1"
+    class="relative flex flex-col w-full bg-n-surface-1"
     :class="{
       'transition-all duration-[250ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]':
         !isSwiping && swipeOffset > 0,
