@@ -31,7 +31,12 @@ export const useKeyboardResize = () => {
     if (!viewport) return;
     viewportHeight.value = Math.round(viewport.height);
     viewportOffsetTop.value = Math.round(viewport.offsetTop);
-    const delta = Math.round(window.innerHeight - viewport.height);
+    // Use the layout viewport (clientHeight) as the stable reference: iOS shrinks
+    // window.innerHeight when the keyboard opens, which makes innerHeight - height
+    // ~0 and the keyboard undetectable.
+    const delta = Math.round(
+      document.documentElement.clientHeight - viewport.height
+    );
     const keyboardVisible = delta > 50 && hasEditableFocus();
     keyboardHeight.value = keyboardVisible ? Math.max(0, delta) : 0;
     isKeyboardOpen.value = keyboardVisible;

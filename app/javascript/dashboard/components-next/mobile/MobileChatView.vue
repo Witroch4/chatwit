@@ -37,17 +37,22 @@ const { swipeOffset, isSwiping, swipeProgress } = useSwipeBack(
   chatRootRef,
   () => emit('back')
 );
-const { viewportHeight, viewportOffsetTop } = useKeyboardResize();
+const { isKeyboardOpen, viewportHeight, viewportOffsetTop } =
+  useKeyboardResize();
 
 // Liquid Glass swipe-back styles
 const swipeBackStyle = computed(() => {
-  // Height tracks the visible viewport (single source of truth): flush above the
-  // keyboard when open, at the screen bottom when closed — no padding to
-  // double-count. translateY compensates if iOS scrolls the layout viewport.
-  const style = { height: `${viewportHeight.value}px` };
+  const style = {};
   const transforms = [];
-  if (viewportOffsetTop.value) {
-    transforms.push(`translateY(${viewportOffsetTop.value}px)`);
+  // Only shrink to the visible viewport WHILE the keyboard is open (so the
+  // composer sits flush above it). When closed, the chat root stays h-full so it
+  // always covers the screen — otherwise a transient short height exposes the
+  // conversation-list layer behind it right after opening a chat.
+  if (isKeyboardOpen.value) {
+    style.height = `${viewportHeight.value}px`;
+    if (viewportOffsetTop.value) {
+      transforms.push(`translateY(${viewportOffsetTop.value}px)`);
+    }
   }
   if (swipeOffset.value > 0) {
     const progress = swipeProgress.value;
@@ -357,7 +362,7 @@ watch(
 <template>
   <div
     ref="chatRootRef"
-    class="relative flex flex-col w-full bg-n-surface-1"
+    class="relative flex flex-col w-full h-full bg-n-surface-1"
     :class="{
       'transition-all duration-[250ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)]':
         !isSwiping && swipeOffset > 0,
