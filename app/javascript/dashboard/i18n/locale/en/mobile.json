@@ -19,7 +19,7 @@
     },
     "CHAT": {
       "BACK": "Back",
-      "TYPE_MESSAGE": "Type a message",
+      "TYPE_MESSAGE": "Message",
       "PRIVATE_PLACEHOLDER": "Visible only to agents",
       "USE_TEMPLATE": "Use template to reply",
       "TAKE_PHOTO": "Take a photo",

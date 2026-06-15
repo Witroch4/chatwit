@@ -73,6 +73,35 @@ como um valor alto demais.
 - `MobileLayout.vue`: padding inferior do conteúdo das abas deixou de somar
   `env(safe-area-inset-bottom)`, ficando apenas com o espaço da barra (`52px`).
 
+### Follow-up (mesmo dia): padding gigante intermitente ao abrir o teclado
+
+Prints com diagnóstico (overlay temporário que imprimia `innerHeight`/`visualViewport`/
+`safe-area` + bottoms dos elementos) provaram a causa: o chat aplicava
+`paddingBottom = innerHeight - visualViewport.height`. No iOS standalone, ao abrir o
+teclado, `innerHeight` e `visualViewport.height` mudam em **momentos diferentes**
+(num print medido: `iH381 vvH380 vvT412` com o teclado aberto), então a altura do
+teclado era subtraída **duas vezes** num instante intermediário → gap enorme acima
+do teclado. Fechar/abrir reembaralhava o timing e "consertava" — daí o sintoma
+intermitente.
+
+- `useKeyboardResize.js`: passou a expor `viewportHeight` (= `visualViewport.height`)
+  e `viewportOffsetTop` (= `visualViewport.offsetTop`), com listener de `scroll` além
+  de `resize`; removido o `scrollIntoView` de foco que brigava com o layout.
+- `MobileChatView.vue`: a altura do chat root agora é amarrada **diretamente** a
+  `viewportHeight` (fonte única de verdade — nada pra contar duas vezes), com
+  `translateY(viewportOffsetTop)` quando o iOS rola o layout. Removido `h-full` e o
+  `paddingBottom = keyboardHeight`. Teclado fechado → input no fundo (`inpB == iH`);
+  aberto → colado acima do teclado (`inpB == vvH`). Confirmado por medição no device.
+
+### Follow-up (mesmo dia): placeholder do composer quebrando em 2 linhas
+
+Com a fonte em 16px (necessária pra não dar zoom no iOS) e a textarea estreita
+(espremida por +/câmera/IA/mic fora da pílula e figurinha/cadeado dentro, ~110px no
+iPhone), o placeholder longo "Digite uma mensagem" **quebrava em 2 linhas**, inflando
+a pílula e parecendo um gap. Encurtado para o padrão WhatsApp ("Mensagem"/"Message")
+em `en`/`pt`/`pt_BR` (`MOBILE.CHAT.TYPE_MESSAGE`), cabendo em uma linha → pílula
+compacta de 36px.
+
 ### Isolamento
 
 - `MobileReplyBox.vue`: mudança 100% visual e restrita ao componente mobile.

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useWindowSize } from '@vueuse/core';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
@@ -37,8 +37,7 @@ const { swipeOffset, isSwiping, swipeProgress } = useSwipeBack(
   chatRootRef,
   () => emit('back')
 );
-const { keyboardHeight, isKeyboardOpen, viewportHeight, viewportOffsetTop } =
-  useKeyboardResize();
+const { viewportHeight, viewportOffsetTop } = useKeyboardResize();
 
 // Liquid Glass swipe-back styles
 const swipeBackStyle = computed(() => {
@@ -353,45 +352,6 @@ watch(
     setActiveChat().then(() => consumeFocusReplyParam());
   }
 );
-
-// --- TEMP DIAGNOSTIC (standalone PWA only): viewport metrics to pinpoint the
-// bottom gap. Removed once the root cause is confirmed. ---
-const showDiag = ref(
-  window.matchMedia?.('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true
-);
-const diagText = ref('measuring...');
-const measureDiag = () => {
-  const vv = window.visualViewport;
-  const probe = document.createElement('div');
-  probe.style.cssText =
-    'position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom);pointer-events:none;';
-  document.body.appendChild(probe);
-  const sab = Math.round(probe.getBoundingClientRect().height);
-  probe.style.height = 'env(safe-area-inset-top)';
-  const sat = Math.round(probe.getBoundingClientRect().height);
-  probe.remove();
-  const app = document.getElementById('app')?.getBoundingClientRect();
-  const root = chatRootRef.value?.getBoundingClientRect();
-  const inp = document
-    .querySelector('.mobile-reply-input')
-    ?.getBoundingClientRect();
-  diagText.value =
-    `iH${window.innerHeight} sH${window.screen?.height} dCH${document.documentElement.clientHeight} ` +
-    `vvH${vv ? Math.round(vv.height) : '-'} vvT${vv ? Math.round(vv.offsetTop) : '-'} ` +
-    `sat${sat} sab${sab} dpr${window.devicePixelRatio} ` +
-    `appB${app ? Math.round(app.bottom) : '-'} rootB${root ? Math.round(root.bottom) : '-'} inpB${inp ? Math.round(inp.bottom) : '-'} ` +
-    `kb${isKeyboardOpen.value ? 1 : 0}/${keyboardHeight.value}`;
-};
-onMounted(() => {
-  if (!showDiag.value) return;
-  measureDiag();
-  setTimeout(measureDiag, 600);
-  window.visualViewport?.addEventListener('resize', measureDiag);
-});
-onBeforeUnmount(() => {
-  window.visualViewport?.removeEventListener('resize', measureDiag);
-});
 </script>
 
 <template>
@@ -404,13 +364,6 @@ onBeforeUnmount(() => {
     }"
     :style="swipeBackStyle"
   >
-    <!-- TEMP DIAGNOSTIC overlay (standalone PWA only) -->
-    <div
-      v-if="showDiag"
-      class="fixed inset-x-0 top-[env(safe-area-inset-top)] z-[100] bg-black/85 px-1 font-mono text-[8px] leading-[11px] text-green-300 break-all pointer-events-none"
-    >
-      {{ diagText }}
-    </div>
     <!-- Liquid Glass edge indicator -->
     <div
       v-if="isSwiping"
