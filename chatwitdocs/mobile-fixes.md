@@ -2,6 +2,55 @@
 
 Date: 2026-03-14
 
+## 2026-06-15 - Composer 36px (paridade nativa) + faixa preta no rodapé do PWA
+
+### Contexto
+
+Dois bugs visuais no PWA instalado (iOS standalone):
+
+1. **Caixa de input alta.** O usuário reportou a "pílula" do composer alta demais
+   vs. o app nativo. Medição com Playwright + Tailwind real provou que o `min-h-[36px]`
+   era irrelevante: os botões inline (cadeado/figurinha) são `h-7` (28px), mais altos
+   que a textarea (22px); com `items-center`, o botão de 28px + `py-1.5` (12px) + borda
+   inflava a pílula para **42px**. O app nativo evita isso posicionando o cadeado
+   `absolute`, deixando só a textarea reger a altura (`min-h-9` = 36px).
+2. **Faixa preta no rodapé.** Abaixo da barra de abas aparecia uma faixa preta. Causa
+   raiz: o `<body>` (`vueapp.html.erb`) nunca teve `background`; no PWA standalone com
+   `viewport-fit=cover`, o `h-screen` (100vh) não pinta de forma confiável a safe-area
+   inferior, então o body cru (preto) vazava. O `bg-n-background` no root do `App.vue`
+   foi adicionado pelo upstream (`ee8cc0b804`), mas o body ficou sem cor — daí "veio
+   com um diff web".
+
+### Implementado
+
+- **`components-next/mobile/MobileReplyBox.vue`** (paridade com o nativo):
+  - Pílula `py-1.5` → `py-0.5` — com os botões de 28px a pílula fecha em **36px**
+    (= `min-h-9` do nativo), mantendo os alvos de toque maiores.
+  - Textarea `text-sm`/`placeholder:text-sm` → `text-base`/`placeholder:text-base`
+    (16px). Mantém `leading-5` (20px) — o mesmo truque do nativo (`text-base leading-[20px]`):
+    fonte de 16px **sem** inflar a altura. 16px também **elimina o zoom-on-focus do iOS**
+    (que reaparecia com 14px). Medição confirmou: 14px e 16px dão a mesma pílula de 36px.
+- **`app/views/layouts/vueapp.html.erb`**: `<body class="text-slate-600">` →
+  `... bg-n-background`. Em dark mode o body vira `rgb(28,29,32)` = **a mesma cor da
+  barra de abas** (`bg-n-background`), então a safe-area inferior fica contínua com a
+  barra (a barra "desce" até a base do iPhone) e a faixa preta some. Propaga para o
+  canvas via regra de propagação de background do body.
+
+### Isolamento
+
+- `MobileReplyBox.vue`: mudança 100% visual e restrita ao componente mobile.
+- `vueapp.html.erb`: aditivo. O body não tinha background nenhum; agora adota o token
+  do tema (claro `#F7F7F7`, escuro `#1C1D20`). O app desktop preenche por cima
+  (`App.vue` `h-screen bg-n-background`), então o body só aparece em safe-area/overscroll
+  — sem regressão no desktop, e em dark mode é até uma melhora (sem flash branco/preto).
+
+### Verificação
+
+- Altura medida via Playwright contra o engine real do Tailwind (pílula 42px → 36px).
+- Cor do body confirmada no dev server: dark = `rgb(28,29,32)` (igual à barra), claro =
+  `rgb(247,247,247)`.
+- **Pendente confirmar no PWA instalado (iOS)** — a safe-area só renderiza em standalone real.
+
 ## 2026-06-14 - Composer (MobileReplyBox) com aparência tipo WhatsApp
 
 ### Contexto
