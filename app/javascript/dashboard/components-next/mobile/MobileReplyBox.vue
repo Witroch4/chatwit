@@ -414,6 +414,13 @@ const onInputBlur = () => {
   onTypingOff();
 };
 
+const onInputFocus = () => {
+  isFocused.value = true;
+  // Re-normalize height in case the on-mount pass ran before the textarea had
+  // its final layout (e.g. during the chat view transition).
+  resizeTextarea();
+};
+
 const openWhatsappTemplateModal = () => {
   showWhatsAppTemplatesModal.value = true;
 };
@@ -519,6 +526,10 @@ const focusReplyTextarea = (payload = {}) => {
 
 onMounted(() => {
   emitter.on(BUS_EVENTS.FOCUS_REPLY_BOX, focusReplyTextarea);
+  // Normalize the empty textarea to a single line on open. Without this the
+  // textarea keeps its tall default height until the first keystroke, so the
+  // composer pill looks "thick" when empty and only slims down after typing.
+  resizeTextarea();
 });
 
 onBeforeUnmount(() => {
@@ -695,7 +706,7 @@ onBeforeUnmount(() => {
           @keydown="onKeydown"
           @input="onInput"
           @blur="onInputBlur"
-          @focus="isFocused = true"
+          @focus="onInputFocus"
         />
 
         <!-- Sticker button (WhatsApp only) -->
