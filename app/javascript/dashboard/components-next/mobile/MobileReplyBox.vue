@@ -25,16 +25,6 @@ import MobileMentionSheet from './MobileMentionSheet.vue';
 import MobileActionPickerSheet from './MobileActionPickerSheet.vue';
 import MobileStickerSheet from './MobileStickerSheet.vue';
 
-const props = defineProps({
-  // True while the virtual keyboard is open. When open, MobileChatView already
-  // lifts the whole chat by the keyboard height, so we drop the home-indicator
-  // safe-area padding to avoid a gap above the keyboard.
-  keyboardOpen: {
-    type: Boolean,
-    default: false,
-  },
-});
-
 const store = useStore();
 const { t } = useI18n();
 const { success, light } = useHaptics();
@@ -537,10 +527,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="relative flex flex-col border-t border-n-weak bg-n-background"
-    :class="props.keyboardOpen ? '' : 'pb-[env(safe-area-inset-bottom)]'"
-  >
+  <div class="relative flex flex-col border-t border-n-weak bg-n-background">
     <!-- @mention picker (private notes only), anchored above the composer -->
     <MobileMentionSheet
       v-if="showMentionSheet && effectivePrivate"

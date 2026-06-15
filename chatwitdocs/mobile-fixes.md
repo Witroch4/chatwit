@@ -36,6 +36,18 @@ Dois bugs visuais no PWA instalado (iOS standalone):
   barra (a barra "desce" até a base do iPhone) e a faixa preta some. Propaga para o
   canvas via regra de propagação de background do body.
 
+### Follow-up (mesmo dia): rodapé do chat usa 100% da base
+
+Pintar a safe-area só mudou a cor da faixa — o `pb-[env(safe-area-inset-bottom)]` do
+`MobileReplyBox` continuava empurrando o input ~34px pra cima e comendo altura do chat.
+Decisão do usuário: **a base do iPhone pode ser usada 100%, padding inferior = zero**
+(só o topo mantém limitação de safe-area). Aplicado:
+
+- `MobileReplyBox.vue`: removido o `pb-[env(safe-area-inset-bottom)]` (e o prop
+  `keyboardOpen`, que só existia pra alternar esse padding — virou código morto). O input
+  encosta na base; o `py-2` da própria linha já dá ~8px de respiro sobre o home-indicator.
+- `MobileChatView.vue`: removido o binding `:keyboard-open`.
+
 ### Isolamento
 
 - `MobileReplyBox.vue`: mudança 100% visual e restrita ao componente mobile.

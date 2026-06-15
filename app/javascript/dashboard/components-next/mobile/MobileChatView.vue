@@ -415,7 +415,7 @@ watch(
               <Spinner class="text-n-brand" />
             </div>
           </div>
-          <MobileReplyBox v-if="chatLoaded" :keyboard-open="isKeyboardOpen" />
+          <MobileReplyBox v-if="chatLoaded" />
         </div>
 
         <div
