@@ -569,7 +569,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Input row -->
-    <div class="flex items-end gap-1.5 px-2 py-2">
+    <div class="flex items-end gap-1.5 px-2 pt-2 pb-0">
       <!-- WhatsApp template button (when editor disabled) -->
       <button
         v-if="isEditorDisabled && hasWhatsAppTemplates"

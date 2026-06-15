@@ -44,9 +44,18 @@ Decisão do usuário: **a base do iPhone pode ser usada 100%, padding inferior =
 (só o topo mantém limitação de safe-area). Aplicado:
 
 - `MobileReplyBox.vue`: removido o `pb-[env(safe-area-inset-bottom)]` (e o prop
-  `keyboardOpen`, que só existia pra alternar esse padding — virou código morto). O input
-  encosta na base; o `py-2` da própria linha já dá ~8px de respiro sobre o home-indicator.
+  `keyboardOpen`, que só existia pra alternar esse padding — virou código morto). Isso
+  zerou o safe-area padding do container; a linha interna ainda mantinha `py-2`.
 - `MobileChatView.vue`: removido o binding `:keyboard-open`.
+
+### Follow-up (mesmo dia): input visual colado no rodapé
+
+O deploy acima zerou o safe-area padding do **container** do composer, mas a pílula
+visível do input ainda ficava alta porque a linha interna mantinha `py-2`. Como a
+decisão do usuário foi usar 100% da base, o padding inferior da linha virou zero:
+
+- `MobileReplyBox.vue`: linha do composer `py-2` → `pt-2 pb-0`. O input visível passa
+  a tocar a base do composer; só o espaçamento superior da barra permanece.
 
 ### Isolamento
 
