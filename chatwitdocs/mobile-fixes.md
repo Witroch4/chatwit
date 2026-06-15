@@ -57,6 +57,22 @@ decisão do usuário foi usar 100% da base, o padding inferior da linha virou ze
 - `MobileReplyBox.vue`: linha do composer `py-2` → `pt-2 pb-0`. O input visível passa
   a tocar a base do composer; só o espaçamento superior da barra permanece.
 
+### Follow-up (mesmo dia): falso teclado aberto e barra inferior alta no iOS PWA
+
+Prints reais do iPhone mostraram que ainda havia uma faixa grande abaixo do composer e
+da barra de abas. A causa deixou de ser o padding do `MobileReplyBox`: o PWA estava
+tratando diferença entre `window.innerHeight` e `visualViewport.height` como teclado
+aberto mesmo sem campo editável focado, aplicando `paddingBottom` falso no chat. A barra
+de abas também ainda somava `env(safe-area-inset-bottom)`, que no standalone apareceu
+como um valor alto demais.
+
+- `useKeyboardResize.js`: só considera teclado aberto quando há `input`/`textarea`/
+  `select`/contenteditable focado; sem foco editável, `keyboardHeight` volta para `0`.
+- `MobileBottomTabBar.vue`: removido o padding inferior baseado em safe-area; a barra
+  visual agora usa `pb-0`.
+- `MobileLayout.vue`: padding inferior do conteúdo das abas deixou de somar
+  `env(safe-area-inset-bottom)`, ficando apenas com o espaço da barra (`52px`).
+
 ### Isolamento
 
 - `MobileReplyBox.vue`: mudança 100% visual e restrita ao componente mobile.

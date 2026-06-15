@@ -211,7 +211,7 @@ onUnmounted(() => {
     <div class="relative flex-1 overflow-hidden">
       <!-- Layer 0: Tab content (always rendered, sits behind chat) -->
       <div
-        class="absolute inset-0 z-0 pb-[calc(52px+env(safe-area-inset-bottom))]"
+        class="absolute inset-0 z-0 pb-[52px]"
         :class="{ 'pointer-events-none': isInChatView && !isChatSwiping }"
       >
         <!-- KeepAlive caches each tab instance after its first visit, so
