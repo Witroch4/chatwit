@@ -49,7 +49,7 @@ const onTabClick = tabId => {
 
 <template>
   <nav
-    class="fixed bottom-0 left-0 right-0 z-50 flex items-stretch justify-around bg-white dark:bg-n-background border-t border-n-weak pb-[env(safe-area-inset-bottom)]"
+    class="fixed bottom-0 left-0 right-0 z-50 flex items-stretch justify-around bg-white dark:bg-n-background border-t border-n-weak pb-[max(4px,calc(env(safe-area-inset-bottom)-0.75rem))]"
   >
     <button
       v-for="tab in tabs"

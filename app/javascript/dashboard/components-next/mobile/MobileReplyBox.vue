@@ -167,9 +167,11 @@ const resizeTextarea = () => {
   nextTick(() => {
     const el = textareaRef.value;
     if (!el) return;
-    el.style.height = '24px';
+    el.style.height = 'auto';
     const maxHeight = 120; // ~5 lines
-    const newHeight = Math.min(el.scrollHeight, maxHeight);
+    // Floor of 22px keeps the empty input slim (WhatsApp-like) while giving the
+    // 14px line (leading-5 = 20px) ~2px headroom so descenders/caret don't clip.
+    const newHeight = Math.min(Math.max(el.scrollHeight, 22), maxHeight);
     el.style.height = `${newHeight}px`;
     el.style.overflowY = newHeight >= maxHeight ? 'auto' : 'hidden';
   });
@@ -687,7 +689,7 @@ onBeforeUnmount(() => {
       <!-- Text input area (hidden when recording) -->
       <div
         v-if="!showAudioRecorderEditor"
-        class="mobile-reply-input flex-1 flex items-center rounded-2xl border px-3 py-2 transition-colors min-h-[40px]"
+        class="mobile-reply-input flex-1 flex items-center rounded-2xl border px-3 py-1.5 transition-colors min-h-[36px]"
         :class="[
           effectivePrivate
             ? 'bg-n-amber-2 border-n-amber-5'
@@ -701,7 +703,7 @@ onBeforeUnmount(() => {
           :placeholder="placeholder"
           :disabled="isEditorDisabled"
           rows="1"
-          class="mobile-reply-textarea flex-1 min-w-0 w-full bg-transparent text-base text-n-slate-12 placeholder:text-n-slate-9 placeholder:text-base resize-none outline-none max-h-[120px] h-6 leading-6 overflow-y-hidden"
+          class="mobile-reply-textarea flex-1 min-w-0 w-full bg-transparent text-sm text-n-slate-12 placeholder:text-n-slate-9 placeholder:text-sm resize-none outline-none max-h-[120px] min-h-[22px] leading-5 overflow-y-hidden"
           :class="{ 'opacity-50 cursor-not-allowed': isEditorDisabled }"
           @keydown="onKeydown"
           @input="onInput"
@@ -776,7 +778,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <!-- Audio recorder duration display -->
-      <div v-else class="flex-1 flex items-center justify-center min-h-[40px]">
+      <div v-else class="flex-1 flex items-center justify-center min-h-[36px]">
         <span class="text-sm font-mono text-n-slate-11">{{
           recordingAudioDurationText
         }}</span>
