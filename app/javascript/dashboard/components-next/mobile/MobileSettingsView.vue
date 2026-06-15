@@ -22,6 +22,9 @@ import {
   unregisterSubscription,
   verifyServiceWorkerExistence,
 } from 'dashboard/helper/pushHelper';
+import { LocalStorage } from 'shared/helpers/localStorage';
+import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
+import { setColorTheme } from 'dashboard/helper/themeHelper';
 
 const store = useStore();
 const { t, locale } = useI18n();
@@ -45,6 +48,35 @@ const isAccountSheetOpen = ref(false);
 const isNotificationPrefsOpen = ref(false);
 
 const { selection } = useHaptics();
+
+// Theme (light/dark/auto): reuses the SAME localStorage key + applier the desktop
+// command bar uses, so the choice stays in sync across mobile/desktop.
+const colorScheme = ref(
+  LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_SCHEME) || 'auto'
+);
+const themeOptions = computed(() => [
+  {
+    key: 'light',
+    label: t('MOBILE.SETTINGS.THEME_LIGHT'),
+    icon: 'i-lucide-sun',
+  },
+  {
+    key: 'dark',
+    label: t('MOBILE.SETTINGS.THEME_DARK'),
+    icon: 'i-lucide-moon',
+  },
+  {
+    key: 'auto',
+    label: t('MOBILE.SETTINGS.THEME_SYSTEM'),
+    icon: 'i-lucide-monitor',
+  },
+]);
+const setTheme = key => {
+  selection();
+  colorScheme.value = key;
+  LocalStorage.set(LOCAL_STORAGE_KEYS.COLOR_SCHEME, key);
+  setColorTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+};
 
 // Value-gated wrapper so the trusted-tap overlay applies only to rows that
 // opt in (currently just the notifications row), leaving pre-existing rows
@@ -346,6 +378,31 @@ const settingsItems = computed(() => [
         :current-status="userAvailability"
         @change="onAvailabilityChange"
       />
+    </div>
+
+    <!-- Appearance / Theme -->
+    <div class="px-4 py-4 border-b border-n-weak">
+      <span
+        class="text-xs font-medium text-n-slate-10 uppercase tracking-wider mb-2 block"
+      >
+        {{ t('MOBILE.SETTINGS.APPEARANCE') }}
+      </span>
+      <div class="flex items-stretch gap-1 p-1 rounded-xl bg-n-alpha-1">
+        <button
+          v-for="option in themeOptions"
+          :key="option.key"
+          class="flex flex-col items-center justify-center gap-1 flex-1 py-2 rounded-lg text-xs font-medium transition-colors"
+          :class="
+            colorScheme === option.key
+              ? 'bg-n-background text-n-slate-12 shadow-sm'
+              : 'text-n-slate-11 active:bg-n-alpha-1'
+          "
+          @click="setTheme(option.key)"
+        >
+          <span class="size-5" :class="option.icon" />
+          {{ option.label }}
+        </button>
+      </div>
     </div>
 
     <!-- Push Notifications -->

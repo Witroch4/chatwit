@@ -259,6 +259,10 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-06-15 — Toggle de tema (Claro/Escuro/Sistema) no settings mobile
+
+Seletor segmentado de tema em `MobileSettingsView.vue`, logo abaixo de Disponibilidade. **Conecta** (não recria) o mesmo mecanismo do desktop: lê/grava `LocalStorage[LOCAL_STORAGE_KEYS.COLOR_SCHEME]` (`light`/`dark`/`auto`) e aplica via `setColorTheme()` de `helper/themeHelper.js` — a escolha fica em sincronia entre mobile e desktop, e o modo `auto` segue `prefers-color-scheme` (re-aplicado pelo listener do `App.vue`). i18n em `MOBILE.SETTINGS.APPEARANCE/THEME_LIGHT/THEME_DARK/THEME_SYSTEM` (en/pt/pt_BR). Desktop intocado.
+
 ### 2026-06-14 — Figurinhas (stickers) no composer mobile
 
 Entrega mobile da feature de figurinhas do WhatsApp (Etapa 3 da migração — doc completa em `chatwitdocs/migration-etapa3-stickers.md`).
