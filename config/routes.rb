@@ -41,6 +41,9 @@ Rails.application.routes.draw do
 
   get '/health', to: 'health#show'
   get '/api', to: 'api#index'
+  # Public, capability-signed playback URL for audio attachments (iOS-compatible MP3).
+  # Unauthenticated by design — see AudioPlaybackController.
+  get 'audio_playback/:signed_id', to: 'audio_playback#show', as: :audio_playback
   namespace :api, defaults: { format: 'json' } do
     namespace :v1 do
       # ----------------------------------
@@ -166,12 +169,6 @@ Rails.application.routes.draw do
               get :attachments
               get :inbox_assistant
               get :reporting_events if ChatwootApp.enterprise?
-            end
-          end
-
-          resources :attachments, only: [] do
-            member do
-              get :playback
             end
           end
 

@@ -103,7 +103,7 @@ class Attachment < ApplicationRecord
 
   def audio_metadata
     audio_file_data = base_data.merge(file_metadata)
-    audio_file_data[:playback_url] = audio_playback_url if Audio::Mp3TranscodeService.requires_transcode?(self)
+    audio_file_data[:playback_url] = transcoded_playback_url if Audio::Mp3TranscodeService.requires_transcode?(self)
     audio_file_data.merge(
       {
         transcribed_text: meta&.[]('transcribed_text') || ''
@@ -111,8 +111,8 @@ class Attachment < ApplicationRecord
     )
   end
 
-  def audio_playback_url
-    playback_api_v1_account_attachment_path(account_id: account_id, id: id)
+  def transcoded_playback_url
+    audio_playback_path(signed_id: signed_id(purpose: :audio_playback))
   end
 
   def file_metadata
