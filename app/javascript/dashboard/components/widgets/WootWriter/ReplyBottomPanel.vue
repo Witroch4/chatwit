@@ -97,6 +97,14 @@ export default {
       type: Boolean,
       default: false,
     },
+    enableDossier: {
+      type: Boolean,
+      default: false,
+    },
+    dossierModeActive: {
+      type: Boolean,
+      default: false,
+    },
     conversationId: {
       type: Number,
       required: true,
@@ -136,6 +144,7 @@ export default {
     'selectWhatsappTemplate',
     'selectContentTemplate',
     'selectPaymentLink',
+    'toggleDossier',
     'toggleQuotedReply',
     'toggleStickerPicker',
   ],
@@ -398,6 +407,16 @@ export default {
         faded
         sm
         @click="$emit('selectPaymentLink')"
+      />
+      <NextButton
+        v-if="enableDossier"
+        v-tooltip.top-end="$t('CONVERSATION.FOOTER.DOSSIER')"
+        icon="i-ph-file-zip"
+        color="slate"
+        :variant="dossierModeActive ? 'solid' : 'faded'"
+        sm
+        :aria-pressed="dossierModeActive"
+        @click="$emit('toggleDossier')"
       />
       <VideoCallButton
         v-if="

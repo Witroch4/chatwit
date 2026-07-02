@@ -53,6 +53,7 @@ import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
 import MobileMessageContextMenu from 'dashboard/components-next/mobile/MobileMessageContextMenu.vue';
 import { useBranding } from 'shared/composables/useBranding';
+import { useDossierSelection } from 'dashboard/composables/useDossierSelection';
 
 /**
  * @typedef {Object} Attachment
@@ -167,6 +168,26 @@ const { width: viewportWidth } = useWindowSize();
 const isMobileViewport = computed(
   () => viewportWidth.value < wootConstants.SMALL_SCREEN_BREAKPOINT
 );
+
+// Chatwit: "Baixar Dossiê" selection mode
+const dossierSelection = useDossierSelection();
+const selectedChatGetter = useMapGetter('getSelectedChat');
+const isDossierModeActive = computed(() =>
+  dossierSelection.isActiveFor(props.conversationId)
+);
+const isDossierSelected = computed(
+  () => isDossierModeActive.value && dossierSelection.isSelected(props.id)
+);
+
+function onDossierClick(event) {
+  const orderedIds = (selectedChatGetter.value?.messages || []).map(
+    message => message.id
+  );
+  dossierSelection.toggle(props.id, {
+    range: event.shiftKey || event.altKey,
+    orderedIds,
+  });
+}
 
 /**
  * Computes the message variant based on props
@@ -747,9 +768,32 @@ provideMessageContext({
       {
         'group-with-next': shouldGroupWithNext,
         'bg-n-alpha-1': showBackgroundHighlight,
+        'relative select-none ltr:pl-8 rtl:pr-8 rounded-lg':
+          isDossierModeActive,
+        'bg-n-brand/10': isDossierSelected,
       },
     ]"
   >
+    <template v-if="isDossierModeActive">
+      <div
+        class="absolute inset-0 z-20 cursor-pointer rounded-lg"
+        :class="isDossierSelected ? 'ring-1 ring-n-brand/40' : ''"
+        @click.prevent.stop="onDossierClick($event)"
+      />
+      <span
+        class="absolute z-10 flex items-center justify-center rounded-full pointer-events-none ltr:left-1 rtl:right-1 top-1/2 -translate-y-1/2 size-5 border"
+        :class="
+          isDossierSelected
+            ? 'bg-n-brand border-n-brand'
+            : 'border-n-slate-8 bg-n-solid-1'
+        "
+      >
+        <span
+          v-if="isDossierSelected"
+          class="i-ph-check-bold size-3 text-white"
+        />
+      </span>
+    </template>
     <div v-if="variant === MESSAGE_VARIANTS.ACTIVITY">
       <ActivityBubble :content="content" />
     </div>

@@ -53,6 +53,8 @@ en:
         invalid: is not a valid timezone
       support_email:
         invalid: is not a valid email address
+    dossier:
+      no_messages: No valid messages selected for the dossier
     validations:
       presence: must not be blank
     webhook:

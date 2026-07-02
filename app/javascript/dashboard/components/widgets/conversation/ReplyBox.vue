@@ -53,6 +53,7 @@ import {
   getEffectiveChannelType,
 } from 'dashboard/helper/editorHelper';
 import { useCopilotReply } from 'dashboard/composables/useCopilotReply';
+import { useDossierSelection } from 'dashboard/composables/useDossierSelection';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
 import { isFileTypeAllowedForChannel } from 'shared/helpers/FileHelper';
 
@@ -185,6 +186,12 @@ export default {
       return (
         !!account?.custom_attributes?.infinitepay_handle && !this.isPrivate
       );
+    },
+    showDossier() {
+      return !!this.currentChat?.id;
+    },
+    isDossierModeActive() {
+      return useDossierSelection().isActiveFor(this.currentChat?.id);
     },
     isPrivate() {
       if (
@@ -771,6 +778,9 @@ export default {
     },
     openPaymentLinkModal() {
       this.showPaymentLinkModal = true;
+    },
+    toggleDossierMode() {
+      useDossierSelection().toggleMode(this.currentChat.id);
     },
     hidePaymentLinkModal() {
       this.showPaymentLinkModal = false;
@@ -1404,6 +1414,8 @@ export default {
         :enable-whats-app-templates="showWhatsappTemplates"
         :enable-content-templates="showContentTemplates"
         :enable-payment-link="showPaymentLink"
+        :enable-dossier="showDossier"
+        :dossier-mode-active="isDossierModeActive"
         :inbox="inbox"
         :is-on-private-note="isOnPrivateNote"
         :is-recording-audio="isRecordingAudio"
@@ -1430,6 +1442,7 @@ export default {
         @select-whatsapp-template="openWhatsappTemplateModal"
         @select-content-template="openContentTemplateModal"
         @select-payment-link="openPaymentLinkModal"
+        @toggle-dossier="toggleDossierMode"
         @replace-text="replaceText"
         @toggle-insert-article="toggleInsertArticle"
         @toggle-quoted-reply="toggleQuotedReply"
