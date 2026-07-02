@@ -218,9 +218,8 @@
       "HINT": "Click messages to select them. Hold Shift or Alt to select a range.",
       "SELECT_ALL": "Select all",
       "CANCEL": "Cancel",
-      "DOWNLOAD": "Download dossier (ZIP)",
-      "GENERATING": "Generating dossier...",
-      "SUCCESS": "Dossier ready. The download will start automatically.",
+      "DOWNLOAD": "Generate dossier (ZIP)",
+      "QUEUED": "Dossier is being generated. When ready it will be posted here as a private note with the ZIP for download — you can close this conversation.",
       "ERROR": "Could not generate the dossier. Please try again."
     },
     "REPLYBOX": {

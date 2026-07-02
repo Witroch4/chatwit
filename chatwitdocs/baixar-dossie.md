@@ -34,16 +34,23 @@ referenciado em `transcricao.txt`.
 
 | Arquivo | Papel |
 |---------|-------|
-| `app/controllers/api/v1/accounts/conversations/dossiers_controller.rb` | `POST /dossiers` (enfileira) e `GET /dossiers/:id` (status) |
-| `app/jobs/conversations/dossier_export_job.rb` | Orquestra a geração, publica status no Redis |
-| `app/jobs/conversations/dossier_cleanup_job.rb` | Purga o blob do ZIP após 12h (dados sensíveis não ficam para sempre) |
+| `app/controllers/api/v1/accounts/conversations/dossiers_controller.rb` | `POST /dossiers` (enfileira, fire-and-forget) e `GET /dossiers/:id` (status legado, mantido por compat) |
+| `app/jobs/conversations/dossier_export_job.rb` | Orquestra a geração e **entrega o ZIP como nota privada na conversa** |
+| `app/jobs/conversations/dossier_cleanup_job.rb` | Legado: purga blobs órfãos de dossiês antigos (pré fire-and-forget); não é mais agendado |
 | `app/services/conversations/dossier_builder_service.rb` | Monta o ZIP (rubyzip), converte áudios, transcreve |
-| `app/services/conversations/dossier_status.rb` | Status compartilhado via `Redis::Alfred` (`chatwit:dossier:<account>:<conversation>:<uuid>`) |
+| `app/services/conversations/dossier_status.rb` | Status via `Redis::Alfred` (telemetria/debug; a UI não faz mais polling) |
 
-Fluxo: `POST` valida `message_ids` (precisam pertencer à conversa) → gera UUID → job na
-queue `default` → status `processing` → ZIP montado em tempfile → blob órfão no
-ActiveStorage (`create_and_upload!`) → status `completed` com `rails_blob_url(disposition:
-attachment)` → cleanup agendado. Falha → status `failed` + `ChatwootExceptionTracker`.
+Fluxo (**fire-and-forget**): `POST` valida `message_ids` → gera UUID → job na queue
+`default` com o `user_id` do solicitante → ZIP montado em tempfile → blob no ActiveStorage
+(MinIO) → **mensagem privada** (`private: true`, sender = agente solicitante) criada na
+conversa com o ZIP anexado (`file_type: :file`) e conteúdo i18n
+(`conversations.dossier.ready_note`, locale da conta). O agente não precisa manter o chat
+aberto: a nota chega via websocket e o ZIP fica **permanente no histórico**, baixável de
+qualquer lugar (inclusive mobile). Falha → nota privada com o erro
+(`conversations.dossier.failed_note`) + `ChatwootExceptionTracker`.
+
+> Limite de anexo: `MAXIMUM_FILE_UPLOAD_SIZE` (default 40MB). ZIP maior que isso falha na
+> validação do attachment e vira nota de erro.
 
 Reuso de infra existente do fork:
 - **MP3:** `Audio::Mp3TranscodeService` (ffmpeg, cacheado em `attachment.playback_file`).
@@ -67,14 +74,14 @@ Reuso de infra existente do fork:
 |---------|-------|
 | `app/javascript/dashboard/composables/useDossierSelection.js` | Estado global de seleção (modo ativo, ids, range Shift/Alt) |
 | `app/javascript/dashboard/api/dossiers.js` | Client REST |
-| `app/javascript/dashboard/components/widgets/conversation/dossier/DossierBar.vue` | Barra de ação + polling + disparo do download |
+| `app/javascript/dashboard/components/widgets/conversation/dossier/DossierBar.vue` | Barra de ação — dispara a geração (fire-and-forget) e libera a tela |
 | `ReplyBottomPanel.vue` (edit) | Botão na toolbar (padrão `NextButton`, igual ao payment link) |
 | `ReplyBox.vue` (edit) | Liga o botão ao composable |
 | `Message.vue` (edit) | Overlay de seleção + checkbox + highlight quando o modo está ativo |
 | `MessagesView.vue` (edit) | Monta a `DossierBar` acima do composer |
 
-O polling do status roda a cada 2s por até 5 minutos; ao completar, um `<a download>` é
-clicado programaticamente (não usa `window.open`, evitando popup blocker).
+Não há polling: ao enfileirar, a UI mostra o toast `DOSSIER.QUEUED`, sai do modo de
+seleção e libera a tela. A entrega acontece pela nota privada na conversa.
 
 ## i18n
 
@@ -83,10 +90,12 @@ clicado programaticamente (não usa `window.open`, evitando popup blocker).
 
 ## Decisões
 
-- **Job assíncrono + polling** em vez de resposta síncrona: transcrever N áudios no Whisper
-  pode facilmente passar dos 30s de request.
-- **Blob órfão + purge em 12h** em vez de `has_one_attached` na conta: permite dossiês
-  concorrentes e não deixa material judicial armazenado indefinidamente.
+- **Fire-and-forget + entrega por nota privada** em vez de polling com a tela travada:
+  transcrever N áudios pode levar minutos; o agente dispara e segue trabalhando. O ZIP
+  anexado à nota fica salvo no histórico da conversa, visível só para agentes (private),
+  acessível de qualquer dispositivo — e some o risco de perder o download ao fechar a aba.
+- **Sem purge**: o ZIP agora é anexo de mensagem (permanente, como qualquer arquivo do
+  chat). O `DossierCleanupJob` ficou apenas para drenar blobs órfãos antigos.
 - **Fuso fixo `America/Sao_Paulo`** rotulado como "horário de Brasília" no documento — para
   uso judicial o fuso precisa ser explícito e estável, não o fuso do navegador.
 - **Sem migração de banco** — tudo usa `playback_file` e `meta.transcribed_text` que o fork

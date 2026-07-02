@@ -221,6 +221,9 @@ pt_BR:
   conversations:
     captain:
       handoff: 'Transferindo para que outro agente dê assistência.'
+    dossier:
+      ready_note: 'Dossiê pronto (%{count} mensagens selecionadas): %{filename}'
+      failed_note: 'Falha ao gerar o dossiê: %{error}'
     messages:
       instagram_story_content: '%{story_sender} mencionou você na conversa: '
       instagram_deleted_story_content: Este Story não está mais disponível.

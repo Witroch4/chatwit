@@ -15,7 +15,7 @@ class Api::V1::Accounts::Conversations::DossiersController < Api::V1::Accounts::
 
     dossier_id = SecureRandom.uuid
     Conversations::DossierStatus.write(Current.account.id, @conversation.display_id, dossier_id, status: 'pending')
-    Conversations::DossierExportJob.perform_later(@conversation.id, message_ids, dossier_id)
+    Conversations::DossierExportJob.perform_later(@conversation.id, message_ids, dossier_id, Current.user&.id)
 
     render json: { id: dossier_id, status: 'pending' }
   end

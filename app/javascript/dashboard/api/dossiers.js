@@ -12,10 +12,6 @@ class DossiersAPI extends ApiClient {
       message_ids: messageIds,
     });
   }
-
-  status(conversationId, dossierId) {
-    return axios.get(`${this.url}/${conversationId}/dossiers/${dossierId}`);
-  }
 }
 
 export default new DossiersAPI();

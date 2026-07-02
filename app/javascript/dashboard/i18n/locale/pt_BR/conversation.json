@@ -205,9 +205,8 @@
       "HINT": "Clique nas mensagens para selecioná-las. Segure Shift ou Alt para selecionar um intervalo.",
       "SELECT_ALL": "Selecionar todas",
       "CANCEL": "Cancelar",
-      "DOWNLOAD": "Baixar dossiê (ZIP)",
-      "GENERATING": "Gerando dossiê...",
-      "SUCCESS": "Dossiê pronto. O download vai começar automaticamente.",
+      "DOWNLOAD": "Gerar dossiê (ZIP)",
+      "QUEUED": "O dossiê está sendo gerado. Quando ficar pronto, será postado aqui como mensagem privada com o ZIP para download — pode fechar a conversa.",
       "ERROR": "Não foi possível gerar o dossiê. Tente novamente."
     },
     "REPLYBOX": {
