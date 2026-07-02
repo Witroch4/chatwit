@@ -15,6 +15,11 @@
 </style>
 
 <section class="main-content__body">
+  <% if @chatwit_witdev_warning.present? %>
+    <div class="mb-6 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+      ⚠️ <%= @chatwit_witdev_warning %>
+    </div>
+  <% end %>
   <%= form_with url: super_admin_app_config_url(config: @config) , method: :post do |form| %>
     <% @allowed_configs.each do |key| %>
       <div class="flex mb-8">

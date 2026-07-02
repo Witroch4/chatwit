@@ -260,6 +260,10 @@
   display_title: 'WitDev Catalog URL (optional)'
   description: 'Endpoint used to list the model catalog. Default: http://platform-api:8000/api/v1/llm/models (shared Docker network).'
   locked: false
+- name: CAPTAIN_WITDEV_TRANSCRIPTION_MODEL
+  display_title: 'Captain Whisper — Audio Transcription Model'
+  description: 'Official model for dossier audio transcription, called through the platform LiteLLM proxy (requires the WitDev Proxy API Key). Recommended: witdev_antigravity/gemini-3.1-pro-low (tested, legal-grade accuracy). Use witdev_antigravity/* aliases only — copilot routes silently hallucinate audio and codex routes reject it.'
+  locked: false
 - name: CAPTAIN_CLOUD_PLAN_LIMITS
   display_title: 'Captain Cloud Plan Limits'
   description: 'The limits for the Captain AI service for different plans'

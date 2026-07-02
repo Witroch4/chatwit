@@ -49,10 +49,17 @@ Reuso de infra existente do fork:
 - **MP3:** `Audio::Mp3TranscodeService` (ffmpeg, cacheado em `attachment.playback_file`).
   Áudios que não são ogg/opus/webm nem mp3 (ex.: m4a/wav) ganham transcodificação ad-hoc
   com o mesmo comando ffmpeg; se falhar, o original entra no ZIP com a extensão original.
-- **Transcrição:** `Messages::AudioTranscriptionService` (enterprise, Captain + Whisper).
-  Usa `attachment.meta['transcribed_text']` quando já existe; senão transcreve na hora.
-  Gates do serviço (feature `captain_integration`, `account.audio_transcriptions`, cota)
-  se aplicam — sem Captain o ZIP sai com "[transcrição indisponível]".
+- **Transcrição (fluxo canônico — "Captain Whisper"):** `Chatwit::AudioTranscriptionService`
+  envia o mp3 em base64 (`input_audio`) ao LiteLLM proxy da plataforma com o modelo de
+  `CAPTAIN_WITDEV_TRANSCRIPTION_MODEL` (default `witdev_antigravity/gemini-3.1-pro-low`).
+  Ativa sempre que a **WitDev Proxy API Key** estiver preenchida no Super Admin → Captain;
+  não depende dos gates do Captain (feature/toggle/cota). Resultado cacheado em
+  `attachment.meta['transcribed_text']`. Doc: `chatwitdocs/captain-witdev-llm-proxy.md`.
+- **Transcrição (fallback legado):** sem a proxy key, cai no
+  `Messages::AudioTranscriptionService` (enterprise, Captain + Whisper/OpenAI). Gates do
+  serviço (feature `captain_integration`, `account.audio_transcriptions`, cota) se aplicam,
+  agora com erro distinto por gate — sem Captain o ZIP sai com
+  "[transcrição indisponível: <motivo>]".
 
 ### Frontend (components-next intocado no máximo possível)
 

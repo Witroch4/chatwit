@@ -21,7 +21,20 @@ module Chatwit::LlmProxy
 
   class << self
     def enabled?
-      config_value('CAPTAIN_LLM_ROUTE') == 'witdev' && api_key.present? && model.present?
+      route_witdev? && api_key.present? && model.present?
+    end
+
+    def route_witdev?
+      config_value('CAPTAIN_LLM_ROUTE') == 'witdev'
+    end
+
+    # Fields still missing for the witdev route to activate — used by the super
+    # admin warning so an incomplete route never falls back to legacy silently.
+    def missing_requirements
+      requirements = []
+      requirements << 'WitDev Model' if model.blank?
+      requirements << 'WitDev Proxy API Key' if api_key.blank?
+      requirements
     end
 
     def model

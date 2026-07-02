@@ -21,6 +21,10 @@ class Conversations::DossierAudioService
   def transcription
     existing = attachment.meta&.[]('transcribed_text')
     return quoted(existing) if existing.present?
+
+    # Canonical flow: "Captain Whisper" via the platform LiteLLM proxy.
+    # Legacy Whisper (OpenAI key + Captain account gates) stays as fallback.
+    return format_transcription_result(Chatwit::AudioTranscriptionService.new(attachment: attachment).perform) if witdev_transcription?
     return TRANSCRIPTION_UNAVAILABLE unless defined?(Messages::AudioTranscriptionService)
 
     format_transcription_result(Messages::AudioTranscriptionService.new(attachment).perform)
@@ -30,6 +34,10 @@ class Conversations::DossierAudioService
   end
 
   private
+
+  def witdev_transcription?
+    Chatwit::AudioTranscriptionService.available?
+  end
 
   def mp3_blob?(blob)
     blob.content_type.to_s.downcase.include?('mpeg') || blob.filename.extension_without_delimiter.to_s.casecmp('mp3').zero?

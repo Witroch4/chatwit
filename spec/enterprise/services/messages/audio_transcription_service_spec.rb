@@ -3,7 +3,7 @@ require 'rails_helper'
 RSpec.describe Messages::AudioTranscriptionService, type: :service do
   let(:account) { create(:account, audio_transcriptions: true) }
   let(:conversation) { create(:conversation, account: account) }
-  let(:message) { create(:message, conversation: conversation) }
+  let(:message) { create(:message, conversation: conversation, account: account) }
   let(:attachment) { message.attachments.create!(account: account, file_type: :audio) }
 
   before do
@@ -23,15 +23,15 @@ RSpec.describe Messages::AudioTranscriptionService, type: :service do
         account.disable_features!('captain_integration')
       end
 
-      it 'returns transcription limit exceeded' do
-        expect(service.perform).to eq({ error: 'Transcription limit exceeded' })
+      it 'returns a captain feature disabled error' do
+        expect(service.perform).to eq({ error: 'Captain feature disabled for this account' })
       end
     end
 
     context 'when transcription is successful' do
       before do
-        # Mock can_transcribe? to return true and transcribe_audio method
-        allow(service).to receive(:can_transcribe?).and_return(true)
+        # Mock the gate check to pass and transcribe_audio method
+        allow(service).to receive(:transcription_gate_error).and_return(nil)
         allow(service).to receive(:transcribe_audio).and_return('Hello world transcription')
       end
 
@@ -43,19 +43,31 @@ RSpec.describe Messages::AudioTranscriptionService, type: :service do
 
     context 'when audio transcriptions are disabled' do
       before do
+        account.enable_features!('captain_integration')
         account.update!(audio_transcriptions: false)
       end
 
-      it 'returns error for transcription limit exceeded' do
+      it 'returns an account setting disabled error' do
         result = service.perform
-        expect(result).to eq({ error: 'Transcription limit exceeded' })
+        expect(result).to eq({ error: 'Audio transcription disabled in account settings' })
+      end
+    end
+
+    context 'when captain responses quota is exhausted' do
+      before do
+        account.enable_features!('captain_integration')
+        allow(account).to receive(:usage_limits).and_return({ captain: { responses: { current_available: 0 } } })
+      end
+
+      it 'returns a quota exhausted error' do
+        expect(service.perform).to eq({ error: 'Captain responses quota exhausted' })
       end
     end
 
     context 'when attachment already has transcribed text' do
       before do
         attachment.update!(meta: { transcribed_text: 'Existing transcription' })
-        allow(service).to receive(:can_transcribe?).and_return(true)
+        allow(service).to receive(:transcription_gate_error).and_return(nil)
       end
 
       it 'returns existing transcription without calling API' do

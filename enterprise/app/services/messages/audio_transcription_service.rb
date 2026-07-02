@@ -13,7 +13,10 @@ class Messages::AudioTranscriptionService< Llm::LegacyBaseOpenAiService
   end
 
   def perform
-    return { error: 'Transcription limit exceeded' } unless can_transcribe?
+    # Chatwit: distinct error per gate — the upstream single 'Transcription limit
+    # exceeded' covered three unrelated causes and misled diagnostics twice.
+    gate_error = transcription_gate_error
+    return { error: gate_error } if gate_error.present?
     return { error: 'Message not found' } if message.blank?
 
     transcriptions = transcribe_audio
@@ -26,11 +29,12 @@ class Messages::AudioTranscriptionService< Llm::LegacyBaseOpenAiService
 
   private
 
-  def can_transcribe?
-    return false unless account.feature_enabled?('captain_integration')
-    return false if account.audio_transcriptions.blank?
+  def transcription_gate_error
+    return 'Captain feature disabled for this account' unless account.feature_enabled?('captain_integration')
+    return 'Audio transcription disabled in account settings' if account.audio_transcriptions.blank?
+    return 'Captain responses quota exhausted' unless account.usage_limits[:captain][:responses][:current_available].positive?
 
-    account.usage_limits[:captain][:responses][:current_available].positive?
+    nil
   end
 
   def fetch_audio_file

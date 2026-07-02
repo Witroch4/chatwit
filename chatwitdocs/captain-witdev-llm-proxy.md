@@ -22,11 +22,30 @@ o app persiste apenas o alias canônico, e o LiteLLM resolve o provider real.
 | `CAPTAIN_WITDEV_PROXY_API_KEY` | API key do LiteLLM proxy (obrigatória na rota witdev) | — |
 | `CAPTAIN_WITDEV_PROXY_URL` | Base URL do proxy | `http://platform-litellm:4000` |
 | `CAPTAIN_WITDEV_CATALOG_URL` | Endpoint do catálogo | `http://platform-api:8000/api/v1/llm/models` |
+| `CAPTAIN_WITDEV_TRANSCRIPTION_MODEL` | **Captain Whisper** — modelo oficial de transcrição de áudio do dossiê (select filtrado para aliases com áudio real) | `witdev_antigravity/gemini-3.1-pro-low` (recomendado) |
 
 **Reinício necessário** após trocar a rota (mesmo comportamento do caminho legado: os engines são configurados no boot).
 
 A rota witdev só ativa quando `CAPTAIN_LLM_ROUTE=witdev` **e** model **e** API key estão preenchidos —
-config incompleta cai silenciosamente no caminho legado (zero regressão).
+config incompleta cai no caminho legado (zero regressão), e a tela do Captain mostra um
+**banner amarelo "rota WitDev INATIVA"** listando exatamente o que falta.
+
+## Captain Whisper — transcrição de áudio do dossiê
+
+`Chatwit::AudioTranscriptionService` (`app/services/chatwit/audio_transcription_service.rb`) é o
+fluxo canônico de transcrição do dossiê (`Conversations::DossierAudioService`):
+
+- **Ativação:** basta a `CAPTAIN_WITDEV_PROXY_API_KEY` preenchida — independe de `CAPTAIN_LLM_ROUTE`
+  e dos gates do Captain (feature/toggle/cota). Sem a key, o dossiê cai no Whisper legado.
+- **Chamada:** `POST {proxy}/v1/chat/completions` com `input_audio` (mp3 base64, limite 15MB) e
+  prompt jurídico verbatim (PT-BR, `[inaudível]`, falantes identificados, regionalismos preservados).
+- **Allowlist de áudio:** só `witdev_antigravity/*` e `gemini-*`. Copilot devolve 200 OK com
+  transcrição **alucinada** (descarta o áudio), codex dá HTTP 400 e Claude não tem entrada de áudio —
+  o select do super admin já filtra e o serviço recusa alias fora da lista em runtime.
+- **Cache:** resultado salvo em `attachment.meta['transcribed_text']` (mesmo slot do legado —
+  os dois caminhos reaproveitam transcrições um do outro; áudios antigos são transcritos on-demand
+  no próximo download do dossiê).
+- Referência empírica: `witdev-platform-core/docs/agent-memory/witdev-audio-transcription.md`.
 
 ## O que muda em runtime (rota witdev ativa)
 
@@ -57,6 +76,10 @@ config incompleta cai silenciosamente no caminho legado (zero regressão).
 | `enterprise/app/services/llm/base_ai_service.rb` | Modelo → alias witdev |
 | `enterprise/app/models/concerns/agentable.rb` | Modelo do agente → alias witdev |
 | `enterprise/app/services/captain/llm/embedding_service.rb` | Embeddings pinados no legado |
+| `app/services/chatwit/audio_transcription_service.rb` | **Novo.** Captain Whisper — transcrição via proxy (`input_audio`), allowlist de aliases, cache no meta |
+| `app/services/conversations/dossier_audio_service.rb` | Dossiê usa Captain Whisper como canônico, Whisper legado como fallback |
+| `enterprise/app/services/messages/audio_transcription_service.rb` | Erros distintos por gate (feature / toggle da conta / cota) |
+| `app/views/super_admin/app_configs/show.html.erb` | Banner de rota WitDev incompleta |
 
 ## Troubleshooting
 

@@ -6,6 +6,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     CAPTAIN_WITDEV_PROXY_API_KEY
     CAPTAIN_WITDEV_PROXY_URL
     CAPTAIN_WITDEV_CATALOG_URL
+    CAPTAIN_WITDEV_TRANSCRIPTION_MODEL
   ].freeze
 
   before_action :set_config
@@ -22,6 +23,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
       result[config_hash['name']] = config_hash.except('name')
     end
     inject_witdev_model_options
+    set_witdev_route_warning
   end
 
   def create
@@ -80,9 +82,35 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     end
     return if options.blank?
 
-    model_config = (@installation_configs['CAPTAIN_WITDEV_MODEL'] ||= {})
-    model_config['type'] = 'select'
-    model_config['options'] = options
+    apply_select_options('CAPTAIN_WITDEV_MODEL', options)
+    apply_select_options('CAPTAIN_WITDEV_TRANSCRIPTION_MODEL', transcription_options(options))
+  end
+
+  # Captain Whisper: only audio-capable aliases (copilot hallucinates audio,
+  # codex/claude reject it), recommended (tested) alias always listed first,
+  # even if the central catalog does not include it.
+  def transcription_options(options)
+    audio_options = options.select { |value, _label| Chatwit::AudioTranscriptionService.audio_capable?(value) }
+    recommended = Chatwit::AudioTranscriptionService::RECOMMENDED_MODEL
+    recommended_label = "#{audio_options[recommended].presence || recommended} (recommended)"
+    { recommended => recommended_label }.merge(audio_options.except(recommended))
+  end
+
+  def apply_select_options(key, options)
+    config = (@installation_configs[key] ||= {})
+    config['type'] = 'select'
+    config['options'] = options
+  end
+
+  # Chatwit: LLM Route = witdev with missing fields silently falls back to the
+  # legacy path (zero regression by design) — surface that instead of hiding it.
+  def set_witdev_route_warning
+    return unless @allowed_configs.include?('CAPTAIN_LLM_ROUTE')
+    return unless Chatwit::LlmProxy.route_witdev? && !Chatwit::LlmProxy.enabled?
+
+    missing = Chatwit::LlmProxy.missing_requirements.join(', ')
+    @chatwit_witdev_warning = 'LLM Route is set to WitDev LLM Proxy but the route is INACTIVE — Captain is still using the legacy ' \
+                              "Chatwoot path. Missing: #{missing}. Fill the field(s) below and restart the app."
   end
 end
 
