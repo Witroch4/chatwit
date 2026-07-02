@@ -3,10 +3,12 @@ import { ref, provide, useTemplateRef } from 'vue';
 import { useElementSize } from '@vueuse/core';
 // composable
 import { useLabelSuggestions } from 'dashboard/composables/useLabelSuggestions';
+import { useDossierSelection } from 'dashboard/composables/useDossierSelection';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
 
 // components
 import ReplyBox from './ReplyBox.vue';
+import DossierBar from './dossier/DossierBar.vue';
 import MessageList from 'next/message/MessageList.vue';
 import ConversationLabelSuggestion from './conversation/LabelSuggestion.vue';
 import Banner from 'dashboard/components/ui/Banner.vue';
@@ -41,6 +43,7 @@ export default {
   components: {
     MessageList,
     ReplyBox,
+    DossierBar,
     Banner,
     ConversationLabelSuggestion,
     Spinner,
@@ -96,6 +99,9 @@ export default {
     }),
     isOpen() {
       return this.currentChat?.status === wootConstants.STATUS_TYPE.OPEN;
+    },
+    showDossierBar() {
+      return useDossierSelection().isActiveFor(this.currentChat?.id);
     },
     shouldShowLabelSuggestions() {
       return (
@@ -511,6 +517,7 @@ export default {
       </template>
     </MessageList>
     <div class="flex relative flex-col bg-n-surface-1">
+      <DossierBar v-if="showDossierBar" />
       <div
         v-if="isAnyoneTyping"
         class="absolute flex items-center w-full h-0 -top-7"

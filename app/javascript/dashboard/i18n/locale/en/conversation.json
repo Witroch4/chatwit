@@ -210,7 +210,18 @@
       "COPILOT_MSG_INPUT": "Give copilot additional prompts, or ask anything else... Press enter to send follow-up",
       "CLICK_HERE": "Click here to update",
       "WHATSAPP_TEMPLATES": "Whatsapp Templates",
-      "PAYMENT_LINK": "Send Payment Link"
+      "PAYMENT_LINK": "Send Payment Link",
+      "DOSSIER": "Download dossier"
+    },
+    "DOSSIER": {
+      "SELECTED": "{count} selected message(s)",
+      "HINT": "Click messages to select them. Hold Shift or Alt to select a range.",
+      "SELECT_ALL": "Select all",
+      "CANCEL": "Cancel",
+      "DOWNLOAD": "Download dossier (ZIP)",
+      "GENERATING": "Generating dossier...",
+      "SUCCESS": "Dossier ready. The download will start automatically.",
+      "ERROR": "Could not generate the dossier. Please try again."
     },
     "REPLYBOX": {
       "REPLY": "Reply",

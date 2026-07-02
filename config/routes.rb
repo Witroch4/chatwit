@@ -151,6 +151,7 @@ Rails.application.routes.draw do
                 end
               end
               resources :assignments, only: [:create]
+              resources :dossiers, only: [:create, :show]
               resources :labels, only: [:create, :index]
               resource :participants, only: [:show, :create, :update, :destroy]
               resource :direct_uploads, only: [:create]

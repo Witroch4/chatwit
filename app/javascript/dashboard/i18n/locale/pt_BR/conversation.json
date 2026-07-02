@@ -197,7 +197,18 @@
       "COPILOT_MSG_INPUT": "Forneça instruções adicionais ao Copiloto ou pergunte algo mais... Pressione Enter para enviar",
       "CLICK_HERE": "Clique aqui para atualizar",
       "WHATSAPP_TEMPLATES": "Templates do Whatsapp",
-      "PAYMENT_LINK": "Enviar Link de Pagamento"
+      "PAYMENT_LINK": "Enviar Link de Pagamento",
+      "DOSSIER": "Baixar Dossiê"
+    },
+    "DOSSIER": {
+      "SELECTED": "{count} mensagem(ns) selecionada(s)",
+      "HINT": "Clique nas mensagens para selecioná-las. Segure Shift ou Alt para selecionar um intervalo.",
+      "SELECT_ALL": "Selecionar todas",
+      "CANCEL": "Cancelar",
+      "DOWNLOAD": "Baixar dossiê (ZIP)",
+      "GENERATING": "Gerando dossiê...",
+      "SUCCESS": "Dossiê pronto. O download vai começar automaticamente.",
+      "ERROR": "Não foi possível gerar o dossiê. Tente novamente."
     },
     "REPLYBOX": {
       "REPLY": "Responder",
