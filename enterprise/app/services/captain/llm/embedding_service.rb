@@ -17,7 +17,7 @@ class Captain::Llm::EmbeddingService
     return [] if content.blank?
 
     instrument_embedding_call(instrumentation_params(content, model)) do
-      RubyLLM.embed(content, model: model).vectors
+      embed_vectors(content, model)
     end
   rescue RubyLLM::Error => e
     Rails.logger.error "Embedding API Error: #{e.message}"
@@ -25,6 +25,18 @@ class Captain::Llm::EmbeddingService
   end
 
   private
+
+  # Chatwit: the WitDev route repoints the global OpenAI config at the LiteLLM
+  # proxy, which only covers chat — embeddings stay pinned to the legacy keys.
+  def embed_vectors(content, model)
+    return RubyLLM.embed(content, model: model).vectors unless Chatwit::LlmProxy.enabled?
+
+    api_key = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value
+    api_base = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence&.chomp('/')
+    Llm::Config.with_api_key(api_key, api_base: api_base) do |context|
+      context.embed(content, model: model).vectors
+    end
+  end
 
   def instrumentation_params(content, model)
     {

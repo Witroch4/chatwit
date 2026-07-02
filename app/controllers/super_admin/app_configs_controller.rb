@@ -1,4 +1,13 @@
 class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
+  # Chatwit: WitDev LLM proxy route configs (Captain via platform LiteLLM proxy)
+  CHATWIT_WITDEV_LLM_CONFIGS = %w[
+    CAPTAIN_LLM_ROUTE
+    CAPTAIN_WITDEV_MODEL
+    CAPTAIN_WITDEV_PROXY_API_KEY
+    CAPTAIN_WITDEV_PROXY_URL
+    CAPTAIN_WITDEV_CATALOG_URL
+  ].freeze
+
   before_action :set_config
   before_action :allowed_configs
   def show
@@ -12,6 +21,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     @installation_configs = ConfigLoader.new.general_configs.each_with_object({}) do |config_hash, result|
       result[config_hash['name']] = config_hash.except('name')
     end
+    inject_witdev_model_options
   end
 
   def create
@@ -50,13 +60,29 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
       'whatsapp_embedded' => %w[WHATSAPP_APP_ID WHATSAPP_APP_SECRET WHATSAPP_CONFIGURATION_ID WHATSAPP_API_VERSION],
       'notion' => %w[NOTION_CLIENT_ID NOTION_CLIENT_SECRET],
       'google' => %w[GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET GOOGLE_OAUTH_REDIRECT_URI ENABLE_GOOGLE_OAUTH_LOGIN],
-      'captain' => %w[CAPTAIN_OPEN_AI_API_KEY CAPTAIN_GEMINI_API_KEY CAPTAIN_OPEN_AI_MODEL CAPTAIN_OPEN_AI_ENDPOINT]
+      'captain' => %w[CAPTAIN_OPEN_AI_API_KEY CAPTAIN_GEMINI_API_KEY CAPTAIN_OPEN_AI_MODEL CAPTAIN_OPEN_AI_ENDPOINT] + CHATWIT_WITDEV_LLM_CONFIGS
     }
 
     @allowed_configs = mapping.fetch(
       @config,
       %w[ENABLE_ACCOUNT_SIGNUP FIREBASE_PROJECT_ID FIREBASE_CREDENTIALS WEBHOOK_TIMEOUT MAXIMUM_FILE_UPLOAD_SIZE WIDGET_TOKEN_EXPIRY]
     )
+  end
+
+  # Chatwit: turn CAPTAIN_WITDEV_MODEL into a select fed live by the platform
+  # LLM catalog. When the catalog is unreachable/empty it stays a text field
+  # so the alias can be typed manually (local fallback per platform contract).
+  def inject_witdev_model_options
+    return unless @allowed_configs.include?('CAPTAIN_WITDEV_MODEL')
+
+    options = Chatwit::LlmProxy.catalog_models.to_h do |entry|
+      [entry['value'], "#{entry['label']} — #{entry['provider_label']}"]
+    end
+    return if options.blank?
+
+    model_config = (@installation_configs['CAPTAIN_WITDEV_MODEL'] ||= {})
+    model_config['type'] = 'select'
+    model_config['options'] = options
   end
 end
 

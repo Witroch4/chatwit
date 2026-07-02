@@ -17,6 +17,11 @@ Rails.application.config.after_initialize do
 
   RubyLLM.configure { |config| config.model_registry_file = registry }
   RubyLLM.models.load_from_json!(registry)
+
+  # Chatwit: when the WitDev route is active, append the platform proxy aliases
+  # (e.g. witdev_claude/sonnet) as OpenAI-compatible chat models so both engines
+  # resolve them. Runs after the registry load so nothing gets wiped.
+  Chatwit::LlmProxy.register_models!
 rescue StandardError => e
   Rails.logger.error "[CHATWIT][LLM] Failed to pin model registry: #{e.message}"
 end

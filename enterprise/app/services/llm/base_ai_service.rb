@@ -29,6 +29,11 @@ class Llm::BaseAiService
   end
 
   def setup_model
+    if Chatwit::LlmProxy.enabled?
+      @model = Chatwit::LlmProxy.model
+      return
+    end
+
     config_value = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value
     @model = (config_value.presence || DEFAULT_MODEL)
   end

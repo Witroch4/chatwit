@@ -48,7 +48,7 @@ module Enterprise::SuperAdmin::AppConfigsController
       CAPTAIN_OPEN_AI_ENDPOINT
       CAPTAIN_EMBEDDING_MODEL
       CAPTAIN_FIRECRAWL_API_KEY
-    ]
+    ] + SuperAdmin::AppConfigsController::CHATWIT_WITDEV_LLM_CONFIGS
   end
 
   def saml_config_options

@@ -234,6 +234,32 @@
   description: 'The FireCrawl API key for the Captain AI service'
   locked: false
   type: secret
+# Chatwit: WitDev LLM proxy route (Captain via platform LiteLLM proxy)
+- name: CAPTAIN_LLM_ROUTE
+  display_title: 'LLM Route'
+  description: 'Which path Captain uses for LLM calls. "Chatwoot (legacy)" uses the OpenAI/Gemini keys above. "WitDev LLM Proxy" routes every Captain chat call through the platform LiteLLM proxy on the shared Docker network (embeddings and file APIs stay on the legacy keys). Restart required after changing.'
+  type: select
+  options:
+    "chatwoot": "Chatwoot (legacy) — OpenAI/Gemini keys"
+    "witdev": "WitDev LLM Proxy (platform)"
+  locked: false
+- name: CAPTAIN_WITDEV_MODEL
+  display_title: 'WitDev Model'
+  description: 'Canonical model alias from the platform LLM catalog (platform-api /api/v1/llm/models), e.g. witdev_claude/sonnet. Only used when LLM Route is set to WitDev LLM Proxy. The list is loaded live from the platform; if it is unreachable, type the alias manually.'
+  locked: false
+- name: CAPTAIN_WITDEV_PROXY_API_KEY
+  display_title: 'WitDev Proxy API Key'
+  description: 'API key for the platform LiteLLM proxy. Required when LLM Route is set to WitDev LLM Proxy.'
+  locked: false
+  type: secret
+- name: CAPTAIN_WITDEV_PROXY_URL
+  display_title: 'WitDev Proxy URL (optional)'
+  description: 'Base URL of the platform LiteLLM proxy. Default: http://platform-litellm:4000 (shared Docker network).'
+  locked: false
+- name: CAPTAIN_WITDEV_CATALOG_URL
+  display_title: 'WitDev Catalog URL (optional)'
+  description: 'Endpoint used to list the model catalog. Default: http://platform-api:8000/api/v1/llm/models (shared Docker network).'
+  locked: false
 - name: CAPTAIN_CLOUD_PLAN_LIMITS
   display_title: 'Captain Cloud Plan Limits'
   description: 'The limits for the Captain AI service for different plans'

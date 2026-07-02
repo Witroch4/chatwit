@@ -32,12 +32,17 @@ class Captain::BaseTaskService
   end
 
   def api_base
+    return Chatwit::LlmProxy.api_base if Chatwit::LlmProxy.enabled?
+
     endpoint = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence || 'https://api.openai.com/'
     endpoint = endpoint.chomp('/')
     "#{endpoint}/v1"
   end
 
   def make_api_call(model:, messages:, schema: nil, tools: [])
+    # Chatwit: WitDev route overrides whatever legacy model the caller picked
+    model = Chatwit::LlmProxy.model if Chatwit::LlmProxy.enabled?
+
     # Community edition prerequisite checks
     # Enterprise module handles these with more specific error messages (cloud vs self-hosted)
     return { error: I18n.t('captain.disabled'), error_code: 403 } unless captain_tasks_enabled?
@@ -158,7 +163,11 @@ class Captain::BaseTaskService
   end
 
   def llm_credential
-    @llm_credential ||= hook_llm_credential || system_llm_credential
+    @llm_credential ||= witdev_llm_credential || hook_llm_credential || system_llm_credential
+  end
+
+  def witdev_llm_credential
+    { api_key: Chatwit::LlmProxy.api_key, source: :witdev } if Chatwit::LlmProxy.enabled?
   end
 
   def hook_llm_credential
