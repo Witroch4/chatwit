@@ -25,8 +25,12 @@ class Whatsapp::PhoneNormalizers::BrazilPhoneNormalizer < Whatsapp::PhoneNormali
 
     ddd = waid[COUNTRY_CODE_LENGTH, DDD_LENGTH]
     rest = waid[(COUNTRY_CODE_LENGTH + DDD_LENGTH)..] || ''
-    local = rest.start_with?('9') ? rest[1..] : rest
-    ["55#{ddd}9#{local}", "55#{ddd}#{local}"]
+    # A 9-digit local part is the 8-digit base plus the mandatory 9th digit;
+    # an 8-digit local part is already the base. Decide by length, never by
+    # "starts with 9" — subscriber numbers can legitimately start with 9
+    # (e.g. 9694-5743), and stripping it would miss the canonical variant.
+    base = rest.length >= 9 ? rest[1..] : rest
+    ["55#{ddd}9#{base}", "55#{ddd}#{base}"]
   end
 
   private

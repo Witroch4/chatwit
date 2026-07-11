@@ -46,6 +46,11 @@ class Whatsapp::IncomingMessageBaseService
     end
 
     ActiveRecord::Base.transaction do
+      # Serialize concurrent workers handling a burst of messages from the same
+      # sender (e.g. several media sent at once): the first creates the
+      # conversation, the rest block on this row lock and then reuse it instead
+      # of racing to create duplicate conversations. Released on transaction end.
+      @contact_inbox.lock!
       set_conversation
       create_messages
     end
