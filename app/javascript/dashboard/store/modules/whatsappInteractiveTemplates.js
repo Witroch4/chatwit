@@ -7,6 +7,7 @@ export const state = {
   uiFlags: {
     isFetching: false,
     isCreating: false,
+    isUpdating: false,
     isDeleting: false,
     isDispatching: false,
   },
@@ -48,6 +49,24 @@ export const actions = {
     } finally {
       commit(types.SET_WHATSAPP_INTERACTIVE_TEMPLATE_UI_FLAG, {
         isCreating: false,
+      });
+    }
+  },
+
+  update: async function updateTemplate({ commit }, { id, ...templateObj }) {
+    commit(types.SET_WHATSAPP_INTERACTIVE_TEMPLATE_UI_FLAG, {
+      isUpdating: true,
+    });
+    try {
+      const response = await WhatsappInteractiveTemplatesAPI.update(
+        id,
+        templateObj
+      );
+      commit(types.EDIT_WHATSAPP_INTERACTIVE_TEMPLATE, response.data);
+      return response.data;
+    } finally {
+      commit(types.SET_WHATSAPP_INTERACTIVE_TEMPLATE_UI_FLAG, {
+        isUpdating: false,
       });
     }
   },
@@ -101,6 +120,7 @@ export const mutations = {
   },
   [types.SET_WHATSAPP_INTERACTIVE_TEMPLATES]: MutationHelpers.set,
   [types.ADD_WHATSAPP_INTERACTIVE_TEMPLATE]: MutationHelpers.create,
+  [types.EDIT_WHATSAPP_INTERACTIVE_TEMPLATE]: MutationHelpers.update,
   [types.DELETE_WHATSAPP_INTERACTIVE_TEMPLATE]: MutationHelpers.destroy,
 };
 

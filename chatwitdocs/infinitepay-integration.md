@@ -140,6 +140,7 @@ Recebe webhook de confirmação de pagamento do InfinitePay.
 | `name` | string | Nome do favorito |
 | `amount_cents` | integer | Valor em centavos |
 | `description` | string | Descrição do item |
+| `whatsapp_interactive_template_id` | integer, opcional | CTA interativa selecionada para reutilizar junto do favorito |
 
 ### PaymentLink (Links de Pagamento)
 | Campo | Tipo | Descrição |

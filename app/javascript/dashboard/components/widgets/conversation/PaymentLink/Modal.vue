@@ -117,6 +117,8 @@ export default {
       this.selectedPresetId = preset.id;
       this.amountCentsRaw = preset.amount_cents;
       this.description = preset.description;
+      this.selectedInteractiveTemplateId =
+        preset.whatsapp_interactive_template_id || null;
     },
     clearPresetSelection() {
       this.selectedPresetId = null;
@@ -145,6 +147,8 @@ export default {
               name: this.presetName.trim(),
               amount_cents: this.amountCents,
               description: this.description.trim(),
+              whatsapp_interactive_template_id:
+                this.selectedInteractiveTemplateId,
             },
           });
         }

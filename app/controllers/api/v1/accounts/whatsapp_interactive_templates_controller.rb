@@ -2,7 +2,7 @@
 
 class Api::V1::Accounts::WhatsappInteractiveTemplatesController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_template, only: [:destroy, :dispatch_to_conversation]
+  before_action :fetch_template, only: [:update, :destroy, :dispatch_to_conversation]
 
   def index
     @templates = Current.account.whatsapp_interactive_templates.order(created_at: :desc)
@@ -19,6 +19,18 @@ class Api::V1::Accounts::WhatsappInteractiveTemplatesController < Api::V1::Accou
     )
 
     render json: @template, status: :created
+  rescue Whatsapp::InteractiveTemplatePayloadBuilder::ValidationError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def update
+    payload = Whatsapp::InteractiveTemplatePayloadBuilder.new(
+      template_attributes: permitted_params.to_h
+    ).build_template_payload
+
+    @template.update!(permitted_params.merge(payload: payload))
+
+    render json: @template
   rescue Whatsapp::InteractiveTemplatePayloadBuilder::ValidationError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end

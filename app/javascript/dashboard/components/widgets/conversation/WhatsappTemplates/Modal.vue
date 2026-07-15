@@ -34,6 +34,7 @@ export default {
   data() {
     return {
       selectedWaTemplate: null,
+      editingInteractiveTemplate: null,
       currentView: 'picker',
     };
   },
@@ -51,6 +52,10 @@ export default {
         return this.$t('WHATSAPP_TEMPLATES.CREATOR.SUBTITLE');
       }
       if (this.currentView === 'interactive') {
+        if (this.editingInteractiveTemplate) {
+          return this.$t('WHATSAPP_TEMPLATES.INTERACTIVE.EDIT_SUBTITLE');
+        }
+
         return this.$t('WHATSAPP_TEMPLATES.INTERACTIVE.SUBTITLE');
       }
       return this.selectedWaTemplate
@@ -64,6 +69,10 @@ export default {
         return this.$t('WHATSAPP_TEMPLATES.CREATOR.TITLE');
       }
       if (this.currentView === 'interactive') {
+        if (this.editingInteractiveTemplate) {
+          return this.$t('WHATSAPP_TEMPLATES.INTERACTIVE.EDIT_TITLE');
+        }
+
         return this.$t('WHATSAPP_TEMPLATES.INTERACTIVE.TITLE');
       }
       return this.$t('WHATSAPP_TEMPLATES.MODAL.TITLE');
@@ -112,15 +121,22 @@ export default {
     onClose() {
       this.currentView = 'picker';
       this.selectedWaTemplate = null;
+      this.editingInteractiveTemplate = null;
       this.$emit('cancel');
     },
     showCreateView() {
       this.currentView = 'create';
     },
     showInteractiveView() {
+      this.editingInteractiveTemplate = null;
+      this.currentView = 'interactive';
+    },
+    showEditInteractiveView(template) {
+      this.editingInteractiveTemplate = template;
       this.currentView = 'interactive';
     },
     onTemplateCreated() {
+      this.editingInteractiveTemplate = null;
       this.currentView = 'picker';
     },
     onTemplateSent() {
@@ -128,6 +144,7 @@ export default {
       this.localShow = false;
     },
     onBackFromCreate() {
+      this.editingInteractiveTemplate = null;
       this.currentView = 'picker';
     },
   },
@@ -183,6 +200,7 @@ export default {
         :inbox-id="inboxId"
         @on-select="pickTemplate"
         @on-select-interactive="onSendInteractiveTemplate"
+        @on-edit-interactive="showEditInteractiveView"
       />
       <WhatsAppTemplateReply
         v-else-if="currentView === 'reply'"
@@ -199,6 +217,7 @@ export default {
       <InteractiveMessageCreator
         v-else-if="currentView === 'interactive'"
         :conversation-id="conversationId"
+        :interactive-template="editingInteractiveTemplate"
         @template-created="onTemplateCreated"
         @template-sent="onTemplateSent"
         @back="onBackFromCreate"

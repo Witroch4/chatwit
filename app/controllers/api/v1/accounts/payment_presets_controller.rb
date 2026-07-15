@@ -31,6 +31,11 @@ class Api::V1::Accounts::PaymentPresetsController < Api::V1::Accounts::BaseContr
   end
 
   def permitted_params
-    params.require(:payment_preset).permit(:name, :amount_cents, :description)
+    params.require(:payment_preset).permit(
+      :name,
+      :amount_cents,
+      :description,
+      :whatsapp_interactive_template_id
+    )
   end
 end

@@ -114,3 +114,9 @@ e publica no bucket/config pública do Socialwise:
 - O endpoint `dispatch_to_conversation` agora tem permissão explícita em `WhatsappInteractiveTemplatePolicy`; antes o Pundit levantava `NoMethodError` e a API respondia 500 ao clicar para enviar uma mensagem interativa salva.
 - O modal principal de templates agora lista mensagens interativas salvas junto da busca, separadas dos templates oficiais da Meta, permitindo clicar nelas para enviar diretamente à conversa.
 - O builder de mensagem interativa usa modal mais largo e grid responsivo para evitar campos cortados e rolagem horizontal.
+
+## Correção 2026-07-15 — gerenciamento dos modelos salvos
+
+- Os cards de **Modelos Salvos** no picker agora têm ações acessíveis para editar e excluir sem disparar o envio da mensagem.
+- A edição abre o mesmo criador de mensagem interativa com todos os campos carregados, incluindo tipo, CTA/URL, respostas rápidas e URL pública da imagem de cabeçalho.
+- A atualização recompõe o payload normalizado antes de persistir o registro, mantendo o conteúdo enviado ao WhatsApp consistente com o formulário.
