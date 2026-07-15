@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_15_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1138,7 +1138,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
     t.string "description", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "whatsapp_interactive_template_id"
     t.index ["account_id"], name: "index_payment_presets_on_account_id"
+    t.index ["whatsapp_interactive_template_id"], name: "index_payment_presets_on_whatsapp_interactive_template_id"
   end
 
   create_table "platform_app_permissibles", force: :cascade do |t|
@@ -1419,6 +1421,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
   add_foreign_key "payment_links", "conversations"
   add_foreign_key "payment_links", "users"
   add_foreign_key "payment_presets", "accounts"
+  add_foreign_key "payment_presets", "whatsapp_interactive_templates", on_delete: :nullify
   add_foreign_key "stickers", "accounts"
   add_foreign_key "whatsapp_interactive_templates", "accounts"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

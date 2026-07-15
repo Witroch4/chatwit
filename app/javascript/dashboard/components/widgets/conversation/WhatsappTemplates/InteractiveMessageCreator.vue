@@ -13,6 +13,10 @@ const props = defineProps({
     type: Number,
     default: undefined,
   },
+  interactiveTemplate: {
+    type: Object,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['templateCreated', 'templateSent']);
@@ -89,6 +93,17 @@ const isCta = computed(() => templateType.value === 'cta_url');
 const isRichText = computed(() => templateType.value === 'rich_text');
 const isQuickRepliesOnly = computed(
   () => templateType.value === 'quick_replies'
+);
+const isEditing = computed(() => Boolean(props.interactiveTemplate?.id));
+const submitLabel = computed(() =>
+  isEditing.value
+    ? t('WHATSAPP_TEMPLATES.INTERACTIVE.UPDATE')
+    : t('WHATSAPP_TEMPLATES.INTERACTIVE.SUBMIT')
+);
+const saveSuccessMessage = computed(() =>
+  isEditing.value
+    ? t('WHATSAPP_TEMPLATES.INTERACTIVE.UPDATE_SUCCESS')
+    : t('WHATSAPP_TEMPLATES.INTERACTIVE.SUCCESS')
 );
 
 const activeTypeHintKey = computed(
@@ -220,6 +235,32 @@ const resetForm = () => {
   errors.value = {};
 };
 
+const hydrateForm = template => {
+  name.value = template.name || '';
+  templateType.value = template.template_type || 'cta_url';
+  headerType.value = template.header_type || 'none';
+  headerText.value = template.header_text || '';
+  headerImageUrl.value = template.header_image_url || '';
+  bodyText.value = template.body_text || '';
+  footerText.value = template.footer_text || '';
+  buttonText.value = template.button_text || 'Pagar agora';
+  urlMode.value = template.static_url ? URL_MODE_STATIC : URL_MODE_DYNAMIC;
+  staticUrl.value = template.static_url || '';
+  quickReplies.value = (template.quick_replies || []).map(reply => ({
+    text: reply.text || '',
+  }));
+  errors.value = {};
+};
+
+watch(
+  () => props.interactiveTemplate,
+  template => {
+    if (template) hydrateForm(template);
+    else resetForm();
+  },
+  { immediate: true }
+);
+
 const addQuickReply = () => {
   if (canAddQuickReply.value) quickReplies.value.push({ text: '' });
 };
@@ -276,11 +317,18 @@ const handleSubmit = async () => {
         urlMode.value === URL_MODE_STATIC ? staticUrl.value.trim() : '';
     }
 
-    await store.dispatch('whatsappInteractiveTemplates/create', {
-      whatsapp_interactive_template: payload,
-    });
+    if (isEditing.value) {
+      await store.dispatch('whatsappInteractiveTemplates/update', {
+        id: props.interactiveTemplate.id,
+        whatsapp_interactive_template: payload,
+      });
+    } else {
+      await store.dispatch('whatsappInteractiveTemplates/create', {
+        whatsapp_interactive_template: payload,
+      });
+    }
 
-    useAlert(t('WHATSAPP_TEMPLATES.INTERACTIVE.SUCCESS'));
+    useAlert(saveSuccessMessage.value);
     resetForm();
     emit('templateCreated');
   } catch (error) {
@@ -686,9 +734,11 @@ onMounted(() => {
         <!-- Submit -->
         <div class="flex justify-end pt-3 pb-1 border-t border-n-weak">
           <Button
-            :is-loading="isSubmitting || uiFlags.isCreating"
-            :disabled="isSubmitting || uiFlags.isCreating"
-            :label="t('WHATSAPP_TEMPLATES.INTERACTIVE.SUBMIT')"
+            :is-loading="
+              isSubmitting || uiFlags.isCreating || uiFlags.isUpdating
+            "
+            :disabled="isSubmitting || uiFlags.isCreating || uiFlags.isUpdating"
+            :label="submitLabel"
             icon="i-lucide-save"
             @click="handleSubmit"
           />

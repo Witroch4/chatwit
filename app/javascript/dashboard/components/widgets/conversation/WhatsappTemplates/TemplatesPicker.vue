@@ -23,7 +23,11 @@ const props = defineProps({
     default: undefined,
   },
 });
-const emit = defineEmits(['onSelect', 'onSelectInteractive']);
+const emit = defineEmits([
+  'onSelect',
+  'onSelectInteractive',
+  'onEditInteractive',
+]);
 const TAB_RECENT = 0;
 const TAB_FAVORITES = 1;
 const TAB_ALL = 2;
@@ -215,6 +219,21 @@ const onSelectInteractiveTemplate = template => {
   emit('onSelectInteractive', template);
 };
 
+const onEditInteractiveTemplate = (event, template) => {
+  event.stopPropagation();
+  emit('onEditInteractive', template);
+};
+
+const deleteInteractiveTemplate = async (event, template) => {
+  event.stopPropagation();
+  try {
+    await store.dispatch('whatsappInteractiveTemplates/delete', template.id);
+    useAlert(t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_SUCCESS'));
+  } catch {
+    useAlert(t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_ERROR'));
+  }
+};
+
 const getInteractiveTypeLabel = template => {
   if (template.template_type === 'rich_text') {
     return t('WHATSAPP_TEMPLATES.INTERACTIVE.TYPE_BODY_LINK');
@@ -308,44 +327,85 @@ defineExpose({ addToRecent });
         />
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <button
+        <div
           v-for="template in filteredInteractiveTemplates"
           :key="template.id"
-          type="button"
-          class="group flex min-w-0 items-start justify-between gap-3 rounded-lg p-3 text-left outline outline-1 outline-n-weak bg-n-alpha-black2 hover:outline-n-brand hover:bg-n-brand/5 transition-colors disabled:opacity-50 disabled:cursor-wait"
-          :disabled="interactiveUIFlags.isDispatching"
-          :title="
-            t('WHATSAPP_TEMPLATES.INTERACTIVE.SEND_ACTION', {
-              name: template.name,
-            })
-          "
-          :aria-label="
-            t('WHATSAPP_TEMPLATES.INTERACTIVE.SEND_ACTION', {
-              name: template.name,
-            })
-          "
-          @click="onSelectInteractiveTemplate(template)"
+          class="group relative min-w-0 rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black2 hover:outline-n-brand hover:bg-n-brand/5 transition-colors"
         >
-          <span class="min-w-0 flex-1">
-            <span class="block text-sm font-medium text-n-slate-12 truncate">
-              {{ template.name }}
-            </span>
-            <span class="block text-xs text-n-slate-10 line-clamp-2 mt-1">
-              {{ template.body_text }}
-            </span>
-            <span
-              class="mt-2 inline-flex max-w-full rounded-md bg-n-slate-3 px-2 py-0.5 text-xs text-n-slate-11"
-            >
-              <span class="truncate">
-                {{ getInteractiveTypeLabel(template) }}
+          <button
+            type="button"
+            class="flex w-full min-w-0 items-start gap-3 rounded-lg p-3 pr-16 text-left disabled:opacity-50 disabled:cursor-wait"
+            :disabled="interactiveUIFlags.isDispatching"
+            :title="
+              t('WHATSAPP_TEMPLATES.INTERACTIVE.SEND_ACTION', {
+                name: template.name,
+              })
+            "
+            :aria-label="
+              t('WHATSAPP_TEMPLATES.INTERACTIVE.SEND_ACTION', {
+                name: template.name,
+              })
+            "
+            @click="onSelectInteractiveTemplate(template)"
+          >
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-medium text-n-slate-12 truncate">
+                {{ template.name }}
+              </span>
+              <span class="block text-xs text-n-slate-10 line-clamp-2 mt-1">
+                {{ template.body_text }}
+              </span>
+              <span
+                class="mt-2 inline-flex max-w-full rounded-md bg-n-slate-3 px-2 py-0.5 text-xs text-n-slate-11"
+              >
+                <span class="truncate">
+                  {{ getInteractiveTypeLabel(template) }}
+                </span>
               </span>
             </span>
-          </span>
-          <Icon
-            icon="i-lucide-send"
-            class="size-4 mt-0.5 text-n-brand opacity-80 group-hover:opacity-100 shrink-0"
-          />
-        </button>
+            <Icon
+              icon="i-lucide-send"
+              class="size-4 mt-0.5 text-n-brand opacity-80 group-hover:opacity-100 shrink-0"
+            />
+          </button>
+          <div class="absolute right-2 top-2 flex items-center gap-1">
+            <button
+              type="button"
+              class="flex size-7 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-brand focus-visible:ring-2 focus-visible:ring-n-brand focus-visible:outline-none"
+              :title="
+                t('WHATSAPP_TEMPLATES.INTERACTIVE.EDIT_ACTION', {
+                  name: template.name,
+                })
+              "
+              :aria-label="
+                t('WHATSAPP_TEMPLATES.INTERACTIVE.EDIT_ACTION', {
+                  name: template.name,
+                })
+              "
+              @click="onEditInteractiveTemplate($event, template)"
+            >
+              <Icon icon="i-lucide-pencil" class="size-3.5" />
+            </button>
+            <button
+              type="button"
+              :disabled="interactiveUIFlags.isDeleting"
+              class="flex size-7 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-ruby-11 focus-visible:ring-2 focus-visible:ring-n-brand focus-visible:outline-none disabled:opacity-50 disabled:cursor-wait"
+              :title="
+                t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_ACTION', {
+                  name: template.name,
+                })
+              "
+              :aria-label="
+                t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_ACTION', {
+                  name: template.name,
+                })
+              "
+              @click="deleteInteractiveTemplate($event, template)"
+            >
+              <Icon icon="i-lucide-trash-2" class="size-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
