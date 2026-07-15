@@ -38,7 +38,6 @@ class Integrations::Infinitepay::WebhookProcessorService
     payment_link.mark_as_paid!(@payload) unless already_paid
 
     notification_payload = payment_notification_payload(payment_link)
-    @notification_content = notification_payload[:content]
 
     send_confirmation_message(payment_link, notification_payload)
 
@@ -186,33 +185,26 @@ class Integrations::Infinitepay::WebhookProcessorService
     Rails.logger.error "[INFINITEPAY] Failed to forward to JusMonitorIA: #{e.message}"
   end
 
+  # Rota canônica do forward de pagamento pro motor de flow SocialWise.
+  # Espelha o canal COMPROVADO do LeadSyncJob (mesmo SOCIALWISE_WEBHOOK_URL —
+  # rede docker interna via http://platform-api:8000 — mesma auth x-webhook-secret).
+  # O antigo POST /api/integrations/payment (event: message_created) batia num
+  # endpoint inexistente (404) → resume_from_payment nunca disparava e as sessões
+  # de flow ficavam presas em WAITING_INPUT ("paga e some").
+  SOCIALWISE_PAYMENT_ROUTE = '/api/v1/socialwise/admin/leads-chatwit/recebearquivos'
+
   def forward_to_socialwise(event_payload, account)
     endpoint = ENV.fetch('SOCIALWISE_WEBHOOK_URL', nil)
     if endpoint.blank?
-      Rails.logger.warn "[INFINITEPAY] SOCIALWISE_WEBHOOK_URL not configured. Skipping payment.confirmed forward for order_nsu=#{event_payload[:order_nsu]}"
+      Rails.logger.warn "[INFINITEPAY] SOCIALWISE_WEBHOOK_URL not configured. Skipping payment_confirmed forward for order_nsu=#{event_payload[:order_nsu]}"
       return
     end
 
+    # recebearquivos_process trata event=='payment_confirmed' -> handle_payment_confirmed
+    # -> resume_from_payment (via data.conversation_id + data.order_nsu).
     body = {
-      event: 'message_created',
-      message_type: 'outgoing',
-      content_type: 'text',
-      content: @notification_content,
-      additional_attributes: {
-        payment_link_id: event_payload[:payment_link_id],
-        infinitepay_event: 'payment_confirmed'
-      },
-      conversation: {
-        id: event_payload[:conversation_id],
-        meta: {
-          sender: {
-            phone_number: event_payload[:contact][:phone_number],
-            name: event_payload[:contact][:name]
-          }
-        }
-      },
-      account: { id: account.id },
-      payment_data: event_payload
+      event: 'payment_confirmed',
+      data: event_payload.merge(event: 'payment_confirmed')
     }
 
     headers = { 'Content-Type' => 'application/json' }
@@ -223,7 +215,7 @@ class Integrations::Infinitepay::WebhookProcessorService
     end
 
     response = HTTParty.post(
-      "#{endpoint}/api/integrations/payment",
+      "#{endpoint.to_s.chomp('/')}#{SOCIALWISE_PAYMENT_ROUTE}",
       headers: headers,
       body: body.to_json,
       timeout: 15
@@ -231,7 +223,7 @@ class Integrations::Infinitepay::WebhookProcessorService
 
     if response.success?
       Rails.logger.info(
-        "[INFINITEPAY] Forwarded payment.confirmed to SocialWise /api/integrations/payment account=#{account.id} order_nsu=#{event_payload[:order_nsu]} status=#{response.code}"
+        "[INFINITEPAY] Forwarded payment_confirmed to SocialWise #{SOCIALWISE_PAYMENT_ROUTE} account=#{account.id} order_nsu=#{event_payload[:order_nsu]} status=#{response.code}"
       )
     else
       Rails.logger.error(
