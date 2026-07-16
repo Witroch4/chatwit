@@ -331,6 +331,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_15_000000) do
     t.text "content"
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
+    t.integer "position", null: false
+    t.index ["account_id", "position"], name: "index_canned_responses_on_account_id_and_position"
   end
 
   create_table "captain_assistant_responses", force: :cascade do |t|
@@ -628,7 +630,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_15_000000) do
 
   create_table "channel_whatsapp", force: :cascade do |t|
     t.integer "account_id", null: false
-    t.string "phone_number", null: false
+    t.string "phone_number"
     t.string "provider", default: "default"
     t.jsonb "provider_config", default: {}
     t.datetime "created_at", null: false

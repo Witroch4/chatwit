@@ -4,10 +4,15 @@
 #
 #  id         :integer          not null, primary key
 #  content    :text
+#  position   :integer          not null
 #  short_code :string
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
 #  account_id :integer          not null
+#
+# Indexes
+#
+#  index_canned_responses_on_account_id_and_position  (account_id,position)
 #
 
 class CannedResponse < ApplicationRecord
@@ -18,6 +23,10 @@ class CannedResponse < ApplicationRecord
 
   belongs_to :account
 
+  before_validation :assign_position, on: :create
+
+  scope :ordered, -> { order(:position, :id) }
+
   scope :order_by_search, lambda { |search|
     short_code_starts_with = sanitize_sql_array(['WHEN short_code ILIKE ? THEN 1', "#{search}%"])
     short_code_like = sanitize_sql_array(['WHEN short_code ILIKE ? THEN 0.5', "%#{search}%"])
@@ -27,4 +36,12 @@ class CannedResponse < ApplicationRecord
 
     order(Arel.sql(order_clause) => :desc)
   }
+
+  private
+
+  def assign_position
+    return if position.present? || account.blank?
+
+    self.position = account.canned_responses.maximum(:position).to_i + 1
+  end
 end

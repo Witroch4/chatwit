@@ -672,7 +672,12 @@ function insertContentIntoEditor(content, defaultFrom = 0) {
  * @param {string} type - The type of special content to insert. Possible values: 'mention', 'canned_response', 'variable', 'emoji'.
  * @param {Object|string} content - The content to insert, depending on the type.
  */
-function insertSpecialContent(type, content) {
+function insertSpecialContent(
+  type,
+  content,
+  contentRange = range.value,
+  options = {}
+) {
   if (!editorView) {
     return;
   }
@@ -681,8 +686,9 @@ function insertSpecialContent(type, content) {
     editorView,
     type,
     content,
-    range.value,
-    props.variables
+    contentRange,
+    props.variables,
+    options
   );
 
   if (!node) return;
@@ -698,6 +704,19 @@ function insertSpecialContent(type, content) {
   };
 
   useTrack(event_map[type]);
+}
+
+function insertCannedResponse(content) {
+  if (!editorView) return;
+
+  editorView.focus();
+  const { from, to } = editorView.state.selection;
+  insertSpecialContent(
+    'cannedResponse',
+    content,
+    { from, to },
+    { removeCannedResponseTrigger: false }
+  );
 }
 
 function handleLineBreakWhenCmdAndEnterToSendEnabled(event) {
@@ -835,7 +854,7 @@ onMounted(() => {
   }
 });
 
-defineExpose({ focusEditorInputField });
+defineExpose({ focusEditorInputField, insertCannedResponse });
 
 // BUS Event to insert text or markdown into the editor at the
 // current cursor position.

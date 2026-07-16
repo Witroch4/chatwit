@@ -254,6 +254,15 @@
         "REMOVE_PREVIEW": "Remover o encadeamento de e-mails citado",
         "COLLAPSE": "Recolher a prévia",
         "EXPAND": "Expandir a prévia"
+      },
+      "CANNED_RESPONSES": {
+        "BUTTON_TOOLTIP": "Abrir respostas prontas",
+        "TITLE": "Respostas prontas",
+        "DESCRIPTION": "Escolha uma resposta salva para inserir nesta mensagem.",
+        "ORGANIZE": "Organizar",
+        "DONE": "Concluir",
+        "EMPTY": "Não há respostas prontas disponíveis.",
+        "REORDER_ERROR": "Não foi possível salvar a ordem das respostas prontas. Tente novamente."
       }
     },
     "VISIBLE_TO_AGENTS": "Mensagem Privada: Apenas visível para você e seu time",
