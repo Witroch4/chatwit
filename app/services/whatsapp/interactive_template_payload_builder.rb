@@ -90,7 +90,8 @@ class Whatsapp::InteractiveTemplatePayloadBuilder
       }
     }
 
-    payload['quick_replies'] = quick_reply_entries(attrs) if quick_reply_entries(attrs).any?
+    entries = assign_quick_reply_ids(quick_reply_entries(attrs))
+    payload['quick_replies'] = entries if entries.any?
     decorate_with_header_and_footer!(payload, attrs)
     payload
   end
@@ -105,23 +106,39 @@ class Whatsapp::InteractiveTemplatePayloadBuilder
   end
 
   def build_quick_replies_template_payload(attrs)
-    entries = quick_reply_entries(attrs)
+    entries = assign_quick_reply_ids(quick_reply_entries(attrs))
     raise ValidationError, 'At least one quick reply is required' if entries.empty?
 
     payload = {
       'type' => 'button',
       'body' => { 'text' => attrs[:body_text].strip },
       'action' => {
-        'buttons' => entries.each_with_index.map do |reply, idx|
+        'buttons' => entries.map do |reply|
           {
             'type' => 'reply',
-            'reply' => { 'id' => reply['id'] || "qr_#{idx + 1}", 'title' => reply['text'] }
+            'reply' => { 'id' => reply['id'], 'title' => reply['text'] }
           }
         end
       }
     }
     decorate_with_header_and_footer!(payload, attrs)
     payload
+  end
+
+  # Keeps existing button ids stable across edits (SocialWise flows match on
+  # button_id) and assigns collision-free qr_N ids only to new entries.
+  def assign_quick_reply_ids(entries)
+    used_ids = entries.filter_map { |entry| entry['id'] }.to_set
+    counter = 0
+
+    entries.map do |entry|
+      next entry if entry['id'].present?
+
+      counter += 1
+      counter += 1 while used_ids.include?("qr_#{counter}")
+      used_ids << "qr_#{counter}"
+      entry.merge('id' => "qr_#{counter}")
+    end
   end
 
   def decorate_with_header_and_footer!(payload, attrs)

@@ -151,6 +151,12 @@
       "UPDATE_SUCCESS": "Interactive message updated successfully.",
       "EDIT_ACTION": "Edit interactive message {name}",
       "DELETE_ACTION": "Delete interactive message {name}",
+      "DELETE_CONFIRM": {
+        "TITLE": "Delete interactive message",
+        "MESSAGE": "This will permanently delete the message and unlink it from any payment favorites using it. Delete",
+        "YES": "Yes, delete",
+        "NO": "No, keep it"
+      },
       "DELETE_SUCCESS": "Interactive message removed.",
       "DELETE_ERROR": "Failed to remove the interactive message.",
       "SEND_SUCCESS": "Interactive message sent.",

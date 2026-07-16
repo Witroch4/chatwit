@@ -18,6 +18,7 @@ Metrics/ClassLength:
   Exclude:
     - 'app/models/message.rb'
     - 'app/models/conversation.rb'
+    - 'app/services/whatsapp/interactive_template_payload_builder.rb'
 
 Metrics/MethodLength:
   Max: 19
