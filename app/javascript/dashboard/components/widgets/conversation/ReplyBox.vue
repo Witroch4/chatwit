@@ -32,6 +32,7 @@ import WhatsappTemplates from './WhatsappTemplates/Modal.vue';
 import ContentTemplates from './ContentTemplates/ContentTemplatesModal.vue';
 import PaymentLinkModal from './PaymentLink/Modal.vue';
 import StickerPicker from './StickerPicker/StickerPicker.vue';
+import CannedResponsePickerModal from './CannedResponsePickerModal.vue';
 import { MESSAGE_MAX_LENGTH } from 'shared/helpers/MessageTypeHelper';
 import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 import { trimContent, debounce, getRecipients } from '@chatwoot/utils';
@@ -80,6 +81,7 @@ export default {
     ContentTemplates,
     WhatsappTemplates,
     StickerPicker,
+    CannedResponsePickerModal,
     WootMessageEditor,
     QuotedEmailPreview,
     CopilotEditorSection,
@@ -132,6 +134,7 @@ export default {
       showContentTemplatesModal: false,
       showPaymentLinkModal: false,
       showStickerPicker: false,
+      showCannedResponsePicker: false,
       updateEditorSelectionWith: '',
       undefinedVariableMessage: '',
       showMentions: false,
@@ -760,6 +763,13 @@ export default {
     },
     toggleCannedMenu(value) {
       this.showCannedMenu = value;
+    },
+    toggleCannedResponsePicker() {
+      this.showCannedResponsePicker = !this.showCannedResponsePicker;
+    },
+    selectCannedResponse(content) {
+      this.showCannedResponsePicker = false;
+      this.$nextTick(() => this.messageEditor?.insertCannedResponse(content));
     },
     toggleVariablesMenu(value) {
       this.showVariablesMenu = value;
@@ -1435,6 +1445,7 @@ export default {
         :quoted-reply-enabled="quotedReplyPreference"
         :toggle-audio-recorder-play-pause="toggleAudioRecorderPlayPause"
         :toggle-audio-recorder="toggleAudioRecorder"
+        :toggle-canned-response-picker="toggleCannedResponsePicker"
         :toggle-emoji-picker="toggleEmojiPicker"
         :message="message"
         :portal-slug="connectedPortalSlug"
@@ -1456,6 +1467,17 @@ export default {
       class="absolute z-50 bottom-16 left-3"
       @close="showStickerPicker = false"
     />
+
+    <woot-modal
+      v-model:show="showCannedResponsePicker"
+      :on-close="() => (showCannedResponsePicker = false)"
+    >
+      <CannedResponsePickerModal
+        v-if="showCannedResponsePicker"
+        @close="showCannedResponsePicker = false"
+        @select="selectCannedResponse"
+      />
+    </woot-modal>
 
     <WhatsappTemplates
       :inbox-id="inbox.id"

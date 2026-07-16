@@ -700,6 +700,11 @@ function insertSpecialContent(type, content) {
   useTrack(event_map[type]);
 }
 
+function insertCannedResponse(content) {
+  focusEditorInputField();
+  insertSpecialContent('cannedResponse', content);
+}
+
 function handleLineBreakWhenCmdAndEnterToSendEnabled(event) {
   if (
     hasPressedCommandAndEnter(event) &&
@@ -835,7 +840,7 @@ onMounted(() => {
   }
 });
 
-defineExpose({ focusEditorInputField });
+defineExpose({ focusEditorInputField, insertCannedResponse });
 
 // BUS Event to insert text or markdown into the editor at the
 // current cursor position.

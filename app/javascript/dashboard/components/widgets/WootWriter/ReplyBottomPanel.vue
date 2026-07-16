@@ -57,6 +57,10 @@ export default {
       type: Function,
       default: () => {},
     },
+    toggleCannedResponsePicker: {
+      type: Function,
+      default: () => {},
+    },
     toggleAudioRecorder: {
       type: Function,
       default: () => {},
@@ -301,6 +305,17 @@ export default {
 <template>
   <div class="flex justify-between p-3" :class="wrapClass">
     <div class="left-wrap">
+      <NextButton
+        v-if="!isEditorDisabled && !isOnPrivateNote"
+        v-tooltip.top-end="
+          $t('CONVERSATION.REPLYBOX.CANNED_RESPONSES.BUTTON_TOOLTIP')
+        "
+        icon="i-lucide-messages-square"
+        slate
+        faded
+        sm
+        @click="toggleCannedResponsePicker"
+      />
       <NextButton
         v-if="!isEditorDisabled"
         v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_EMOJI_ICON')"
