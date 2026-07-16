@@ -672,7 +672,7 @@ function insertContentIntoEditor(content, defaultFrom = 0) {
  * @param {string} type - The type of special content to insert. Possible values: 'mention', 'canned_response', 'variable', 'emoji'.
  * @param {Object|string} content - The content to insert, depending on the type.
  */
-function insertSpecialContent(type, content) {
+function insertSpecialContent(type, content, contentRange = range.value) {
   if (!editorView) {
     return;
   }
@@ -681,7 +681,7 @@ function insertSpecialContent(type, content) {
     editorView,
     type,
     content,
-    range.value,
+    contentRange,
     props.variables
   );
 
@@ -701,8 +701,11 @@ function insertSpecialContent(type, content) {
 }
 
 function insertCannedResponse(content) {
-  focusEditorInputField();
-  insertSpecialContent('cannedResponse', content);
+  if (!editorView) return;
+
+  editorView.focus();
+  const { from, to } = editorView.state.selection;
+  insertSpecialContent('cannedResponse', content, { from, to });
 }
 
 function handleLineBreakWhenCmdAndEnterToSendEnabled(event) {

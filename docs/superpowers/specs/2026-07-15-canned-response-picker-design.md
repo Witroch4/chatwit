@@ -48,7 +48,7 @@ Organize mode
 
 | Unit | Responsibility | Contract |
 | --- | --- | --- |
-| `CannedResponsePickerModal.vue` | Fetch, display, search, select, and reorder canned responses. | Emits `select(content)` and `close`; dispatches the reorder store action. |
+| `CannedResponsePickerModal.vue` | Fetch, display, select, and reorder canned responses. | Emits `select(content)` and `close`; dispatches the reorder store action. |
 | `ReplyBottomPanel.vue` | Render the first composer action. | Receives `toggleCannedResponsePicker` function. |
 | `ReplyBox.vue` | Own visual modal state and bridge a selection to the editor. | Calls editor's `insertCannedResponse(content)` method. |
 | `WootWriter/Editor.vue` | Expose the existing safe canned-response insertion behavior. | Public `insertCannedResponse(content)` method delegates to `insertSpecialContent`. |

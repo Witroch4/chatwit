@@ -40,6 +40,8 @@ class CannedResponse < ApplicationRecord
   private
 
   def assign_position
-    self.position = account.canned_responses.maximum(:position).to_i + 1 if position.nil?
+    return if position.present? || account.blank?
+
+    self.position = account.canned_responses.maximum(:position).to_i + 1
   end
 end
