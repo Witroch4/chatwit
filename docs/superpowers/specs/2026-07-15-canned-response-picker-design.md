@@ -69,3 +69,21 @@ The repository instruction asks not to add specs unless explicitly requested. Va
 ## Documentation
 
 `chatwitdocs/` will receive a concise implementation note describing the desktop-only picker, reused slash-command insertion path, account-scoped order, and the new reorder endpoint.
+
+## Implementation
+
+Implemented on 2026-07-15.
+
+- Migration: `20260715000000_add_position_to_canned_responses` adds and backfills the account-local non-null `position` column plus its `(account_id, position)` index.
+- Endpoint: `POST /api/v1/accounts/:account_id/canned_responses/reorder` accepts the complete `canned_response_ids` list and returns the transactionally persisted account order.
+- Components: `CannedResponsePickerModal.vue` provides the desktop selector and organize mode; `ReplyBottomPanel.vue`, `ReplyBox.vue`, and `WootWriter/Editor.vue` add the first composer action and route selection through the existing canned-response insertion path.
+- Validation commands:
+
+  ```bash
+  pnpm exec eslint --no-eslintrc --config .eslintrc.js app/javascript/dashboard/api/cannedResponse.js app/javascript/dashboard/store/modules/cannedResponse.js app/javascript/dashboard/components/widgets/WootWriter/Editor.vue app/javascript/dashboard/components/widgets/WootWriter/ReplyBottomPanel.vue app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue app/javascript/dashboard/components/widgets/conversation/CannedResponsePickerModal.vue
+  eval "$(rbenv init -)"
+  bundle exec rubocop app/models/canned_response.rb app/controllers/api/v1/accounts/canned_responses_controller.rb db/migrate/20260715000000_add_position_to_canned_responses.rb
+  git diff --check
+  ```
+
+  The nested worktree resolves `eslint-plugin-html` both locally and in its parent checkout when the ordinary ESLint/pre-commit command is used. The isolated ESLint command above loads only this worktree's `.eslintrc.js` and is the focused validation command for this implementation.
