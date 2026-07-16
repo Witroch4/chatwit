@@ -7,7 +7,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 
-const emit = defineEmits(['select']);
+const emit = defineEmits(['close', 'select']);
 
 const store = useStore();
 const { t } = useI18n();
@@ -34,6 +34,8 @@ watch(
 const toggleOrganizing = () => {
   isOrganizing.value = !isOrganizing.value;
 };
+
+const dismiss = () => emit('close');
 
 const selectResponse = response => {
   if (!isOrganizing.value) emit('select', response.content);
@@ -63,7 +65,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-auto flex-col overflow-hidden">
+  <div class="relative flex h-auto flex-col overflow-hidden">
+    <Button
+      color="slate"
+      variant="ghost"
+      size="sm"
+      icon="i-lucide-x"
+      type="button"
+      class="absolute right-4 top-4 z-10"
+      :aria-label="t('GENERAL.CLOSE')"
+      :title="t('GENERAL.CLOSE')"
+      @click="dismiss"
+    />
+
     <woot-modal-header
       :header-title="t('CONVERSATION.REPLYBOX.CANNED_RESPONSES.TITLE')"
       :header-content="t('CONVERSATION.REPLYBOX.CANNED_RESPONSES.DESCRIPTION')"
