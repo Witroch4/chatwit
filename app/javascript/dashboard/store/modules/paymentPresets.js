@@ -7,6 +7,7 @@ export const state = {
   uiFlags: {
     isFetching: false,
     isCreating: false,
+    isUpdating: false,
     isDeleting: false,
   },
 };
@@ -45,6 +46,19 @@ export const actions = {
     }
   },
 
+  update: async function updatePreset({ commit }, { id, ...presetObj }) {
+    commit(types.SET_PAYMENT_PRESET_UI_FLAG, { isUpdating: true });
+    try {
+      const response = await PaymentPresetsAPI.update(id, presetObj);
+      commit(types.EDIT_PAYMENT_PRESET, response.data);
+      return response.data;
+    } catch (error) {
+      throw new Error(error?.response?.data?.message || error);
+    } finally {
+      commit(types.SET_PAYMENT_PRESET_UI_FLAG, { isUpdating: false });
+    }
+  },
+
   delete: async function deletePreset({ commit }, id) {
     commit(types.SET_PAYMENT_PRESET_UI_FLAG, { isDeleting: true });
     try {
@@ -67,6 +81,7 @@ export const mutations = {
   },
   [types.SET_PAYMENT_PRESETS]: MutationHelpers.set,
   [types.ADD_PAYMENT_PRESET]: MutationHelpers.create,
+  [types.EDIT_PAYMENT_PRESET]: MutationHelpers.update,
   [types.DELETE_PAYMENT_PRESET]: MutationHelpers.destroy,
 };
 

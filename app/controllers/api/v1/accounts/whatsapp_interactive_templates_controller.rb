@@ -1,8 +1,15 @@
 # frozen_string_literal: true
 
 class Api::V1::Accounts::WhatsappInteractiveTemplatesController < Api::V1::Accounts::BaseController
+  EDITABLE_ATTRIBUTES = %w[
+    name template_type header_type header_text header_image_url
+    body_text footer_text button_text url_placeholder static_url quick_replies
+  ].freeze
+
   before_action :check_authorization
   before_action :fetch_template, only: [:update, :destroy, :dispatch_to_conversation]
+
+  rescue_from Whatsapp::InteractiveTemplatePayloadBuilder::ValidationError, with: :render_payload_error
 
   def index
     @templates = Current.account.whatsapp_interactive_templates.order(created_at: :desc)
@@ -10,29 +17,23 @@ class Api::V1::Accounts::WhatsappInteractiveTemplatesController < Api::V1::Accou
   end
 
   def create
-    payload = Whatsapp::InteractiveTemplatePayloadBuilder.new(
-      template_attributes: permitted_params.to_h
-    ).build_template_payload
-
     @template = Current.account.whatsapp_interactive_templates.create!(
-      permitted_params.merge(payload: payload)
+      permitted_params.merge(payload: build_payload(permitted_params.to_h))
     )
 
     render json: @template, status: :created
-  rescue Whatsapp::InteractiveTemplatePayloadBuilder::ValidationError => e
-    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def update
-    payload = Whatsapp::InteractiveTemplatePayloadBuilder.new(
-      template_attributes: permitted_params.to_h
-    ).build_template_payload
+    # Partial PATCH: rebuild the payload from the persisted attributes merged
+    # with the incoming params, so unsent fields keep their current values.
+    merged_attributes = @template.attributes.slice(*EDITABLE_ATTRIBUTES)
+                                 .with_indifferent_access
+                                 .merge(permitted_params.to_h)
 
-    @template.update!(permitted_params.merge(payload: payload))
+    @template.update!(permitted_params.merge(payload: build_payload(merged_attributes)))
 
     render json: @template
-  rescue Whatsapp::InteractiveTemplatePayloadBuilder::ValidationError => e
-    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def destroy
@@ -70,6 +71,14 @@ class Api::V1::Accounts::WhatsappInteractiveTemplatesController < Api::V1::Accou
 
   private
 
+  def build_payload(attributes)
+    Whatsapp::InteractiveTemplatePayloadBuilder.new(template_attributes: attributes).build_template_payload
+  end
+
+  def render_payload_error(exception)
+    render json: { error: exception.message }, status: :unprocessable_entity
+  end
+
   def find_conversation
     scope = Current.account.conversations
     conversation_id = params[:conversation_id]
@@ -92,7 +101,7 @@ class Api::V1::Accounts::WhatsappInteractiveTemplatesController < Api::V1::Accou
       :button_text,
       :url_placeholder,
       :static_url,
-      quick_replies: [:text]
+      quick_replies: [:id, :text]
     )
   end
 end

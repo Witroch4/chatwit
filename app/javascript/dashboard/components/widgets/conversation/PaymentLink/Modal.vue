@@ -44,7 +44,13 @@ export default {
       return this.$store.getters['paymentPresets/getUIFlags'];
     },
     interactiveTemplates() {
-      return this.$store.getters['whatsappInteractiveTemplates/getTemplates'];
+      // Payment links only support these types; quick_replies templates
+      // would silently degrade to a plain-text link on send.
+      return this.$store.getters[
+        'whatsappInteractiveTemplates/getTemplates'
+      ].filter(template =>
+        ['cta_url', 'rich_text'].includes(template.template_type)
+      );
     },
     localShow: {
       get() {
@@ -117,8 +123,14 @@ export default {
       this.selectedPresetId = preset.id;
       this.amountCentsRaw = preset.amount_cents;
       this.description = preset.description;
-      this.selectedInteractiveTemplateId =
-        preset.whatsapp_interactive_template_id || null;
+      const templateId = preset.whatsapp_interactive_template_id || null;
+      // Only restore ids that resolve to a usable template; a stale id would
+      // render a blank select yet still be submitted with the link.
+      this.selectedInteractiveTemplateId = this.interactiveTemplates.some(
+        template => template.id === templateId
+      )
+        ? templateId
+        : null;
     },
     clearPresetSelection() {
       this.selectedPresetId = null;
@@ -131,6 +143,7 @@ export default {
           this.selectedPresetId = null;
           this.amountCentsRaw = 0;
           this.description = '';
+          this.selectedInteractiveTemplateId = null;
         }
       } catch (error) {
         this.showAlert(this.$t('PAYMENT_LINK.PRESET_DELETE_ERROR'));
@@ -142,15 +155,30 @@ export default {
       this.isSending = true;
       try {
         if (this.saveAsPreset && this.presetName.trim()) {
-          await this.$store.dispatch('paymentPresets/create', {
+          const trimmedName = this.presetName.trim();
+          const presetPayload = {
             payment_preset: {
-              name: this.presetName.trim(),
+              name: trimmedName,
               amount_cents: this.amountCents,
               description: this.description.trim(),
               whatsapp_interactive_template_id:
                 this.selectedInteractiveTemplateId,
             },
-          });
+          };
+          // Saving under an existing name updates that favorite instead of
+          // creating a duplicate row.
+          const existingPreset = this.presets.find(
+            preset =>
+              preset.name.trim().toLowerCase() === trimmedName.toLowerCase()
+          );
+          if (existingPreset) {
+            await this.$store.dispatch('paymentPresets/update', {
+              id: existingPreset.id,
+              ...presetPayload,
+            });
+          } else {
+            await this.$store.dispatch('paymentPresets/create', presetPayload);
+          }
         }
 
         await PaymentLinksAPI.create({

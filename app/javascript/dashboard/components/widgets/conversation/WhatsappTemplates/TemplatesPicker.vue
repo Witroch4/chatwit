@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, toRef, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import {
   useFunctionGetter,
   useMapGetter,
@@ -34,12 +35,15 @@ const TAB_ALL = 2;
 const MAX_RECENT = 10;
 
 const { t } = useI18n();
+const { isAdmin } = useAdmin();
 const store = useStore();
 const query = ref('');
 const isRefreshing = ref(false);
 const activeTabIndex = ref(TAB_RECENT);
 const favorites = ref([]);
 const recentTemplates = ref([]);
+const showDeleteConfirmation = ref(false);
+const templateToDelete = ref(null);
 
 const accountId = useMapGetter('getCurrentAccountId');
 
@@ -219,18 +223,31 @@ const onSelectInteractiveTemplate = template => {
   emit('onSelectInteractive', template);
 };
 
-const onEditInteractiveTemplate = (event, template) => {
-  event.stopPropagation();
+const onEditInteractiveTemplate = template => {
   emit('onEditInteractive', template);
 };
 
-const deleteInteractiveTemplate = async (event, template) => {
-  event.stopPropagation();
+const openDeleteConfirmation = template => {
+  templateToDelete.value = template;
+  showDeleteConfirmation.value = true;
+};
+
+const closeDeleteConfirmation = () => {
+  showDeleteConfirmation.value = false;
+  templateToDelete.value = null;
+};
+
+const confirmDeleteInteractiveTemplate = async () => {
+  const template = templateToDelete.value;
+  if (!template) return;
+
   try {
     await store.dispatch('whatsappInteractiveTemplates/delete', template.id);
     useAlert(t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_SUCCESS'));
   } catch {
     useAlert(t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_ERROR'));
+  } finally {
+    closeDeleteConfirmation();
   }
 };
 
@@ -330,11 +347,12 @@ defineExpose({ addToRecent });
         <div
           v-for="template in filteredInteractiveTemplates"
           :key="template.id"
-          class="group relative min-w-0 rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black2 hover:outline-n-brand hover:bg-n-brand/5 transition-colors"
+          class="relative min-w-0 rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black2 transition-colors"
         >
           <button
             type="button"
-            class="flex w-full min-w-0 items-start gap-3 rounded-lg p-3 pr-16 text-left disabled:opacity-50 disabled:cursor-wait"
+            class="group flex w-full min-w-0 items-start gap-3 rounded-lg p-3 text-left transition-colors hover:bg-n-brand/5 disabled:opacity-50 disabled:cursor-wait"
+            :class="isAdmin ? 'pr-[4.5rem]' : ''"
             :disabled="interactiveUIFlags.isDispatching"
             :title="
               t('WHATSAPP_TEMPLATES.INTERACTIVE.SEND_ACTION', {
@@ -368,7 +386,10 @@ defineExpose({ addToRecent });
               class="size-4 mt-0.5 text-n-brand opacity-80 group-hover:opacity-100 shrink-0"
             />
           </button>
-          <div class="absolute right-2 top-2 flex items-center gap-1">
+          <div
+            v-if="isAdmin"
+            class="absolute right-2 top-2 flex items-center gap-1"
+          >
             <button
               type="button"
               class="flex size-7 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-brand focus-visible:ring-2 focus-visible:ring-n-brand focus-visible:outline-none"
@@ -382,7 +403,7 @@ defineExpose({ addToRecent });
                   name: template.name,
                 })
               "
-              @click="onEditInteractiveTemplate($event, template)"
+              @click="onEditInteractiveTemplate(template)"
             >
               <Icon icon="i-lucide-pencil" class="size-3.5" />
             </button>
@@ -400,13 +421,23 @@ defineExpose({ addToRecent });
                   name: template.name,
                 })
               "
-              @click="deleteInteractiveTemplate($event, template)"
+              @click="openDeleteConfirmation(template)"
             >
               <Icon icon="i-lucide-trash-2" class="size-3.5" />
             </button>
           </div>
         </div>
       </div>
+      <woot-delete-modal
+        v-model:show="showDeleteConfirmation"
+        :on-confirm="confirmDeleteInteractiveTemplate"
+        :on-close="closeDeleteConfirmation"
+        :title="t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_CONFIRM.TITLE')"
+        :message="t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_CONFIRM.MESSAGE')"
+        :message-value="templateToDelete ? templateToDelete.name : ''"
+        :confirm-text="t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_CONFIRM.YES')"
+        :reject-text="t('WHATSAPP_TEMPLATES.INTERACTIVE.DELETE_CONFIRM.NO')"
+      />
     </div>
 
     <!-- Template List -->

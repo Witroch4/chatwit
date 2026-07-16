@@ -151,6 +151,12 @@
       "UPDATE_SUCCESS": "Mensagem interativa atualizada com sucesso.",
       "EDIT_ACTION": "Editar mensagem interativa {name}",
       "DELETE_ACTION": "Excluir mensagem interativa {name}",
+      "DELETE_CONFIRM": {
+        "TITLE": "Excluir mensagem interativa",
+        "MESSAGE": "Isso excluirá a mensagem permanentemente e a desvinculará de qualquer favorito de pagamento que a utilize. Excluir",
+        "YES": "Sim, excluir",
+        "NO": "Não, manter"
+      },
       "DELETE_SUCCESS": "Mensagem interativa removida.",
       "DELETE_ERROR": "Falha ao remover a mensagem interativa.",
       "SEND_SUCCESS": "Mensagem interativa enviada.",

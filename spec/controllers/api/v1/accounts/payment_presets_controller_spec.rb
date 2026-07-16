@@ -31,5 +31,32 @@ RSpec.describe 'Payment Presets API', type: :request do
       expect(response).to have_http_status(:created)
       expect(account.payment_presets.last.whatsapp_interactive_template).to eq(interactive_template)
     end
+
+    it 'rejects an interactive template from another account' do
+      other_account = create(:account)
+      foreign_template = other_account.whatsapp_interactive_templates.create!(
+        name: 'foreign_cta',
+        template_type: 'cta_url',
+        header_type: 'none',
+        body_text: 'Foreign body',
+        button_text: 'Pay now',
+        payload: { 'type' => 'cta_url' }
+      )
+
+      post "/api/v1/accounts/#{account.id}/payment_presets",
+           headers: administrator.create_new_auth_token,
+           params: {
+             payment_preset: {
+               name: 'Cross tenant',
+               amount_cents: 27_000,
+               description: 'Single payment',
+               whatsapp_interactive_template_id: foreign_template.id
+             }
+           },
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(account.payment_presets).to be_empty
+    end
   end
 end

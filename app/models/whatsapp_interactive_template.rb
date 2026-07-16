@@ -3,6 +3,7 @@ class WhatsappInteractiveTemplate < ApplicationRecord
   TEMPLATE_TYPES = %w[cta_url rich_text quick_replies].freeze
 
   belongs_to :account
+  has_many :payment_presets, dependent: :nullify
 
   validates :name, presence: true, uniqueness: { scope: :account_id }
   validates :template_type, presence: true, inclusion: { in: TEMPLATE_TYPES }

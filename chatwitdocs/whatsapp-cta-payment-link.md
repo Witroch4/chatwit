@@ -124,3 +124,16 @@ e publica no bucket/config pública do Socialwise:
 ## Correção 2026-07-16 — versão duplicada de migration
 
 - A migration `add_whatsapp_interactive_template_to_payment_presets` foi renumerada de `20260715000000` para `20260715000001`: a versão original colidia com `add_position_to_canned_responses` (feature do picker de respostas prontas), fazendo o `db:chatwit_smart_prepare` pular silenciosamente a criação da coluna `payment_presets.whatsapp_interactive_template_id` e o `db:migrate` falhar com `DuplicateMigrationVersionError`.
+
+## Correção 2026-07-16 — hardening do gerenciamento de modelos e favoritos
+
+- `PaymentPreset` agora valida que `whatsapp_interactive_template_id` pertence à mesma conta (bloqueia referência cross-tenant e evita 500 de FK com id inexistente).
+- O `update` de mensagens interativas reconstrói o payload mesclando os atributos persistidos com os params recebidos — PATCH parcial via API funciona e não dessincroniza payload×colunas; a lógica de build/erro foi unificada entre create/update (`rescue_from`).
+- Ids de respostas rápidas (`button_id`) agora são preservados na edição (formulário, permit e builder); novos botões ganham ids `qr_N` sem colisão — flows da Socialwise keyed em `button_id` não quebram mais ao editar.
+- O formulário sempre envia `button_text`/`static_url`/`quick_replies`, limpando colunas obsoletas ao trocar o tipo do template (sem "ressurreição" de URL antiga nem respostas-fantasma).
+- Erros de validação do model (ex.: nome duplicado) agora aparecem no alerta (fallback para `message` além de `error`).
+- Ações de editar/excluir nos cards de Modelos Salvos são restritas a administradores (mesmo gate do botão de criação) e a exclusão pede confirmação (`woot-delete-modal`), avisando que favoritos vinculados perdem a CTA.
+- Corrigidos overlap de 4px do botão de editar sobre o ícone de enviar (`pr-[4.5rem]`) e o hover: a affordance de envio só acende ao passar o mouse no próprio botão de enviar.
+- No modal de link de pagamento: o select só lista templates `cta_url`/`rich_text` (tipos suportados pelo envio), selecionar favorito ignora ids que não resolvem mais, excluir o favorito selecionado também limpa a CTA, e salvar favorito com nome existente atualiza o registro em vez de duplicar (novo action `paymentPresets/update`).
+- A sidebar do editor não oferece mais excluir o próprio template em edição (evitava-se um PATCH 404 num form órfão).
+- `WhatsappInteractiveTemplate` declara `has_many :payment_presets, dependent: :nullify` (espelho do FK no model).

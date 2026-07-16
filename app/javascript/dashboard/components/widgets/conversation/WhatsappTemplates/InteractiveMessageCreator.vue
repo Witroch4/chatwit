@@ -246,8 +246,18 @@ const hydrateForm = template => {
   buttonText.value = template.button_text || 'Pagar agora';
   urlMode.value = template.static_url ? URL_MODE_STATIC : URL_MODE_DYNAMIC;
   staticUrl.value = template.static_url || '';
-  quickReplies.value = (template.quick_replies || []).map(reply => ({
+  // Preserve button ids across edits (SocialWise flows match on button_id).
+  // Legacy templates only carry ids inside the stored payload, so fall back
+  // to the payload entry at the same position.
+  const payloadButtons = template.payload?.action?.buttons || [];
+  const payloadQuickReplies = template.payload?.quick_replies || [];
+  quickReplies.value = (template.quick_replies || []).map((reply, idx) => ({
     text: reply.text || '',
+    id:
+      reply.id ||
+      payloadButtons[idx]?.reply?.id ||
+      payloadQuickReplies[idx]?.id ||
+      null,
   }));
   errors.value = {};
 };
@@ -297,6 +307,8 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true;
   try {
+    // Always send every editable field so switching the template type
+    // explicitly clears values that no longer apply (no stale columns).
     const payload = {
       name: name.value.trim(),
       template_type: templateType.value,
@@ -306,16 +318,20 @@ const handleSubmit = async () => {
         headerType.value === 'image' ? headerImageUrl.value.trim() : '',
       body_text: bodyText.value.trim(),
       footer_text: footerText.value.trim(),
-      quick_replies: quickReplies.value
-        .map(qr => ({ text: qr.text.trim() }))
-        .filter(qr => qr.text),
+      quick_replies: isRichText.value
+        ? []
+        : quickReplies.value
+            .map(qr => ({
+              text: qr.text.trim(),
+              ...(qr.id ? { id: qr.id } : {}),
+            }))
+            .filter(qr => qr.text),
+      button_text: isCta.value ? buttonText.value.trim() : '',
+      static_url:
+        isCta.value && urlMode.value === URL_MODE_STATIC
+          ? staticUrl.value.trim()
+          : '',
     };
-
-    if (isCta.value) {
-      payload.button_text = buttonText.value.trim();
-      payload.static_url =
-        urlMode.value === URL_MODE_STATIC ? staticUrl.value.trim() : '';
-    }
 
     if (isEditing.value) {
       await store.dispatch('whatsappInteractiveTemplates/update', {
@@ -332,8 +348,12 @@ const handleSubmit = async () => {
     resetForm();
     emit('templateCreated');
   } catch (error) {
+    // Builder errors arrive as { error }, model validations (e.g. duplicate
+    // name) as { message } from the global RecordInvalid handler.
     const message =
-      error?.response?.data?.error || t('WHATSAPP_TEMPLATES.INTERACTIVE.ERROR');
+      error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      t('WHATSAPP_TEMPLATES.INTERACTIVE.ERROR');
     useAlert(message);
   } finally {
     isSubmitting.value = false;
@@ -845,6 +865,7 @@ onMounted(() => {
                   </p>
                 </div>
                 <span
+                  v-if="template.id !== interactiveTemplate?.id"
                   role="button"
                   tabindex="0"
                   class="text-n-slate-10 hover:text-n-ruby-11 transition-colors cursor-pointer shrink-0"
