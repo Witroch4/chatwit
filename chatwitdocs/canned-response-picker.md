@@ -21,7 +21,7 @@ POST /api/v1/accounts/:account_id/canned_responses/reorder
 { "canned_response_ids": [1, 2, 3] }
 ```
 
-O endpoint aceita somente uma lista completa, sem duplicações, dos IDs da conta atual. Ele atualiza as posições em uma transação e devolve a coleção na ordem autoritativa. Em falha, o modal recarrega a ordem do servidor e mostra um alerta. A listagem sem busca e o menu de `/short_code` usam a mesma ordem persistida.
+O endpoint aceita somente uma lista completa, sem duplicações, dos IDs da conta atual. Ele atualiza as posições em uma transação e devolve a coleção na ordem autoritativa. Em falha, o modal recarrega a ordem do servidor e mostra um alerta. A listagem sem busca e o menu padrão de `/short_code` usam a mesma ordem persistida. Uma busca digitada no menu mantém a ordenação existente por relevância, usando `position, id` apenas para desempate.
 
 ## Escopo
 
