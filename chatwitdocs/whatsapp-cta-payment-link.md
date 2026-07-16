@@ -120,3 +120,7 @@ e publica no bucket/config pública do Socialwise:
 - Os cards de **Modelos Salvos** no picker agora têm ações acessíveis para editar e excluir sem disparar o envio da mensagem.
 - A edição abre o mesmo criador de mensagem interativa com todos os campos carregados, incluindo tipo, CTA/URL, respostas rápidas e URL pública da imagem de cabeçalho.
 - A atualização recompõe o payload normalizado antes de persistir o registro, mantendo o conteúdo enviado ao WhatsApp consistente com o formulário.
+
+## Correção 2026-07-16 — versão duplicada de migration
+
+- A migration `add_whatsapp_interactive_template_to_payment_presets` foi renumerada de `20260715000000` para `20260715000001`: a versão original colidia com `add_position_to_canned_responses` (feature do picker de respostas prontas), fazendo o `db:chatwit_smart_prepare` pular silenciosamente a criação da coluna `payment_presets.whatsapp_interactive_template_id` e o `db:migrate` falhar com `DuplicateMigrationVersionError`.
