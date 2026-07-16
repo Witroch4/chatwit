@@ -51,12 +51,11 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def valid_reorder?(ordered_ids, account_ids)
-    return false unless ordered_ids.is_a?(Array)
+    return false unless ordered_ids.is_a?(Array) && ordered_ids.all?(Integer)
 
-    normalized_ids = ordered_ids.map(&:to_i)
-    normalized_ids.size == account_ids.size &&
-      normalized_ids.uniq.size == normalized_ids.size &&
-      normalized_ids.sort == account_ids.sort
+    ordered_ids.size == account_ids.size &&
+      ordered_ids.uniq.size == ordered_ids.size &&
+      ordered_ids.sort == account_ids.sort
   end
 
   def canned_responses
