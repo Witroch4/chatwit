@@ -484,7 +484,14 @@ const nodeCreators = {
     from,
     to,
   }),
-  cannedResponse: (editorView, content, from, to, variables) => {
+  cannedResponse: (
+    editorView,
+    content,
+    from,
+    to,
+    variables,
+    { removeCannedResponseTrigger = true } = {}
+  ) => {
     const updatedMessage = replaceVariablesInMessage({
       message: content,
       variables,
@@ -492,7 +499,10 @@ const nodeCreators = {
     const node = createNode(editorView, 'cannedResponse', updatedMessage);
     return {
       node,
-      from: node.textContent === updatedMessage ? from : from - 1,
+      from:
+        removeCannedResponseTrigger && node.textContent !== updatedMessage
+          ? from - 1
+          : from,
       to,
     };
   },
@@ -520,6 +530,7 @@ const nodeCreators = {
  * @param {string|Object} content - The content to be transformed into a node.
  * @param {Object} range - An object containing 'from' and 'to' properties indicating the range in the document where the node should be placed.
  * @param {Object} variables - Optional. Variables to replace in the content, used for 'cannedResponse' type.
+ * @param {Object} options - Optional insertion behavior. Canned responses remove their slash trigger by default.
  * @returns {Object} - An object containing the created node and the updated 'from' and 'to' positions.
  */
 export const getContentNode = (
@@ -527,11 +538,12 @@ export const getContentNode = (
   type,
   content,
   { from, to },
-  variables
+  variables,
+  options = {}
 ) => {
   const creator = nodeCreators[type];
   return creator
-    ? creator(editorView, content, from, to, variables)
+    ? creator(editorView, content, from, to, variables, options)
     : { node: null, from, to };
 };
 
