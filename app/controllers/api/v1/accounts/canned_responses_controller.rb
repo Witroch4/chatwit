@@ -21,6 +21,21 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     head :ok
   end
 
+  def reorder
+    ordered_ids = reorder_params[:canned_response_ids]
+    account_ids = Current.account.canned_responses.pluck(:id)
+
+    return render json: { error: 'Invalid canned response order' }, status: :unprocessable_entity unless valid_reorder?(ordered_ids, account_ids)
+
+    CannedResponse.transaction do
+      ordered_ids.each_with_index do |id, index|
+        Current.account.canned_responses.find(id).update!(position: index + 1)
+      end
+    end
+
+    render json: canned_responses
+  end
+
   private
 
   def fetch_canned_response
@@ -31,14 +46,28 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     params.require(:canned_response).permit(:short_code, :content)
   end
 
+  def reorder_params
+    params.permit(canned_response_ids: [])
+  end
+
+  def valid_reorder?(ordered_ids, account_ids)
+    return false unless ordered_ids.is_a?(Array)
+
+    normalized_ids = ordered_ids.map(&:to_i)
+    normalized_ids.size == account_ids.size &&
+      normalized_ids.uniq.size == normalized_ids.size &&
+      normalized_ids.sort == account_ids.sort
+  end
+
   def canned_responses
     if params[:search]
       Current.account.canned_responses
              .where('short_code ILIKE :search OR content ILIKE :search', search: "%#{params[:search]}%")
              .order_by_search(params[:search])
+             .order(:position, :id)
 
     else
-      Current.account.canned_responses
+      Current.account.canned_responses.ordered
     end
   end
 end
