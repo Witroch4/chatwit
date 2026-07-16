@@ -11,6 +11,12 @@ class CannedResponse extends ApiClient {
     const url = searchKey ? `${this.url}?search=${searchKey}` : this.url;
     return axios.get(url);
   }
+
+  reorder(cannedResponseIds) {
+    return axios.post(`${this.url}/reorder`, {
+      canned_response_ids: cannedResponseIds,
+    });
+  }
 }
 
 export default new CannedResponse();

@@ -47,6 +47,15 @@ const actions = {
     }
   },
 
+  reorderCannedResponses: async function reorderCannedResponses(
+    { commit },
+    cannedResponseIds
+  ) {
+    const response = await CannedResponseAPI.reorder(cannedResponseIds);
+    commit(types.default.SET_CANNED, response.data);
+    return response.data;
+  },
+
   createCannedResponse: async function createCannedResponse(
     { commit },
     cannedObj
