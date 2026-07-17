@@ -237,6 +237,7 @@ en:
   conversations:
     captain:
       handoff: 'Transferring to another agent for further assistance.'
+      payment_review_note: 'Captain payment review needs attention (%{reason}). The payment label was kept for a new cycle.'
     dossier:
       ready_note: 'Dossier ready (%{count} selected messages): %{filename}'
       failed_note: 'Dossier generation failed: %{error}'

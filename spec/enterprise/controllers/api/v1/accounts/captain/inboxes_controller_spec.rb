@@ -21,6 +21,18 @@ RSpec.describe 'Api::V1::Accounts::Captain::Inboxes', type: :request do
 
         expect(response).to have_http_status(:ok)
         expect(json_response[:payload].first[:id]).to eq(captain_inbox.inbox.id)
+        expect(json_response[:payload].first[:captain_mode]).to eq('continuous')
+      end
+
+      it 'exposes phase2 settings and the default prompt' do
+        captain_inbox.update!(mode: :phase2_only, phase2_model: 'witdev_claude/sonnet')
+
+        get "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+            headers: admin.create_new_auth_token
+
+        expect(response).to have_http_status(:ok)
+        expect(json_response[:payload].first[:phase2_model]).to eq('witdev_claude/sonnet')
+        expect(json_response[:payload].first[:default_prompt]).to eq(Captain::PaymentReview::DEFAULT_PROMPT)
       end
     end
 
@@ -46,7 +58,8 @@ RSpec.describe 'Api::V1::Accounts::Captain::Inboxes', type: :request do
     let(:valid_params) do
       {
         inbox: {
-          inbox_id: inbox2.id
+          inbox_id: inbox2.id,
+          mode: 'phase2_only'
         }
       }
     end
@@ -61,6 +74,36 @@ RSpec.describe 'Api::V1::Accounts::Captain::Inboxes', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(json_response[:id]).to eq(inbox2.id)
+        expect(json_response[:captain_mode]).to eq('phase2_only')
+        expect(CaptainInbox.find_by!(inbox: inbox2)).to be_phase2_only
+      end
+
+      it 'keeps continuous as the default for existing clients that omit mode' do
+        post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+             params: { inbox: { inbox_id: inbox2.id } },
+             headers: admin.create_new_auth_token
+
+        expect(response).to have_http_status(:success)
+        expect(CaptainInbox.find_by!(inbox: inbox2)).to be_continuous
+        expect(json_response[:captain_mode]).to eq('continuous')
+      end
+
+      it 'persists and exposes phase2 model, prompt and payment presets' do
+        preset = create(:payment_preset, account: account)
+
+        post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+             params: { inbox: { inbox_id: inbox2.id, mode: 'phase2_only', phase2_model: 'witdev_claude/sonnet',
+                                phase2_prompt: 'Revise o pagamento', phase2_payment_preset_ids: [preset.id] } },
+             headers: admin.create_new_auth_token
+
+        expect(response).to have_http_status(:success)
+        captain_inbox = CaptainInbox.find_by!(inbox: inbox2)
+        expect(captain_inbox.phase2_model).to eq('witdev_claude/sonnet')
+        expect(captain_inbox.phase2_prompt).to eq('Revise o pagamento')
+        expect(captain_inbox.phase2_payment_preset_ids).to eq([preset.id])
+        expect(json_response[:phase2_model]).to eq('witdev_claude/sonnet')
+        expect(json_response[:phase2_payment_preset_ids]).to eq([preset.id])
+        expect(json_response[:default_prompt]).to eq(Captain::PaymentReview::DEFAULT_PROMPT)
       end
 
       context 'when inbox does not exist' do

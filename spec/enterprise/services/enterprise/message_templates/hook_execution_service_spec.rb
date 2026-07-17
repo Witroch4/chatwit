@@ -102,6 +102,40 @@ RSpec.describe MessageTemplates::HookExecutionService do
     end
   end
 
+  context 'when Captain is configured as phase2_only' do
+    before do
+      CaptainInbox.find_by!(inbox: inbox).update!(mode: :phase2_only)
+      inbox.reload
+    end
+
+    it 'does not schedule the standard Captain response for an incoming message' do
+      expect(Captain::Conversation::ResponseBuilderJob).not_to receive(:perform_later)
+
+      create(:message, conversation: conversation, message_type: :incoming, account: account)
+    end
+
+    it 'does not perform the standard quota handoff' do
+      original_waiting_since = conversation.waiting_since
+      account.update!(
+        limits: { 'captain_responses' => 100 },
+        custom_attributes: account.custom_attributes.merge('captain_responses_usage' => 100)
+      )
+
+      create(:message, conversation: conversation, message_type: :incoming, account: account)
+
+      expect(conversation.reload).to be_pending
+      expect(conversation.waiting_since).to eq(original_waiting_since)
+    end
+
+    it 'does not suppress a configured greeting for an old pending conversation' do
+      inbox.update!(greeting_enabled: true, greeting_message: 'Hello from the inbox', enable_email_collect: false)
+
+      expect do
+        create(:message, conversation: conversation, message_type: :incoming, account: account)
+      end.to change { conversation.reload.messages.template.count }.by(1)
+    end
+  end
+
   context 'when no captain assistant is configured' do
     before do
       CaptainInbox.where(inbox: inbox).destroy_all

@@ -26,6 +26,25 @@ icones reutilizaveis apps/socialwise-frontend/components/icons/index.tsx
 
 > **Universal Agent Instructions** — Compatible with Claude Code, Cursor, Copilot, Codex, Gemini CLI, and other AI coding agents.
 
+## LLM: listagem de modelos (contrato canônico — LEITURA OBRIGATÓRIA)
+
+Regra inegociável (espelha o CLAUDE.md da witdev-platform-core): **`platform-litellm` é a
+autoridade máxima de modelos e roteamento; `platform-api /api/v1/llm/models` é o ÚNICO
+contrato de listagem de modelos para apps.** O Chatwit NÃO mantém catálogo próprio de
+modelos e NÃO chama o LiteLLM `/model/info` ou `/v1/models` diretamente para listagem.
+
+- Todo seletor/dropdown de modelos no Chatwit consome `Chatwit::LlmProxy.catalog_models`
+  (`lib/chatwit/llm_proxy.rb`), que consulta `CAPTAIN_WITDEV_CATALOG_URL`
+  (default `http://platform-api:8000/api/v1/llm/models`) pela rede interna Docker.
+- Persistir/enviar somente o alias canônico (`value`) do catálogo.
+- Fallback local só como degradação sinalizada (catálogo central indisponível/vazio);
+  se o central responder com qualquer modelo, a lista é 100% central, sem merge.
+- Execução (completions) vai ao proxy LiteLLM OpenAI-compatible
+  (`CAPTAIN_WITDEV_PROXY_URL`, default `http://platform-litellm:4000` + `/v1`) com
+  `CAPTAIN_WITDEV_PROXY_API_KEY`; rota ativada por `CAPTAIN_LLM_ROUTE=witdev`.
+- Detalhe operacional: `witdev-platform-core/docs/agent-memory/llm-model-catalog-contract.md`.
+
+
 ## Regras Arquiteturais Criticas (LEITURA OBRIGATORIA)
 
 1. **WITDEV PLATFORM = CÉREBRO | CHATWIT = CARTEIRO E FONTE DE LEADS:** A Witdev Platform Core (`witdev-platform-core`) detém 100% da inteligência, processamento, lógica de fluxo, IA, classificação e monitoramento jurídico. O Chatwit é estritamente o **carteiro** — recebe mensagens dos canais (WhatsApp, Instagram, Facebook), encaminha para a plataforma, e entrega as respostas de volta ao lead. O Chatwit também é a **fonte primária de leads e contatos** da plataforma: todo lead entra pelo Chatwit e é sincronizado com a plataforma via webhook dedicado (Lead Sync). O Chatwit **NUNCA** processa lógica de negócio.

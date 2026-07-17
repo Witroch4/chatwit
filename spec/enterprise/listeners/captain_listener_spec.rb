@@ -7,6 +7,22 @@ describe CaptainListener do
   let(:user) { create(:user, account: account) }
   let(:assistant) { create(:captain_assistant, account: account, config: { feature_memory: true, feature_faq: true }) }
 
+  describe '#account_created' do
+    let(:event) { Events::Base.new(:account_created, Time.zone.now, account: account) }
+
+    it 'provisions the canonical payment-review label for the new account' do
+      expect(Captain::PaymentReview::LabelProvisioner).to receive(:provision!).with(account)
+
+      listener.account_created(event)
+    end
+
+    it 'contains provisioning failures so other account listeners can continue' do
+      allow(Captain::PaymentReview::LabelProvisioner).to receive(:provision!).and_raise(StandardError, 'boom')
+
+      expect { listener.account_created(event) }.not_to raise_error
+    end
+  end
+
   describe '#conversation_resolved' do
     let(:conversation) { create(:conversation, account: account, inbox: inbox, assignee: user) }
 
@@ -48,6 +64,20 @@ describe CaptainListener do
           .with(assistant, conversation)
           .and_return(instance_double(Captain::Llm::ConversationFaqService, generate_and_deduplicate: false))
         expect(Captain::Llm::ContactNotesService).not_to receive(:new)
+
+        listener.conversation_resolved(event)
+      end
+    end
+
+    context 'when Captain is configured as phase2_only' do
+      before do
+        CaptainInbox.find_by!(inbox: inbox).update!(mode: :phase2_only)
+        inbox.reload
+      end
+
+      it 'does not run standard memory or FAQ completion work' do
+        expect(Captain::Llm::ContactNotesService).not_to receive(:new)
+        expect(Captain::Llm::ConversationFaqService).not_to receive(:new)
 
         listener.conversation_resolved(event)
       end

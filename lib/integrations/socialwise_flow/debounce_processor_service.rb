@@ -5,7 +5,7 @@
 # instead of extracting content from a single message.
 
 class Integrations::SocialwiseFlow::DebounceProcessorService < Integrations::SocialwiseFlow::ProcessorService
-  pattr_initialize [:event_name!, :hook!, :event_data!, :concatenated_content!]
+  pattr_initialize [:event_name!, :hook!, :event_data!, :concatenated_content!, :ownership_epoch!]
 
   def perform
     Rails.logger.info '[SOCIALWISE-DEBOUNCE-PROCESSOR] === perform called ==='
@@ -13,6 +13,12 @@ class Integrations::SocialwiseFlow::DebounceProcessorService < Integrations::Soc
     Rails.logger.info "[SOCIALWISE-DEBOUNCE-PROCESSOR] Message ID: #{message&.id}"
     Rails.logger.info "[SOCIALWISE-DEBOUNCE-PROCESSOR] Conversation ID: #{message&.conversation&.id}"
     Rails.logger.info "[SOCIALWISE-DEBOUNCE-PROCESSOR] Conversation status: #{message&.conversation&.status}"
+
+    @execution_epoch = ownership_epoch
+    unless publish_allowed?(ownership_epoch)
+      Rails.logger.info '[SOCIALWISE-DEBOUNCE-PROCESSOR] Ownership fence is active, aborting'
+      return
+    end
 
     unless should_run_debounce_processor?(message)
       Rails.logger.info '[SOCIALWISE-DEBOUNCE-PROCESSOR] should_run_debounce_processor? returned false, aborting'
@@ -44,7 +50,10 @@ class Integrations::SocialwiseFlow::DebounceProcessorService < Integrations::Soc
     # Use the same logic as ProcessorService - accept pending OR open without agent replies and no handoff
     # This reuses the bot_should_respond? method from the parent class
     unless bot_should_respond?
-      Rails.logger.info "[SOCIALWISE-DEBOUNCE-PROCESSOR] BLOCKED: Bot should not respond (status: #{conversation.status}, has_agent_reply: #{has_agent_reply?}, handoff_completed: #{handoff_completed?})"
+      Rails.logger.info(
+        "[SOCIALWISE-DEBOUNCE-PROCESSOR] BLOCKED: Bot should not respond " \
+        "(status: #{conversation.status}, has_agent_reply: #{has_agent_reply?}, handoff_completed: #{handoff_completed?})"
+      )
       return false
     end
 
@@ -54,12 +63,16 @@ class Integrations::SocialwiseFlow::DebounceProcessorService < Integrations::Soc
 
   def process_concatenated_content(message)
     Rails.logger.info '[SOCIALWISE-DEBOUNCE-PROCESSOR] === process_concatenated_content called ==='
-    # Note: typing indicator was already sent earlier when first message arrived (before debounce)
+    epoch = execution_epoch
+    return unless publish_allowed?(epoch)
+
+    # NOTE: Typing indicator was already sent earlier when first message arrived (before debounce).
     response = get_response(message.conversation.contact_inbox.source_id, concatenated_content)
+    return unless publish_allowed?(epoch)
 
     if response.present?
-      Rails.logger.info "[SOCIALWISE-DEBOUNCE-PROCESSOR] Response received, processing..."
-      process_response(message, response)
+      Rails.logger.info '[SOCIALWISE-DEBOUNCE-PROCESSOR] Response received, processing...'
+      process_response(message, response, epoch: epoch)
     else
       Rails.logger.info '[SOCIALWISE-DEBOUNCE-PROCESSOR] No response from webhook'
     end

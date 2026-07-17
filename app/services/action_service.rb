@@ -37,7 +37,7 @@ class ActionService
   def add_label(labels)
     return if labels.empty?
 
-    @conversation.reload.add_labels(labels)
+    @conversation.add_labels(labels, source: :system)
   end
 
   def assign_agent(agent_ids = [])
@@ -55,8 +55,7 @@ class ActionService
   def remove_label(labels)
     return if labels.empty?
 
-    labels = @conversation.label_list - labels
-    @conversation.update(label_list: labels)
+    @conversation.remove_labels(labels, source: :system)
   end
 
   def assign_team(team_ids = [])

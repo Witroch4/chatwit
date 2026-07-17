@@ -1,12 +1,16 @@
 # frozen_string_literal: true
 
 class Integrations::SocialwiseFlow::WhatsappResponseProcessor
+  DEFAULT_OWNERSHIP_CHECK = -> { true }
+
   class << self
     # Main entry point for processing WhatsApp responses from SocialWise Flow
     # @param whatsapp_data [Hash] The WhatsApp response data from SocialWise Flow
     # @param message [Message] The message object from the conversation
     # @return [Boolean] true if processing was successful, false otherwise
-    def process(whatsapp_data, message)
+    def process(whatsapp_data, message, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       start_time = Time.current
       Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] === STARTING WHATSAPP RESPONSE PROCESSING ==='
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Processing started at: #{start_time.iso8601}"
@@ -18,14 +22,14 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
       # Validate that we have the required data
       unless whatsapp_data.is_a?(Hash)
         Rails.logger.error "[SOCIALWISE-FLOW-WHATSAPP] Invalid whatsapp_data: expected Hash, got #{whatsapp_data.class}"
-        return fallback_to_text_message(message, whatsapp_data)
+        return fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
       end
 
       # Validate WhatsApp channel
       conversation = message.conversation
       unless conversation.inbox.channel_type == 'Channel::Whatsapp'
         Rails.logger.warn "[SOCIALWISE-FLOW-WHATSAPP] Rich messages only supported for WhatsApp channels, got: #{conversation.inbox.channel_type}"
-        return fallback_to_text_message(message, whatsapp_data)
+        return fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
       end
 
       # Determine message type
@@ -33,7 +37,7 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Message type: #{message_type}"
 
       # Route message based on type
-      success = route_message(message_type, whatsapp_data, message)
+      success = route_message(message_type, whatsapp_data, message, ownership_check: ownership_check)
 
       end_time = Time.current
       processing_duration = ((end_time - start_time) * 1000).round(2)
@@ -50,7 +54,7 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
       Rails.logger.error "[SOCIALWISE-FLOW-WHATSAPP] Processing time before failure: #{processing_duration}ms"
       Rails.logger.error "[SOCIALWISE-FLOW-WHATSAPP] Full context - Message ID: #{message.id}, Account ID: #{message.conversation.account_id}"
       Rails.logger.error "[SOCIALWISE-FLOW-WHATSAPP] Backtrace: #{e.backtrace.join('\n')}"
-      fallback_to_text_message(message, whatsapp_data)
+      fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
       false
     end
 
@@ -60,31 +64,33 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
     # @param message_type [String] The message type (interactive, text, template)
     # @param whatsapp_data [Hash] The WhatsApp payload
     # @param message [Message] The message object
-    def route_message(message_type, whatsapp_data, message)
+    def route_message(message_type, whatsapp_data, message, ownership_check:)
+      return false unless ownership_check.call
+
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Routing message with type: #{message_type}"
 
       case message_type
       when 'interactive'
         Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Processing Interactive Message'
-        send_interactive_message(whatsapp_data, message)
+        send_interactive_message(whatsapp_data, message, ownership_check: ownership_check)
       when 'text'
         Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Processing Text Message'
-        send_text_message(whatsapp_data, message)
+        send_text_message(whatsapp_data, message, ownership_check: ownership_check)
       when 'template'
         Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Processing Template Message'
-        send_template_message(whatsapp_data, message)
+        send_template_message(whatsapp_data, message, ownership_check: ownership_check)
       else
         Rails.logger.warn "[SOCIALWISE-FLOW-WHATSAPP] Unknown message type: #{message_type}"
         # For unknown types, try to process as interactive if interactive payload exists
         if whatsapp_data['interactive'].present?
           Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Unknown type but interactive payload found, processing as interactive'
-          send_interactive_message(whatsapp_data, message)
+          send_interactive_message(whatsapp_data, message, ownership_check: ownership_check)
         elsif whatsapp_data['template'].present?
           Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Unknown type but template payload found, processing as template'
-          send_template_message(whatsapp_data, message)
+          send_template_message(whatsapp_data, message, ownership_check: ownership_check)
         else
           Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] No interactive/template payload, falling back to text message'
-          fallback_to_text_message(message, whatsapp_data)
+          fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
         end
       end
     end
@@ -92,7 +98,9 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
     # Send Interactive Message using WhatsApp Rich Message Service
     # @param whatsapp_data [Hash] The WhatsApp payload
     # @param message [Message] The message object
-    def send_interactive_message(whatsapp_data, message)
+    def send_interactive_message(whatsapp_data, message, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] === STARTING INTERACTIVE MESSAGE SEND ==='
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Interactive payload: #{whatsapp_data['interactive'].inspect}"
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
@@ -103,7 +111,7 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
 
         unless interactive_payload.present?
           Rails.logger.error '[SOCIALWISE-FLOW-WHATSAPP] Missing interactive payload'
-          return fallback_to_text_message(message, whatsapp_data)
+          return fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
         end
 
         # Extract text content for dashboard display
@@ -113,6 +121,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         # Create message for dashboard display (Requirement 7.1, 7.2)
         outgoing_message = nil
         begin
+          return false unless ownership_check.call
+
           # Para mensagens interativas, usar content_type 'integrations' com payload completo
           # O WhatsApp service pode usar send_interactive_payload para payloads prontos
           outgoing_message = conversation.messages.create!(
@@ -138,6 +148,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
 
           # Try to create a simple fallback message
           begin
+            return false unless ownership_check.call
+
             outgoing_message = conversation.messages.create!(
               message_type: :outgoing,
               content: text_content || 'WhatsApp message',
@@ -156,6 +168,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         # Send message using native WhatsApp service
         if outgoing_message
           begin
+            return false unless ownership_check.call
+
             # Para mensagens interativas, usar o método send_interactive_payload diretamente
             contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
             channel = conversation.inbox.channel
@@ -163,7 +177,10 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
             Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Sending interactive message via send_interactive_payload'
             Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Contact source ID: #{contact_source_id}"
 
-            message_id = channel.provider_service.send_interactive_payload(contact_source_id, outgoing_message, interactive_payload)
+            provider_service = channel.provider_service
+            return false unless ownership_check.call
+
+            message_id = provider_service.send_interactive_payload(contact_source_id, outgoing_message, interactive_payload)
 
             if message_id.present?
               outgoing_message.update!(source_id: message_id)
@@ -193,7 +210,7 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         Rails.logger.error "[SOCIALWISE-FLOW-WHATSAPP] Backtrace: #{e.backtrace.join('\n')}"
         Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Falling back to text message due to error'
 
-        fallback_to_text_message(message, whatsapp_data)
+        fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
         false
       end
     end
@@ -201,7 +218,9 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
     # Send Text Message
     # @param whatsapp_data [Hash] The WhatsApp payload
     # @param message [Message] The message object
-    def send_text_message(whatsapp_data, message)
+    def send_text_message(whatsapp_data, message, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] === STARTING TEXT MESSAGE SEND ==='
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Text payload: #{whatsapp_data.inspect}"
 
@@ -213,6 +232,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         # Create message for dashboard display (Requirement 7.1, 7.2)
         outgoing_message = nil
         begin
+          return false unless ownership_check.call
+
           # Para mensagens de texto simples
           outgoing_message = conversation.messages.create!(
             message_type: :outgoing,
@@ -232,6 +253,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
 
           # Try to create a simple fallback message
           begin
+            return false unless ownership_check.call
+
             outgoing_message = conversation.messages.create!(
               message_type: :outgoing,
               content: text_content || 'WhatsApp message',
@@ -250,9 +273,14 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         # Send message using native WhatsApp service
         if outgoing_message
           begin
+            return false unless ownership_check.call
+
             # Para mensagens de texto, usar o serviço padrão
             Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Sending text message via SendOnWhatsappService'
-            Whatsapp::SendOnWhatsappService.new(message: outgoing_message).perform
+            delivery_service = Whatsapp::SendOnWhatsappService.new(message: outgoing_message)
+            return false unless ownership_check.call
+
+            delivery_service.perform
             Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Text message sent successfully'
 
           rescue StandardError => e
@@ -281,7 +309,9 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
     # Send Template Message (e.g., coupon codes)
     # @param whatsapp_data [Hash] The WhatsApp payload with template data
     # @param message [Message] The message object
-    def send_template_message(whatsapp_data, message)
+    def send_template_message(whatsapp_data, message, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] === STARTING TEMPLATE MESSAGE SEND ==='
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Template payload: #{whatsapp_data.inspect}"
 
@@ -291,7 +321,7 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
 
         unless template_payload.present?
           Rails.logger.error '[SOCIALWISE-FLOW-WHATSAPP] Missing template payload'
-          return fallback_to_text_message(message, whatsapp_data)
+          return fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
         end
 
         template_name = template_payload['name']
@@ -304,6 +334,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         # Create message for dashboard display
         outgoing_message = nil
         begin
+          return false unless ownership_check.call
+
           outgoing_message = conversation.messages.create!(
             message_type: :outgoing,
             content: text_content,
@@ -326,6 +358,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
 
           # Fallback to simple text message
           begin
+            return false unless ownership_check.call
+
             outgoing_message = conversation.messages.create!(
               message_type: :outgoing,
               content: text_content || "WhatsApp template: #{template_name}",
@@ -344,6 +378,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         # Send template using WhatsApp API directly (não usar send_template nativo para preservar compatibilidade)
         if outgoing_message
           begin
+            return false unless ownership_check.call
+
             contact_source_id = conversation.contact.get_source_id(conversation.inbox.id)
             channel = conversation.inbox.channel
 
@@ -352,7 +388,12 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
             Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Template payload: #{template_payload.to_json}"
 
             # Enviar direto para API da Meta usando HTTParty (preserva template nativo do Chatwoot)
-            message_id = send_template_to_whatsapp_api(channel, contact_source_id, template_payload)
+            message_id = send_template_to_whatsapp_api(
+              channel,
+              contact_source_id,
+              template_payload,
+              ownership_check: ownership_check
+            )
 
             if message_id.present?
               outgoing_message.update!(source_id: message_id)
@@ -381,7 +422,7 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
         Rails.logger.error "[SOCIALWISE-FLOW-WHATSAPP] Backtrace: #{e.backtrace.join('\n')}"
         Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Falling back to text message due to error'
 
-        fallback_to_text_message(message, whatsapp_data)
+        fallback_to_text_message(message, whatsapp_data, ownership_check: ownership_check)
         false
       end
     end
@@ -419,7 +460,9 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
     # @param phone_number [String] The recipient phone number
     # @param template_payload [Hash] The template payload from SocialWise Flow
     # @return [String, nil] The message ID from WhatsApp API or nil on failure
-    def send_template_to_whatsapp_api(channel, phone_number, template_payload)
+    def send_template_to_whatsapp_api(channel, phone_number, template_payload, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return unless ownership_check.call
+
       channel.provider_service
 
       # Build API URL (usando mesma estrutura do WhatsappCloudService)
@@ -446,6 +489,8 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
       Rails.logger.info "[SOCIALWISE-FLOW-WHATSAPP] Request body: #{body.to_json}"
 
       # Send request to WhatsApp API
+      return unless ownership_check.call
+
       response = HTTParty.post(
         api_url,
         headers: headers,
@@ -475,13 +520,17 @@ class Integrations::SocialwiseFlow::WhatsappResponseProcessor
     # @param message [Message] The original message
     # @param whatsapp_data [Hash] The WhatsApp data for text extraction
     # @return [Boolean] true if fallback was successful
-    def fallback_to_text_message(message, whatsapp_data)
+    def fallback_to_text_message(message, whatsapp_data, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-FLOW-WHATSAPP] Falling back to text message'
 
       begin
         fallback_text = extract_text_content(whatsapp_data)
 
         conversation = message.conversation
+        return false unless ownership_check.call
+
         fallback_message = conversation.messages.create!(
           content: fallback_text,
           message_type: :outgoing,

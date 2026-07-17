@@ -1,0 +1,12 @@
+<% enabled = page.resource.internal_attributes['captain_payment_phase2'] == true %>
+<section class="main-content__body">
+ <hr/>
+  <div class="pb-3">
+    <p>Captain Payment Phase 2 is currently <strong><%= enabled ? 'Enabled' : 'Disabled' %></strong> for this account.</p>
+  </div>
+  <%= form_for([:toggle_captain_payment_phase2, namespace, page.resource], method: :post, html: { class: "form" }) do |f| %>
+    <div class="form-actions">
+      <%= f.submit enabled ? 'Disable Captain Payment Phase 2' : 'Enable Captain Payment Phase 2' %>
+    </div>
+  <% end %>
+</section>

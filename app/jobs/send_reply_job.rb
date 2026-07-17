@@ -17,6 +17,8 @@ class SendReplyJob < ApplicationJob
 
   def perform(message_id)
     message = Message.find(message_id)
+    return if socialwise_ownership_fence_blocks?(message)
+
     channel_name = message.conversation.inbox.channel.class.to_s
 
     return send_on_facebook_page(message) if channel_name == 'Channel::FacebookPage'
@@ -28,6 +30,18 @@ class SendReplyJob < ApplicationJob
   end
 
   private
+
+  # Permit fence for the async delivery path: a message tagged with the Socialwise
+  # ownership epoch it was composed under must not reach the provider if ownership
+  # has since moved (phase-2 handoff, an eligible trigger or an active run). Messages
+  # without the marker — including already-authorized phase-2 composites — deliver
+  # normally.
+  def socialwise_ownership_fence_blocks?(message)
+    epoch = message.additional_attributes&.dig('socialwise_ownership_epoch')
+    return false if epoch.blank?
+
+    !Integrations::SocialwiseFlow::OwnershipGuard.new(message.conversation).can_publish?(epoch: epoch)
+  end
 
   def send_on_facebook_page(message)
     if message.conversation.additional_attributes['type'] == 'instagram_direct_message'

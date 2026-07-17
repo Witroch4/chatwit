@@ -5,6 +5,7 @@ class Captain::InboxPendingConversationsResolutionJob < ApplicationJob
   queue_as :low
 
   def perform(inbox)
+    return unless inbox.captain_auto_response_active?
     return if inbox.account.captain_auto_resolve_disabled?
 
     if evaluate_conversation_completion?(inbox.account)

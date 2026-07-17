@@ -26,7 +26,7 @@ module Enterprise::Message
   def captain_pending_conversation?
     return false unless conversation.pending?
 
-    ::CaptainInbox.exists?(inbox_id: conversation.inbox_id)
+    conversation.inbox.captain_auto_response_configured?
   end
 
   def template_bootstrap_message?

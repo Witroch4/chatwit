@@ -1,12 +1,16 @@
 # frozen_string_literal: true
 
 class Integrations::Socialwise::InstagramResponseProcessor
+  DEFAULT_OWNERSHIP_CHECK = -> { true }
+
   class << self
     # Main entry point for processing socialwiseResponse payloads
     # @param socialwise_data [Hash] The socialwiseResponse data from Dialogflow OR SocialWise Flow
     # @param message [Message] The message object from the conversation
     # @return [Boolean] true if processing was successful, false otherwise
-    def process(socialwise_data, message)
+    def process(socialwise_data, message, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       start_time = Time.current
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING SOCIALWISE RESPONSE PROCESSING ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing started at: #{start_time.iso8601}"
@@ -18,7 +22,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # Validate that we have the required data
       unless socialwise_data.is_a?(Hash)
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid socialwise_data: expected Hash, got #{socialwise_data.class}"
-        return fallback_to_text_message(message, socialwise_data)
+        return fallback_to_text_message(message, socialwise_data, ownership_check: ownership_check)
       end
 
       # ADAPTAÇÃO: Suportar tanto formato Dialogflow quanto SocialWise Flow
@@ -27,7 +31,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # Se a normalização falhou, usar fallback
       unless normalized_data
         Rails.logger.error '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Payload normalization failed, using fallback'
-        return fallback_to_text_message(message, socialwise_data)
+        return fallback_to_text_message(message, socialwise_data, ownership_check: ownership_check)
       end
 
       message_format = normalized_data['message_format']
@@ -39,11 +43,11 @@ class Integrations::Socialwise::InstagramResponseProcessor
       # Validate payload structure
       unless validate_payload(message_format, payload)
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Invalid payload for format: #{message_format}"
-        return fallback_to_text_message(message, socialwise_data)
+        return fallback_to_text_message(message, socialwise_data, ownership_check: ownership_check)
       end
 
       # Route message based on format
-      route_message(message_format, payload, message)
+      route_message(message_format, payload, message, ownership_check: ownership_check)
 
       end_time = Time.current
       processing_duration = ((end_time - start_time) * 1000).round(2)
@@ -60,7 +64,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing time before failure: #{processing_duration}ms"
       Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Full context - Message ID: #{message.id}, Account ID: #{message.conversation.account_id}"
       Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
-      fallback_to_text_message(message, socialwise_data)
+      fallback_to_text_message(message, socialwise_data, ownership_check: ownership_check)
       false
     end
 
@@ -180,7 +184,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param message_format [String] The format type (GENERIC_TEMPLATE, BUTTON_TEMPLATE, QUICK_REPLIES)
     # @param payload [Hash] The message payload
     # @param message [Message] The message object
-    def route_message(message_format, payload, message)
+    def route_message(message_format, payload, message, ownership_check:)
+      return false unless ownership_check.call
+
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Routing message with format: #{message_format}"
 
       platform = detect_platform(message)
@@ -192,7 +198,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         unless validator.valid_for_rich_messages?
           Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation failed: #{validator.error_messages}"
           Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation status: #{validator.validation_status.inspect}"
-          return fallback_to_text_message(message, { 'payload' => payload })
+          return fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
         end
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Instagram channel validation passed successfully'
       when :facebook
@@ -200,28 +206,28 @@ class Integrations::Socialwise::InstagramResponseProcessor
         unless fb_validator.valid_for_rich_messages?
           Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Facebook channel validation failed: #{fb_validator.error_messages}"
           Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Validation status: #{fb_validator.validation_status.inspect}"
-          return fallback_to_text_message(message, { 'payload' => payload })
+          return fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
         end
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Facebook channel validation passed successfully'
       else
         Rails.logger.warn '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unsupported platform for rich messages'
-        return fallback_to_text_message(message, { 'payload' => payload })
+        return fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
       end
 
       case message_format
       when 'GENERIC_TEMPLATE'
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Generic Template'
-        send_generic_template(payload, message, platform: platform)
+        send_generic_template(payload, message, platform: platform, ownership_check: ownership_check)
       when 'BUTTON_TEMPLATE'
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Button Template'
-        send_button_template(payload, message, platform: platform)
+        send_button_template(payload, message, platform: platform, ownership_check: ownership_check)
       when 'QUICK_REPLIES'
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Processing Quick Replies'
-        send_quick_replies(payload, message, platform: platform)
+        send_quick_replies(payload, message, platform: platform, ownership_check: ownership_check)
       else
         Rails.logger.warn "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Unknown message format: #{message_format}"
         log_unknown_format(message_format)
-        fallback_to_text_message(message, { 'payload' => payload })
+        fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
       end
     end
 
@@ -703,7 +709,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # Send Generic Template message using Instagram Rich Message Service
     # @param payload [Hash] The Generic Template payload
     # @param message [Message] The message object
-    def send_generic_template(payload, message, platform: :instagram)
+    def send_generic_template(payload, message, platform: :instagram, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING GENERIC TEMPLATE SEND ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Generic Template payload: #{payload.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
@@ -716,16 +724,25 @@ class Integrations::Socialwise::InstagramResponseProcessor
         # Create outgoing message for rich message service
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service'
         conversation = message.conversation
-        outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
+        outgoing_message = create_rich_outgoing_message(
+          conversation,
+          instagram_payload,
+          payload,
+          ownership_check: ownership_check
+        )
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Perform the send operation (platform-specific)
+        return false unless ownership_check.call
+
         send_start_time = Time.current
         rich_message_service = if platform == :instagram
                                  Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
                                else
                                  Facebook::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
                                end
+        return false unless ownership_check.call
+
         rich_message_service.perform
         send_end_time = Time.current
 
@@ -750,7 +767,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error'
 
-        fallback_to_text_message(message, { 'payload' => payload })
+        fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
         false
       end
     end
@@ -758,7 +775,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # Send Button Template message using Instagram Rich Message Service
     # @param payload [Hash] The Button Template payload
     # @param message [Message] The message object
-    def send_button_template(payload, message, platform: :instagram)
+    def send_button_template(payload, message, platform: :instagram, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING BUTTON TEMPLATE SEND ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Button Template payload: #{payload.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
@@ -771,10 +790,17 @@ class Integrations::Socialwise::InstagramResponseProcessor
         # Create outgoing message for rich message service
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service'
         conversation = message.conversation
-        outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
+        outgoing_message = create_rich_outgoing_message(
+          conversation,
+          instagram_payload,
+          payload,
+          ownership_check: ownership_check
+        )
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using platform-specific service
+        return false unless ownership_check.call
+
         rich_message_service = if platform == :instagram
                                  Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
                                else
@@ -783,6 +809,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
         # Perform the send operation
         send_start_time = Time.current
+        return false unless ownership_check.call
+
         rich_message_service.perform
         send_end_time = Time.current
 
@@ -807,7 +835,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error'
 
-        fallback_to_text_message(message, { 'payload' => payload })
+        fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
         false
       end
     end
@@ -859,7 +887,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # Send Quick Replies message using Instagram Rich Message Service
     # @param payload [Hash] The Quick Replies payload
     # @param message [Message] The message object
-    def send_quick_replies(payload, message, platform: :instagram)
+    def send_quick_replies(payload, message, platform: :instagram, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] === STARTING QUICK REPLIES SEND ==='
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Quick Replies payload: #{payload.inspect}"
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Message ID: #{message.id}, Conversation ID: #{message.conversation.id}"
@@ -872,10 +902,17 @@ class Integrations::Socialwise::InstagramResponseProcessor
         # Create outgoing message for rich message service
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating outgoing message for rich message service'
         conversation = message.conversation
-        outgoing_message = create_rich_outgoing_message(conversation, instagram_payload, payload)
+        outgoing_message = create_rich_outgoing_message(
+          conversation,
+          instagram_payload,
+          payload,
+          ownership_check: ownership_check
+        )
         Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Created outgoing message ID: #{outgoing_message.id} with skip_send_reply flag"
 
         # Send using platform-specific service
+        return false unless ownership_check.call
+
         rich_message_service = if platform == :instagram
                                  Instagram::RichMessageService.new(message: outgoing_message, rich_payload: instagram_payload)
                                else
@@ -884,6 +921,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
 
         # Perform the send operation
         send_start_time = Time.current
+        return false unless ownership_check.call
+
         rich_message_service.perform
         send_end_time = Time.current
 
@@ -908,7 +947,7 @@ class Integrations::Socialwise::InstagramResponseProcessor
         Rails.logger.error "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Backtrace: #{e.backtrace.join('\n')}"
         Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message due to error'
 
-        fallback_to_text_message(message, { 'payload' => payload })
+        fallback_to_text_message(message, { 'payload' => payload }, ownership_check: ownership_check)
         false
       end
     end
@@ -924,7 +963,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param message [Message] The original message
     # @param socialwise_data [Hash] The socialwise data for text extraction
     # @return [Boolean] true if fallback was successful
-    def fallback_to_text_message(message, socialwise_data)
+    def fallback_to_text_message(message, socialwise_data, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return false unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Falling back to text message'
 
       begin
@@ -937,6 +978,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
         end
 
         conversation = message.conversation
+        return false unless ownership_check.call
+
         fallback_message = conversation.messages.create!(
           content: fallback_text,
           message_type: :outgoing,
@@ -1276,7 +1319,14 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param instagram_payload [Hash] The Instagram API payload
     # @param original_payload [Hash] The original Dialogflow payload
     # @return [Message] The created message
-    def create_rich_outgoing_message(conversation, instagram_payload, original_payload)
+    def create_rich_outgoing_message(
+      conversation,
+      instagram_payload,
+      original_payload,
+      ownership_check: DEFAULT_OWNERSHIP_CHECK
+    )
+      return unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich outgoing message'
 
       # ALWAYS create rich messages - feature flag dependency removed
@@ -1284,7 +1334,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating rich message directly (feature flag dependency removed)'
 
       # Create message directly as rich cards to avoid flash effect
-      create_rich_message_directly(conversation, instagram_payload, original_payload)
+      create_rich_message_directly(
+        conversation,
+        instagram_payload,
+        original_payload,
+        ownership_check: ownership_check
+      )
     end
 
     # Create message directly as rich cards
@@ -1292,7 +1347,12 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param instagram_payload [Hash] The Instagram API payload
     # @param original_payload [Hash] The original Dialogflow payload
     # @return [Message] The created message
-    def create_rich_message_directly(conversation, instagram_payload, _original_payload)
+    def create_rich_message_directly(
+      conversation,
+      instagram_payload,
+      _original_payload,
+      ownership_check: DEFAULT_OWNERSHIP_CHECK
+    )
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating message directly as rich cards'
 
       # Use the Instagram Renderer Mapper to convert payload to Chatwoot format
@@ -1303,6 +1363,8 @@ class Integrations::Socialwise::InstagramResponseProcessor
       Rails.logger.info "[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Mapped content_attributes keys: #{mapped_result.content_attributes.keys}"
 
       # Create message directly with rich content
+      return unless ownership_check.call
+
       message = conversation.messages.create!(
         content: mapped_result.fallback_text,
         content_type: mapped_result.content_type,
@@ -1323,7 +1385,9 @@ class Integrations::Socialwise::InstagramResponseProcessor
     # @param conversation [Conversation] The conversation to create the message in
     # @param original_payload [Hash] The original Dialogflow payload
     # @return [Message] The created message
-    def create_text_message(conversation, original_payload)
+    def create_text_message(conversation, original_payload, ownership_check: DEFAULT_OWNERSHIP_CHECK)
+      return unless ownership_check.call
+
       Rails.logger.info '[SOCIALWISE-INSTAGRAM-DIALOGFLOW] Creating regular text message'
 
       conversation.messages.create!(

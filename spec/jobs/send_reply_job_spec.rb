@@ -145,4 +145,45 @@ RSpec.describe SendReplyJob do
       described_class.perform_now(message.id)
     end
   end
+
+  context 'with the Socialwise ownership permit fence' do
+    let(:whatsapp_service) { instance_double(Whatsapp::SendOnWhatsappService, perform: nil) }
+    let(:channel) { create(:channel_whatsapp, sync_templates: false, validate_provider_config: false) }
+    let(:conversation) { create(:conversation, inbox: channel.inbox) }
+
+    before do
+      allow(Whatsapp::SendOnWhatsappService).to receive(:new).and_return(whatsapp_service)
+    end
+
+    def fenced_message(epoch)
+      create(:message, conversation: conversation, message_type: :outgoing,
+                       additional_attributes: { 'socialwise_ownership_epoch' => epoch })
+    end
+
+    it 'delivers a message that carries no ownership marker' do
+      message = create(:message, conversation: conversation, message_type: :outgoing)
+
+      described_class.perform_now(message.id)
+
+      expect(whatsapp_service).to have_received(:perform)
+    end
+
+    it 'stops a stale owner delivery before the provider when ownership moved to phase 2' do
+      message = fenced_message(1)
+      Integrations::SocialwiseFlow::OwnershipGuard.new(conversation).pause_for_phase2!
+
+      described_class.perform_now(message.id)
+
+      expect(whatsapp_service).not_to have_received(:perform)
+    end
+
+    it 'delivers when the message epoch still matches the current owner' do
+      guard = Integrations::SocialwiseFlow::OwnershipGuard.new(conversation)
+      message = fenced_message(guard.snapshot_epoch)
+
+      described_class.perform_now(message.id)
+
+      expect(whatsapp_service).to have_received(:perform)
+    end
+  end
 end

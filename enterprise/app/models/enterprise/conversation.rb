@@ -1,6 +1,20 @@
 module Enterprise::Conversation
   attr_accessor :captain_activity_reason, :captain_activity_reason_type
 
+  def self.prepended(base)
+    base.has_many :captain_payment_review_triggers,
+                  class_name: 'Captain::PaymentReviewTrigger',
+                  dependent: :delete_all
+  end
+
+  private
+
+  def label_mutation_service_class
+    Captain::PaymentReview::LabelMutationService
+  end
+
+  public
+
   def dispatch_captain_inference_resolved_event
     dispatch_captain_inference_event(Events::Types::CONVERSATION_CAPTAIN_INFERENCE_RESOLVED)
   end

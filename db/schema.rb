@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -408,9 +408,89 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
     t.bigint "inbox_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "mode", default: 0, null: false
+    t.string "phase2_model"
+    t.text "phase2_prompt"
+    t.jsonb "phase2_payment_preset_ids", default: [], null: false
     t.index ["captain_assistant_id", "inbox_id"], name: "index_captain_inboxes_on_captain_assistant_id_and_inbox_id", unique: true
     t.index ["captain_assistant_id"], name: "index_captain_inboxes_on_captain_assistant_id"
-    t.index ["inbox_id"], name: "index_captain_inboxes_on_inbox_id"
+    t.index ["inbox_id"], name: "index_captain_inboxes_on_inbox_id", unique: true
+  end
+
+  create_table "captain_payment_review_runs", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.integer "conversation_id", null: false
+    t.bigint "captain_assistant_id"
+    t.string "trigger_label", null: false
+    t.string "trigger_key", null: false
+    t.integer "generation", null: false
+    t.datetime "triggered_at", null: false
+    t.integer "trigger_message_id"
+    t.integer "decision_watermark_message_id"
+    t.string "payment_context_id"
+    t.integer "payment_context_version"
+    t.string "payment_order_nsu"
+    t.integer "status", default: 0, null: false
+    t.integer "outcome"
+    t.uuid "execution_token"
+    t.datetime "lease_expires_at"
+    t.datetime "heartbeat_at"
+    t.datetime "next_attempt_at"
+    t.integer "attempts", default: 0, null: false
+    t.integer "response_message_id"
+    t.string "decision_action"
+    t.string "reason_code"
+    t.string "error_code"
+    t.string "error_message"
+    t.datetime "retrigger_requested_at"
+    t.string "pending_trigger_key"
+    t.datetime "usage_recorded_at"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_captain_payment_review_runs_on_account_id"
+    t.index ["conversation_id", "trigger_label"], name: "idx_captain_pay_runs_one_active", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
+    t.index ["conversation_id"], name: "index_captain_payment_review_runs_on_conversation_id"
+    t.index ["lease_expires_at"], name: "idx_captain_pay_runs_lease"
+    t.index ["response_message_id"], name: "idx_captain_pay_runs_response", unique: true, where: "(response_message_id IS NOT NULL)"
+    t.index ["trigger_key"], name: "idx_captain_pay_runs_trigger_key", unique: true
+    t.check_constraint "attempts >= 0", name: "chk_captain_pay_run_attempts"
+    t.check_constraint "char_length(btrim(trigger_label::text)) > 0 AND char_length(btrim(trigger_key::text)) > 0", name: "chk_captain_pay_run_identity"
+    t.check_constraint "generation > 0", name: "chk_captain_pay_run_generation"
+    t.check_constraint "outcome IS NULL OR (outcome = ANY (ARRAY[0, 1, 2, 3, 4, 5, 6, 7, 8]))", name: "chk_captain_pay_run_outcome"
+    t.check_constraint "payment_context_id IS NULL AND payment_context_version IS NULL OR payment_context_id IS NOT NULL AND char_length(btrim(payment_context_id::text)) > 0 AND payment_context_version > 0", name: "chk_captain_pay_run_context"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3, 4])", name: "chk_captain_pay_run_status"
+  end
+
+  create_table "captain_payment_review_triggers", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.integer "conversation_id", null: false
+    t.string "trigger_label", null: false
+    t.integer "generation", null: false
+    t.integer "state", null: false
+    t.integer "source", null: false
+    t.datetime "activated_at", null: false
+    t.datetime "deactivated_at"
+    t.integer "trigger_message_id"
+    t.string "payment_context_id"
+    t.integer "payment_context_version"
+    t.bigint "run_id"
+    t.string "event_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_captain_payment_review_triggers_on_account_id"
+    t.index ["conversation_id", "generation"], name: "idx_captain_pay_triggers_conv_generation", unique: true
+    t.index ["conversation_id", "trigger_label"], name: "idx_captain_pay_triggers_one_present", unique: true, where: "(deactivated_at IS NULL)"
+    t.index ["event_key"], name: "idx_captain_pay_triggers_event_key", unique: true
+    t.index ["run_id"], name: "idx_captain_pay_triggers_run", where: "(run_id IS NOT NULL)"
+    t.check_constraint "(state = ANY (ARRAY[0, 1, 2])) AND deactivated_at IS NULL OR (state = ANY (ARRAY[3, 4])) AND deactivated_at IS NOT NULL", name: "chk_captain_pay_trigger_presence"
+    t.check_constraint "char_length(btrim(trigger_label::text)) > 0 AND char_length(btrim(event_key::text)) > 0", name: "chk_captain_pay_trigger_identity"
+    t.check_constraint "deactivated_at IS NULL OR deactivated_at >= activated_at", name: "chk_captain_pay_trigger_dates"
+    t.check_constraint "generation > 0", name: "chk_captain_pay_trigger_generation"
+    t.check_constraint "payment_context_id IS NULL AND payment_context_version IS NULL OR payment_context_id IS NOT NULL AND char_length(btrim(payment_context_id::text)) > 0 AND payment_context_version > 0", name: "chk_captain_pay_trigger_context"
+    t.check_constraint "source = ANY (ARRAY[0, 1, 2])", name: "chk_captain_pay_trigger_source"
+    t.check_constraint "state = ANY (ARRAY[0, 1, 2, 3, 4])", name: "chk_captain_pay_trigger_state"
   end
 
   create_table "captain_scenarios", force: :cascade do |t|
@@ -941,6 +1021,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
     t.index ["portal_id"], name: "index_inboxes_on_portal_id"
   end
 
+  create_table "infinitepay_webhook_events", force: :cascade do |t|
+    t.string "provider", default: "infinitepay", null: false
+    t.string "order_nsu", null: false
+    t.string "source", default: "webhook", null: false
+    t.string "event_hash", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "verified_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_hash"], name: "index_infinitepay_webhook_events_on_event_hash", unique: true
+    t.index ["provider", "order_nsu"], name: "index_infinitepay_webhook_events_on_provider_and_order_nsu"
+  end
+
   create_table "installation_configs", force: :cascade do |t|
     t.string "name", null: false
     t.jsonb "serialized_value", default: {}, null: false
@@ -1038,6 +1132,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
     t.jsonb "additional_attributes", default: {}
     t.text "processed_message_content"
     t.jsonb "sentiment", default: {}
+    t.string "idempotency_key"
+    t.string "idempotency_payload_hash"
     t.index "((additional_attributes -> 'campaign_id'::text))", name: "index_messages_on_additional_attributes_campaign_id", using: :gin
     t.index ["account_id", "content_type", "created_at"], name: "idx_messages_account_content_created"
     t.index ["account_id", "created_at", "message_type"], name: "index_messages_on_account_created_type"
@@ -1045,6 +1141,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
     t.index ["account_id"], name: "index_messages_on_account_id"
     t.index ["content"], name: "index_messages_on_content", opclass: :gin_trgm_ops, using: :gin
     t.index ["conversation_id", "account_id", "message_type", "created_at"], name: "index_messages_on_conversation_account_type_created"
+    t.index ["conversation_id", "idempotency_key"], name: "idx_messages_conversation_idempotency_unique", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["created_at"], name: "index_messages_on_created_at"
     t.index ["inbox_id"], name: "index_messages_on_inbox_id"
@@ -1139,6 +1236,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_payment_presets_on_account_id"
+  end
+
+  create_table "payment_reconciliations", force: :cascade do |t|
+    t.string "provider", default: "infinitepay", null: false
+    t.string "order_nsu", null: false
+    t.jsonb "receipt", default: {}, null: false
+    t.jsonb "milestones", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "order_nsu"], name: "index_payment_reconciliations_on_provider_and_order_nsu", unique: true
   end
 
   create_table "platform_app_permissibles", force: :cascade do |t|
@@ -1414,6 +1521,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_170000) do
   add_foreign_key "account_feature_flags", "accounts"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "captain_payment_review_runs", "accounts", on_delete: :cascade
+  add_foreign_key "captain_payment_review_runs", "conversations", on_delete: :cascade
+  add_foreign_key "captain_payment_review_runs", "messages", column: "response_message_id", on_delete: :nullify
+  add_foreign_key "captain_payment_review_triggers", "accounts", on_delete: :cascade
+  add_foreign_key "captain_payment_review_triggers", "conversations", on_delete: :cascade
   add_foreign_key "inboxes", "portals"
   add_foreign_key "payment_links", "accounts"
   add_foreign_key "payment_links", "conversations"

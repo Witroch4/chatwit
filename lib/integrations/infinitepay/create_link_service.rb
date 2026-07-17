@@ -17,18 +17,34 @@ class Integrations::Infinitepay::CreateLinkService
   end
 
   def perform
-    response = HTTParty.post(INFINITEPAY_API, request_options)
-
-    raise "InfinitePay API error: #{response.code} - #{response.body}" unless response.success?
-
-    checkout_url = extract_checkout_url(response)
-    payment_link = create_payment_link_record(checkout_url)
+    checkout_url, payment_link = create_charge
     send_link_message(checkout_url)
 
     payment_link
   end
 
+  # Creates the charge/link without creating the conversation message, so the
+  # caller (Captain phase-2 finalizer) can compose the message inside its own
+  # idempotent terminal transaction. HTTP stays outside any conversation lock.
+  def perform_without_message
+    checkout_url, payment_link = create_charge
+    {
+      payment_link: payment_link,
+      checkout_url: checkout_url,
+      message_attributes: link_message_attributes(checkout_url)
+    }
+  end
+
   private
+
+  def create_charge
+    response = HTTParty.post(INFINITEPAY_API, request_options)
+
+    raise "InfinitePay API error: #{response.code} - #{response.body}" unless response.success?
+
+    checkout_url = extract_checkout_url(response)
+    [checkout_url, create_payment_link_record(checkout_url)]
+  end
 
   def request_options
     {
@@ -141,6 +157,10 @@ class Integrations::Infinitepay::CreateLinkService
   end
 
   def send_link_message(checkout_url)
+    @conversation.messages.create!(link_message_attributes(checkout_url))
+  end
+
+  def link_message_attributes(checkout_url)
     template = find_interactive_template
     message_attributes = base_message_attributes(checkout_url)
 
@@ -150,7 +170,7 @@ class Integrations::Infinitepay::CreateLinkService
       apply_cta_attributes!(message_attributes, template, checkout_url)
     end
 
-    @conversation.messages.create!(message_attributes)
+    message_attributes
   end
 
   def find_interactive_template

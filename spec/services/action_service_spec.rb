@@ -150,4 +150,18 @@ describe ActionService do
       expect(conversation.reload.assignee).to be_nil
     end
   end
+
+  describe '#remove_label' do
+    let(:conversation) { create(:conversation, account: account) }
+    let(:action_service) { described_class.new(conversation) }
+
+    it 'uses the locked label helper and cancels the durable canonical edge' do
+      conversation.add_labels('captain_revisar_pagamento')
+
+      action_service.remove_label(['captain_revisar_pagamento'])
+
+      expect(conversation.reload.label_list).not_to include('captain_revisar_pagamento')
+      expect(Captain::PaymentReviewTrigger.find_by!(conversation: conversation)).to be_cancelled
+    end
+  end
 end

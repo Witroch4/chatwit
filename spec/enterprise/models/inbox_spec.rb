@@ -5,6 +5,38 @@ require 'rails_helper'
 RSpec.describe Inbox do
   let!(:inbox) { create(:inbox) }
 
+  describe 'Captain modes' do
+    let(:account) { create(:account, custom_attributes: { plan_name: 'startups' }) }
+    let(:captain_inbox) { create(:inbox, account: account) }
+    let(:assistant) { create(:captain_assistant, account: account) }
+
+    context 'with continuous mode' do
+      before do
+        create(:captain_inbox, inbox: captain_inbox, captain_assistant: assistant, mode: :continuous)
+        captain_inbox.reload
+      end
+
+      it 'enables standard Captain responses but not payment review wake' do
+        expect(captain_inbox.captain_auto_response_active?).to be(true)
+        expect(captain_inbox.captain_payment_review_available?).to be(false)
+        expect(captain_inbox.active_bot?).to be(true)
+      end
+    end
+
+    context 'with phase2_only mode' do
+      before do
+        create(:captain_inbox, inbox: captain_inbox, captain_assistant: assistant, mode: :phase2_only)
+        captain_inbox.reload
+      end
+
+      it 'disables standard Captain responses but keeps payment review available' do
+        expect(captain_inbox.captain_auto_response_active?).to be(false)
+        expect(captain_inbox.captain_payment_review_available?).to be(true)
+        expect(captain_inbox.active_bot?).to be(false)
+      end
+    end
+  end
+
   describe 'member_ids_with_assignment_capacity' do
     let!(:inbox_member_1) { create(:inbox_member, inbox: inbox) }
     let!(:inbox_member_2) { create(:inbox_member, inbox: inbox) }
