@@ -11,7 +11,8 @@ class Webhooks::InfinitepayController < ActionController::API
     return head :ok if order_nsu.blank?
 
     event = InfinitepayWebhookEvent.record(payload: payload, source: 'webhook')
-    Integrations::Infinitepay::VerifyWebhookJob.perform_later(event.id) if event.newly_recorded?
+    # Provider redeliveries also revive stuck events (never re-run processed ones).
+    Integrations::Infinitepay::VerifyWebhookJob.perform_later(event.id) if event.newly_recorded? || !event.processed?
     head :ok
   rescue StandardError => e
     Rails.logger.error "[INFINITEPAY-WEBHOOK] Error: #{e.class}: #{e.message}"

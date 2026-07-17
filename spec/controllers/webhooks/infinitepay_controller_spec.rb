@@ -33,15 +33,18 @@ RSpec.describe 'Webhooks::Infinitepay', type: :request do
     expect(conversation.messages.count).to eq(0)
   end
 
-  it 'deduplicates identical events and enqueues at most one verification' do
+  it 'deduplicates identical events; redeliveries revive stuck events but never processed ones' do
     post '/webhooks/infinitepay', params: payload, as: :json
-    enqueued_before = ActiveJob::Base.queue_adapter.enqueued_jobs.size
 
     expect do
       post '/webhooks/infinitepay', params: payload, as: :json
     end.to not_change(InfinitepayWebhookEvent, :count)
-
     expect(response).to have_http_status(:ok)
+
+    event = InfinitepayWebhookEvent.last
+    event.update!(status: :processed)
+    enqueued_before = ActiveJob::Base.queue_adapter.enqueued_jobs.size
+    post '/webhooks/infinitepay', params: payload, as: :json
     expect(ActiveJob::Base.queue_adapter.enqueued_jobs.size).to eq(enqueued_before)
   end
 

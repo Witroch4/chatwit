@@ -2,8 +2,12 @@
 
 # Requests the official verification receipt from the Platform
 # (`/payment-events/verify`, spec §12.3) for a locally persisted PaymentLink.
-# Only expected authenticated metadata is sent; raw webhook identifiers stay
-# quarantined and never direct the provider query.
+#
+# The quarantined webhook identifiers (transaction_nsu/invoice_slug) are sent
+# ONLY as query pointers: InfinitePay's payment_check needs them to locate a
+# card transaction, but the payment decision remains the provider's verified
+# answer (success+paid+exact base amount). A forged pointer simply fails the
+# check — it can never mark anything paid by itself.
 class Integrations::Infinitepay::VerifyEventService
   class ConfigurationError < StandardError; end
   class Unavailable < StandardError; end
@@ -11,8 +15,9 @@ class Integrations::Infinitepay::VerifyEventService
   VERIFY_PATH = '/api/v1/socialwise/integrations/captain/payment-events/verify'
   TIMEOUT = 10
 
-  def initialize(payment_link:)
+  def initialize(payment_link:, raw_payload: {})
     @payment_link = payment_link
+    @raw_payload = raw_payload.to_h
   end
 
   def receipt
@@ -38,9 +43,15 @@ class Integrations::Infinitepay::VerifyEventService
       expectedLink: {
         handle: official_handle,
         orderNsu: @payment_link.order_nsu,
-        amountCents: @payment_link.amount_cents
-      }
+        amountCents: @payment_link.amount_cents,
+        transactionNsu: query_pointer('transaction_nsu'),
+        invoiceSlug: query_pointer('invoice_slug')
+      }.compact
     }
+  end
+
+  def query_pointer(key)
+    @raw_payload[key].to_s.strip.presence
   end
 
   def official_handle
