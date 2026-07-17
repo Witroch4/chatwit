@@ -112,3 +112,6 @@ compose-produção.yaml
 
 # Reference repositories
 chatwitdocs/chatwoot-mobile-app/
+
+# Session/agent infra (never ship)
+.superpowers/
