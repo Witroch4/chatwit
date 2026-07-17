@@ -14,6 +14,13 @@ trigger_scheduled_items_job:
   class: 'TriggerScheduledItemsJob'
   queue: scheduled_jobs
 
+# Chatwit: recover WhatsApp Cloud messages stuck at `sent` (Meta accepted but
+# never delivered). Resends once, then flags as failed. Every 5th minute.
+whatsapp_stuck_message_recovery_job:
+  cron: '*/5 * * * *'
+  class: 'Whatsapp::StuckMessageRecoveryJob'
+  queue: scheduled_jobs
+
 # executed At every minute..
 trigger_imap_email_inboxes_job:
   cron: '*/1 * * * *'
