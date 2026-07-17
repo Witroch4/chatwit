@@ -1,21 +1,28 @@
 # frozen_string_literal: true
 
 # lib/integrations/jusmonitoria/webhook_forwarder_service.rb
-# Fire-and-forget HTTP forwarder to JusMonitorIA.
-# POSTs events to POST /webhooks/chatwit on the platform API (api.witdev.com.br).
-# Auth: HMAC-SHA256 signature in X-Chatwit-Signature header.
+# Fire-and-forget HTTP forwarder to JusMonitorIA (platform-api).
+# Prefers the internal docker network (http://platform-api:8000); override with
+# JUSMONITORIA_WEBHOOK_URL. Auth: HMAC-SHA256 signature in X-Chatwit-Signature.
+#
+# Two platform routes live on the same platform-api service:
+#   DEFAULT_PATH (message.*/tag.*/contact.*/conversation.resolved) → chatwit_webhook
+#   PAYMENT_PATH (payment.confirmed) → chatwit_unified_webhook (process_payment_confirmed)
+# Payment MUST target PAYMENT_PATH — chatwit_webhook does not handle payments.
 
 class Integrations::Jusmonitoria::WebhookForwarderService
   TIMEOUT = 15
+  DEFAULT_PATH = '/webhooks/chatwit'
+  PAYMENT_PATH = '/api/v1/jusmonitoria/integrations/chatwit'
 
   class << self
-    def forward_event(event_type:, payload:, account: nil)
+    def forward_event(event_type:, payload:, account: nil, path: DEFAULT_PATH)
       endpoint = jusmonitoria_endpoint
       return if endpoint.blank?
 
       json_body = build_request_body(event_type, payload, account).to_json
-      Rails.logger.info "[JUSMONITORIA-FORWARD] Sending #{event_type} to #{endpoint}"
-      post_event(endpoint, json_body)
+      Rails.logger.info "[JUSMONITORIA-FORWARD] Sending #{event_type} to #{endpoint}#{path}"
+      post_event(endpoint, path, json_body)
     rescue StandardError => e
       Rails.logger.error "[JUSMONITORIA-FORWARD] Failed to forward #{event_type}: #{e.class}: #{e.message}"
       nil
@@ -24,7 +31,7 @@ class Integrations::Jusmonitoria::WebhookForwarderService
     private
 
     def jusmonitoria_endpoint
-      ENV.fetch('JUSMONITORIA_WEBHOOK_URL', 'https://api.witdev.com.br')
+      ENV.fetch('JUSMONITORIA_WEBHOOK_URL', 'http://platform-api:8000')
     end
 
     def build_request_body(event_type, payload, account)
@@ -35,9 +42,9 @@ class Integrations::Jusmonitoria::WebhookForwarderService
       }
     end
 
-    def post_event(endpoint, json_body)
+    def post_event(endpoint, path, json_body)
       response = HTTParty.post(
-        "#{endpoint}/webhooks/chatwit",
+        "#{endpoint.to_s.chomp('/')}#{path}",
         headers: request_headers(json_body),
         body: json_body,
         timeout: TIMEOUT
