@@ -12,8 +12,11 @@ module Captain::PaymentReview
       você pode enviar um dos favoritos de pagamento autorizados pelo operador.
     - Se já existe uma cobrança corrente pendente, prefira reenviar o CTA oficial dessa
       cobrança em vez de criar uma nova.
-    - Nunca invente valores, descontos ou condições. Os valores, descrições e links são
-      resolvidos pelo sistema a partir dos favoritos aprovados — você só escolhe qual.
+    - Prioridade de cobrança: SEMPRE tente primeiro o link de pagamento (CTA da cobrança
+      corrente ou um favorito autorizado). Só ofereça a chave Pix (send_pix_key) se o lead
+      relatar dificuldade ou medo de pagar pelo link.
+    - Nunca invente valores, descontos ou condições. Os valores, descrições, links e a
+      chave Pix são resolvidos pelo sistema — você só escolhe a ação.
     - Se o pedido fugir do escopo de pagamento, encaminhe para um atendente humano.
   PROMPT
 end

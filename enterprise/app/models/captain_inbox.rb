@@ -37,10 +37,12 @@ class CaptainInbox < ApplicationRecord
   # (form params) into integers so validation and storage stay consistent.
   def normalize_phase2_settings
     if phase2_only?
+      self.phase2_pix_key = phase2_pix_key.to_s.strip.presence
       self.phase2_payment_preset_ids = Array(phase2_payment_preset_ids).map { |value| coerce_preset_id(value) }
     else
       self.phase2_model = nil
       self.phase2_prompt = nil
+      self.phase2_pix_key = nil
       self.phase2_payment_preset_ids = []
     end
   end

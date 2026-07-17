@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_17_000100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -414,6 +414,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
     t.string "phase2_model"
     t.text "phase2_prompt"
     t.jsonb "phase2_payment_preset_ids", default: [], null: false
+    t.string "phase2_pix_key"
     t.index ["captain_assistant_id", "inbox_id"], name: "index_captain_inboxes_on_captain_assistant_id_and_inbox_id", unique: true
     t.index ["captain_assistant_id"], name: "index_captain_inboxes_on_captain_assistant_id"
     t.index ["inbox_id"], name: "index_captain_inboxes_on_inbox_id", unique: true

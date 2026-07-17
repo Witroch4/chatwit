@@ -19,6 +19,10 @@ Feature: revisão de pagamento one-shot pelo Captain, acordada exclusivamente pe
      (`Captain::PaymentReview::DEFAULT_PROMPT`); editável. Instruções extras do operador
      (ex.: enviar CNPJ/e-mail para Pix manual) entram aqui — valores citados verbatim no
      prompt são os ÚNICOS que o validador permite em replies.
+   - **Chave Pix oficial** (`phase2_pix_key`, opcional): quando preenchida, o Captain pode
+     enviá-la via ação `send_pix_key` se o lead relatar dificuldade com o link (prioridade
+     do prompt padrão: sempre link primeiro). Vazio ⇒ ação indisponível (fallback: envelope
+     da Platform, se `SOCIALWISE_INFINITEPAY_PIX_KEY` configurada lá).
    - **Favoritos autorizados** (`phase2_payment_preset_ids`): quais `payment_presets` o
      Captain pode enviar via `send_payment_preset` (valor/descrição/template resolvidos
      server-side; o LLM só escolhe o id).

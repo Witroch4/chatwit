@@ -55,8 +55,19 @@ class Captain::PaymentReviewJob < ApplicationJob
     when 'handoff_required' then finalizer.handoff!(decision)
     when 'reply' then finalizer.reply!(decision)
     when 'send_payment_preset' then finalizer.send_payment_preset!(decision)
+    when 'send_pix_key'
+      finalize_pix_key(run, finalizer, client, context, decision)
     else finalize_financial_action(run, finalizer, client, context, decision)
     end
+  end
+
+  # The operator-configured pix key (captain_inboxes.phase2_pix_key) wins; the
+  # Platform envelope remains the fallback for installations without it.
+  def finalize_pix_key(run, finalizer, client, context, decision)
+    pix_key = run.conversation.inbox.captain_inbox&.phase2_pix_key
+    return finalize_financial_action(run, finalizer, client, context, decision) if pix_key.blank?
+
+    finalizer.send_pix_key!(decision, pix_key)
   end
 
   def finalize_financial_action(run, finalizer, client, context, decision)

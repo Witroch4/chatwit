@@ -174,6 +174,29 @@ RSpec.describe Captain::PaymentReviewJob do
       described_class.perform_now(run.id)
     end
 
+    it 'sends the operator-configured pix key locally without asking the Platform for an envelope' do
+      assistant = create(:captain_assistant, account: account)
+      create(:captain_inbox, captain_assistant: assistant, inbox: inbox, mode: :phase2_only,
+                             phase2_pix_key: 'pix@witdev.com.br')
+      allow(client).to receive(:payment_context).and_return(pending_context)
+      allow(decision_service).to receive(:call).and_return(decision('send_pix_key'))
+      expect(finalizer).to receive(:send_pix_key!).with(anything, 'pix@witdev.com.br')
+
+      described_class.perform_now(run.id)
+
+      expect(client).not_to have_received(:authorize) if client.respond_to?(:authorize)
+    end
+
+    it 'falls back to the Platform envelope when no pix key is configured' do
+      allow(client).to receive(:payment_context).and_return(pending_context)
+      allow(decision_service).to receive(:call).and_return(decision('send_pix_key'))
+      envelope = Captain::PaymentReview::PlatformClient::ActionEnvelope.new(result: 'paid_noop', action: 'pix-key')
+      allow(client).to receive(:authorize).with('send_pix_key', context: anything).and_return(envelope)
+      expect(finalizer).to receive(:paid!)
+
+      described_class.perform_now(run.id)
+    end
+
     it 'stops silently when the finalizer reports stale ownership' do
       allow(client).to receive(:payment_context).and_return(pending_context)
       allow(decision_service).to receive(:call).and_return(decision('no_action'))

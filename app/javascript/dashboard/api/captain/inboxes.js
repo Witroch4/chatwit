@@ -17,6 +17,7 @@ class CaptainInboxes extends ApiClient {
       mode,
       phase2Model,
       phase2Prompt,
+      phase2PixKey,
       phase2PaymentPresetIds,
     } = params;
     const inbox = { inbox_id: inboxId };
@@ -26,6 +27,7 @@ class CaptainInboxes extends ApiClient {
     if (mode === 'phase2_only') {
       inbox.phase2_model = phase2Model || null;
       inbox.phase2_prompt = phase2Prompt || null;
+      inbox.phase2_pix_key = phase2PixKey || null;
       inbox.phase2_payment_preset_ids = phase2PaymentPresetIds || [];
     }
     return axios.post(`${this.url}/${assistantId}/inboxes`, { inbox });

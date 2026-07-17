@@ -36,13 +36,13 @@ class Api::V1::Accounts::Captain::InboxesController < Api::V1::Accounts::BaseCon
   def captain_inbox_attributes(inbox)
     attributes = { inbox: inbox }
     attributes[:mode] = assistant_params[:mode] if assistant_params[:mode].present?
-    %i[phase2_model phase2_prompt phase2_payment_preset_ids].each do |key|
+    %i[phase2_model phase2_prompt phase2_pix_key phase2_payment_preset_ids].each do |key|
       attributes[key] = assistant_params[key] if assistant_params.key?(key)
     end
     attributes
   end
 
   def assistant_params
-    params.require(:inbox).permit(:inbox_id, :mode, :phase2_model, :phase2_prompt, phase2_payment_preset_ids: [])
+    params.require(:inbox).permit(:inbox_id, :mode, :phase2_model, :phase2_prompt, :phase2_pix_key, phase2_payment_preset_ids: [])
   end
 end

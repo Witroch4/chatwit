@@ -4,6 +4,7 @@ json.payload do
     json.captain_mode captain_inbox.mode
     json.phase2_model captain_inbox.phase2_model
     json.phase2_prompt captain_inbox.phase2_prompt
+    json.phase2_pix_key captain_inbox.phase2_pix_key
     json.phase2_payment_preset_ids captain_inbox.phase2_payment_preset_ids
     json.default_prompt Captain::PaymentReview::DEFAULT_PROMPT
   end
