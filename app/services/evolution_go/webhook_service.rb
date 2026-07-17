@@ -167,6 +167,36 @@ class EvolutionGo::WebhookService
 
   def extract_jid
     jid = payload.dig(:data, :key, :remoteJid) || payload.dig(:data, :Info, :Chat)
+
+    # Defesa contra fragmentação por LID: se o chat veio endereçado por @lid,
+    # prefere o telefone real (@s.whatsapp.net) que o evento carrega no campo
+    # alternativo. O Evolution Go já normaliza isso na origem; aqui é rede de
+    # segurança caso um LID escape (ex.: mapeamento ainda desconhecido).
+    jid = alternate_pn_jid if lid_jid?(jid) && alternate_pn_jid.present?
+
+    jid_to_s(jid)
+  end
+
+  def alternate_pn_jid
+    return @alternate_pn_jid if defined?(@alternate_pn_jid)
+
+    candidate = message_from_me? ? payload.dig(:data, :Info, :RecipientAlt) : payload.dig(:data, :Info, :SenderAlt)
+    @alternate_pn_jid = pn_jid?(candidate) ? candidate : nil
+  end
+
+  def lid_jid?(jid)
+    return jid[:Server].to_s == 'lid' if jid.is_a?(Hash)
+
+    jid.to_s.end_with?('@lid')
+  end
+
+  def pn_jid?(jid)
+    return jid[:Server].to_s == 's.whatsapp.net' && jid[:User].present? if jid.is_a?(Hash)
+
+    jid.to_s.end_with?('@s.whatsapp.net')
+  end
+
+  def jid_to_s(jid)
     return "#{jid[:User]}@#{jid[:Server]}" if jid.is_a?(Hash) && jid[:User].present? && jid[:Server].present?
 
     jid.to_s
