@@ -21,6 +21,8 @@ RSpec.describe 'Contact Label API', type: :request do
       let(:agent) { create(:user, account: account, role: :agent) }
 
       it 'returns all the labels for the contact' do
+        expect(contact.reload.label_list).to contain_exactly('label1', 'label2')
+
         get api_v1_account_contact_labels_url(account_id: account.id, contact_id: contact.id),
             headers: agent.create_new_auth_token,
             as: :json

@@ -87,5 +87,33 @@ RSpec.describe Message do
 
       expect(conversation.reload.pending?).to be true
     end
+
+    it 'preserves continuous Captain auto-open behavior when response quota is exhausted' do
+      conversation.account.update!(
+        limits: { 'captain_responses' => 100 },
+        custom_attributes: conversation.account.custom_attributes.merge('captain_responses_usage' => 100)
+      )
+
+      expect do
+        create(:message, message_type: :outgoing, conversation: conversation)
+      end.to have_enqueued_job(Conversations::ActivityMessageJob)
+
+      expect(conversation.reload).to be_open
+    end
+
+    context 'when Captain is configured as phase2_only' do
+      before do
+        CaptainInbox.find_by!(inbox: conversation.inbox).update!(mode: :phase2_only)
+        conversation.inbox.reload
+      end
+
+      it 'does not apply the continuous Captain auto-open behavior' do
+        expect do
+          create(:message, message_type: :outgoing, conversation: conversation)
+        end.not_to have_enqueued_job(Conversations::ActivityMessageJob)
+
+        expect(conversation.reload).to be_pending
+      end
+    end
   end
 end

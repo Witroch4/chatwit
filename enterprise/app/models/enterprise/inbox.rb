@@ -9,14 +9,30 @@ module Enterprise::Inbox
   end
 
   def active_bot?
-    super || captain_active?
+    super || captain_auto_response_active?
   end
 
   def captain_active?
-    captain_assistant.present? && more_responses?
+    captain_auto_response_active?
+  end
+
+  def captain_auto_response_active?
+    captain_auto_response_configured? && more_responses?
+  end
+
+  def captain_auto_response_configured?
+    captain_inbox&.continuous? && captain_assistant.present?
+  end
+
+  def captain_payment_review_available?
+    captain_inbox&.phase2_only? && captain_available?
   end
 
   private
+
+  def captain_available?
+    captain_assistant.present? && more_responses?
+  end
 
   def more_responses?
     account.usage_limits[:captain][:responses][:current_available].positive?

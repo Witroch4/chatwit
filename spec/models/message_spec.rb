@@ -152,6 +152,16 @@ RSpec.describe Message do
     it 'returns push event payload' do
       expect(push_event_data).to eq(expected_data)
     end
+
+    it 'does not expose internal idempotency metadata' do
+      idempotent_message = create(
+        :message,
+        idempotency_key: 'captain:run-1:reply',
+        idempotency_payload_hash: 'a' * 64
+      )
+
+      expect(idempotent_message.push_event_data).not_to include(:idempotency_key, :idempotency_payload_hash)
+    end
   end
 
   describe 'message create event' do

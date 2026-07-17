@@ -1,257 +1,171 @@
 # frozen_string_literal: true
 
-# lib/integrations/infinitepay/webhook_processor_service.rb
-# Processes incoming InfinitePay webhook payloads (payment confirmations).
-# Updates the PaymentLink record and forwards the event to SocialWise + JusMonitorIA.
-
+# Applies the local effects of an OFFICIALLY VERIFIED InfinitePay payment.
+#
+# Task 12b rewrite: this service no longer processes raw webhooks. It is the
+# effects collaborator of Integrations::Infinitepay::ReconciliationService —
+# each public method is one idempotent milestone. Verified amounts come from
+# the payment_check receipt; raw payload values are display-only extras and
+# never decide payment state.
 class Integrations::Infinitepay::WebhookProcessorService
-  def initialize(payload)
-    @payload = payload
-  end
+  SOCIALWISE_PAYMENT_ROUTE = '/api/v1/socialwise/admin/leads-chatwit/recebearquivos'
 
-  def perform
-    order_nsu = @payload['order_nsu']
-    if order_nsu.blank?
-      Rails.logger.warn '[INFINITEPAY] Webhook ignored because order_nsu is missing'
+  # Flow charges (sw-*) have no local anchor: forward the raw event to the
+  # Platform, which runs its own official verification (raw ingress closed on
+  # the Platform side in Task 12a). No local financial effect happens here.
+  def self.forward_raw_flow_event(payload)
+    endpoint = ENV.fetch('SOCIALWISE_WEBHOOK_URL', nil)
+    if endpoint.blank?
+      Rails.logger.warn '[INFINITEPAY] SOCIALWISE_WEBHOOK_URL not configured. Skipping flow event forward'
       return
     end
 
-    Rails.logger.info "[INFINITEPAY] Webhook received for order_nsu=#{order_nsu}"
-
-    payment_link = PaymentLink.find_by(order_nsu: order_nsu)
-
-    # AUTO-CREATE: link gerado pelo Socialwise Flow (mesmo formato order_nsu)
-    if payment_link.nil?
-      payment_link = auto_create_from_webhook(order_nsu)
-      if payment_link.nil?
-        Rails.logger.error "[INFINITEPAY] Webhook ignored because PaymentLink was not found or auto-created for order_nsu=#{order_nsu}"
-        return
-      end
-    end
-
-    already_paid = payment_link.paid?
-
-    Rails.logger.info(
-      "[INFINITEPAY] Processing payment_link=#{payment_link.id} conversation_id=#{payment_link.conversation_id} already_paid=#{already_paid}"
+    body = { event: 'payment_confirmed', data: payload.to_h.merge('event' => 'payment_confirmed') }
+    HTTParty.post(
+      "#{endpoint.to_s.chomp('/')}#{SOCIALWISE_PAYMENT_ROUTE}",
+      headers: forward_headers,
+      body: body.to_json,
+      timeout: 15
     )
-
-    payment_link.mark_as_paid!(@payload) unless already_paid
-
-    notification_payload = payment_notification_payload(payment_link)
-
-    send_confirmation_message(payment_link, notification_payload)
-
-    if already_paid
-      Rails.logger.warn(
-        "[INFINITEPAY] PaymentLink #{payment_link.id} was already paid. Confirmation message was checked, but push/forward were skipped to avoid duplicates"
-      )
-      return payment_link
-    end
-
-    send_payment_push(payment_link, notification_payload)
-    forward_to_integrations(payment_link)
-
-    payment_link
   end
 
-  private
-
-  # Parseia "chatwit-{accountId}-{conversationId}-{hex}" e cria PaymentLink on-the-fly
-  def auto_create_from_webhook(order_nsu)
-    parts = order_nsu.split('-')
-    return nil unless parts.length >= 4 && parts[0] == 'chatwit'
-
-    account_id = parts[1].to_i
-    conversation_id = parts[2].to_i
-
-    account = Account.find_by(id: account_id)
-    return nil if account.nil?
-
-    conversation = account.conversations.find_by(id: conversation_id)
-    return nil if conversation.nil?
-
-    amount_cents = (@payload['amount'] || @payload['paid_amount'] || 0).to_i
-    description = Array(@payload['items']).first&.dig('description') || 'Pagamento via Flow'
-
-    PaymentLink.create!(
-      account: account,
-      conversation: conversation,
-      user: nil,
-      order_nsu: order_nsu,
-      amount_cents: [amount_cents, 1].max,
-      description: description,
-      checkout_url: '',
-      status: 'pending'
-    )
-  rescue StandardError => e
-    Rails.logger.error "[INFINITEPAY] Auto-create PaymentLink failed: #{e.message}"
-    nil
+  def self.forward_headers
+    secret = ENV.fetch('CHATWIT_WEBHOOK_SECRET', nil)
+    base = { 'Content-Type' => 'application/json' }
+    secret.present? ? base.merge('x-webhook-secret' => secret, 'X-Chatwit-Secret' => secret) : base
   end
 
-  def send_confirmation_message(payment_link, notification_payload)
-    conversation = payment_link.conversation
-    account = payment_link.account
+  def initialize(payment_link:, receipt:, raw_payload: {})
+    @payment_link = payment_link
+    @receipt = receipt.to_h
+    @raw_payload = raw_payload.to_h
+  end
 
-    if confirmation_message_sent?(payment_link)
-      Rails.logger.info "[INFINITEPAY] Confirmation message already exists for payment_link=#{payment_link.id}"
-      return
-    end
+  def apply_payment_link!
+    return if @payment_link.paid?
 
+    @payment_link.mark_as_paid!(
+      'invoice_slug' => @raw_payload['invoice_slug'],
+      'transaction_nsu' => @raw_payload['transaction_nsu'],
+      'capture_method' => @raw_payload['capture_method'],
+      'paid_amount' => verified_paid_amount_cents,
+      'receipt_url' => @raw_payload['receipt_url'],
+      'verified_source' => @receipt['source'],
+      'raw' => @raw_payload
+    )
+  end
+
+  def send_confirmation_message!
+    return if confirmation_message_sent?
+
+    conversation = @payment_link.conversation
     conversation.messages.create!(
-      account: account,
+      account: @payment_link.account,
       inbox_id: conversation.inbox_id,
       message_type: :outgoing,
       content: notification_payload[:content],
       additional_attributes: {
-        payment_link_id: payment_link.id,
+        payment_link_id: @payment_link.id,
         infinitepay_event: 'payment_confirmed'
       }
     )
-
-    Rails.logger.info "[INFINITEPAY] Confirmation message created for payment_link=#{payment_link.id}"
   end
 
-  def send_payment_push(payment_link, notification_payload)
+  def send_payment_push!
     Integrations::Infinitepay::PushNotificationService.new(
-      payment_link: payment_link,
+      payment_link: @payment_link,
       notification_payload: notification_payload.slice(:title, :body, :tag, :url)
     ).perform
   end
 
-  def forward_to_integrations(payment_link)
-    account = payment_link.account
-    event_payload = build_event_payload(payment_link)
+  def forward_to_socialwise!
+    endpoint = ENV.fetch('SOCIALWISE_WEBHOOK_URL', nil)
+    if endpoint.blank?
+      Rails.logger.warn "[INFINITEPAY] SOCIALWISE_WEBHOOK_URL not configured. Skipping forward order_nsu=#{@payment_link.order_nsu}"
+      return
+    end
 
-    forward_to_jusmonitoria(event_payload, account)
-    forward_to_socialwise(event_payload, account)
+    body = { event: 'payment_confirmed', data: event_payload.merge(event: 'payment_confirmed') }
+    response = HTTParty.post(
+      "#{endpoint.to_s.chomp('/')}#{SOCIALWISE_PAYMENT_ROUTE}",
+      headers: self.class.forward_headers,
+      body: body.to_json,
+      timeout: 15
+    )
+    raise "SocialWise forward failed with #{response.code}" unless response.success?
+
+    response
   end
 
-  def build_event_payload(payment_link)
-    conversation = payment_link.conversation
-    contact = conversation.contact
+  def forward_to_jusmonitoria!
+    Integrations::Jusmonitoria::WebhookForwarderService.forward_event(
+      event_type: 'payment.confirmed',
+      payload: event_payload,
+      account: @payment_link.account
+    )
+  end
+
+  private
+
+  def verified_paid_amount_cents
+    @receipt['paidAmountCents'] || @receipt['providerAmountCents'] || @payment_link.amount_cents
+  end
+
+  def event_payload
+    conversation = @payment_link.conversation
     {
-      payment_link_id: payment_link.id,
-      order_nsu: payment_link.order_nsu,
-      amount_cents: payment_link.amount_cents,
-      paid_amount_cents: payment_link.paid_amount_cents,
-      capture_method: payment_link.capture_method,
-      receipt_url: payment_link.receipt_url,
-      conversation_id: payment_link.conversation_id,
-      contact: payment_contact_payload(contact),
-      conversation: payment_conversation_payload(conversation),
-      inbox: payment_inbox_payload(conversation.inbox)
+      payment_link_id: @payment_link.id,
+      order_nsu: @payment_link.order_nsu,
+      amount_cents: @payment_link.amount_cents,
+      paid_amount_cents: verified_paid_amount_cents,
+      capture_method: @payment_link.capture_method,
+      receipt_url: @payment_link.receipt_url,
+      conversation_id: @payment_link.conversation_id,
+      verified_source: @receipt['source'],
+      contact: contact_payload(conversation.contact),
+      conversation: conversation_payload(conversation),
+      inbox: inbox_payload(conversation.inbox)
     }
   end
 
-  def payment_contact_payload(contact)
-    return { id: nil, name: nil, phone_number: nil } if contact.blank?
-
-    contact.webhook_data
+  def contact_payload(contact)
+    contact.blank? ? { id: nil, name: nil, phone_number: nil } : contact.webhook_data
   end
 
-  def payment_conversation_payload(conversation)
+  def conversation_payload(conversation)
     return {} if conversation.blank?
 
     conversation.webhook_data.merge(
       labels: conversation.cached_label_list_array,
       contact: conversation.contact&.webhook_data,
-      inbox: payment_inbox_payload(conversation.inbox)
+      inbox: inbox_payload(conversation.inbox)
     )
   end
 
-  def payment_inbox_payload(inbox)
-    return {} if inbox.blank?
-
-    { id: inbox.id, name: inbox.name, channel_type: inbox.channel_type }
+  def inbox_payload(inbox)
+    inbox.blank? ? {} : { id: inbox.id, name: inbox.name, channel_type: inbox.channel_type }
   end
 
-  def forward_to_jusmonitoria(event_payload, account)
-    response = Integrations::Jusmonitoria::WebhookForwarderService.forward_event(
-      event_type: 'payment.confirmed',
-      payload: event_payload,
-      account: account
-    )
+  def notification_payload = @notification_payload ||= build_notification_payload
 
-    if response&.success?
-      Rails.logger.info(
-        "[INFINITEPAY] Forwarded payment.confirmed to JusMonitorIA account=#{account.id} order_nsu=#{event_payload[:order_nsu]} status=#{response.code}"
-      )
-    else
-      Rails.logger.error(
-        "[INFINITEPAY] JusMonitorIA forward failed account=#{account.id} order_nsu=#{event_payload[:order_nsu]} status=#{response&.code} body=#{response&.body.to_s.truncate(500)}"
-      )
-    end
-  rescue StandardError => e
-    Rails.logger.error "[INFINITEPAY] Failed to forward to JusMonitorIA: #{e.message}"
-  end
-
-  # Rota canônica do forward de pagamento pro motor de flow SocialWise.
-  # Espelha o canal COMPROVADO do LeadSyncJob (mesmo SOCIALWISE_WEBHOOK_URL —
-  # rede docker interna via http://platform-api:8000 — mesma auth x-webhook-secret).
-  # O antigo POST /api/integrations/payment (event: message_created) batia num
-  # endpoint inexistente (404) → resume_from_payment nunca disparava e as sessões
-  # de flow ficavam presas em WAITING_INPUT ("paga e some").
-  SOCIALWISE_PAYMENT_ROUTE = '/api/v1/socialwise/admin/leads-chatwit/recebearquivos'
-
-  def forward_to_socialwise(event_payload, account)
-    endpoint = ENV.fetch('SOCIALWISE_WEBHOOK_URL', nil)
-    if endpoint.blank?
-      Rails.logger.warn "[INFINITEPAY] SOCIALWISE_WEBHOOK_URL not configured. Skipping payment_confirmed forward for order_nsu=#{event_payload[:order_nsu]}"
-      return
-    end
-
-    # recebearquivos_process trata event=='payment_confirmed' -> handle_payment_confirmed
-    # -> resume_from_payment (via data.conversation_id + data.order_nsu).
-    body = {
-      event: 'payment_confirmed',
-      data: event_payload.merge(event: 'payment_confirmed')
-    }
-
-    headers = { 'Content-Type' => 'application/json' }
-    secret = ENV.fetch('CHATWIT_WEBHOOK_SECRET', nil)
-    if secret.present?
-      headers['x-webhook-secret'] = secret
-      headers['X-Chatwit-Secret'] = secret
-    end
-
-    response = HTTParty.post(
-      "#{endpoint.to_s.chomp('/')}#{SOCIALWISE_PAYMENT_ROUTE}",
-      headers: headers,
-      body: body.to_json,
-      timeout: 15
-    )
-
-    if response.success?
-      Rails.logger.info(
-        "[INFINITEPAY] Forwarded payment_confirmed to SocialWise #{SOCIALWISE_PAYMENT_ROUTE} account=#{account.id} order_nsu=#{event_payload[:order_nsu]} status=#{response.code}"
-      )
-    else
-      Rails.logger.error(
-        "[INFINITEPAY] SocialWise payment forward failed account=#{account.id} order_nsu=#{event_payload[:order_nsu]} status=#{response.code} body=#{response.body.to_s.truncate(500)}"
-      )
-    end
-  rescue StandardError => e
-    Rails.logger.error "[INFINITEPAY] Failed to forward to SocialWise: #{e.message}"
-  end
-
-  def payment_notification_payload(payment_link)
-    conversation = payment_link.conversation
+  def build_notification_payload
+    conversation = @payment_link.conversation
     contact_name = conversation.contact&.name || 'Cliente'
-    installments = @payload['installments'].to_i
-    capture_detail = if @payload['capture_method'] == 'pix'
-                       'PIX 🏦'
-                     elsif installments > 1
-                       "Cartão #{installments}x 💳"
-                     else
-                       'Cartão de Crédito 💳'
-                     end
-    amount_formatted = format_brl((@payload['amount'] || payment_link.amount_cents) / 100.0)
-    transaction_code = @payload['transaction_nsu'].presence || payment_link.transaction_nsu.presence || payment_link.order_nsu
-    receipt_url = @payload['receipt_url'].presence || payment_link.receipt_url
-    title = 'Pagamento Confirmado!'
-    body = "Olá, #{contact_name}! Pagamento de #{amount_formatted} recebido com sucesso."
+    amount_formatted = format_brl(verified_paid_amount_cents / 100.0)
+    transaction_code = @raw_payload['transaction_nsu'].presence || @payment_link.transaction_nsu.presence || @payment_link.order_nsu
+    receipt_url = @raw_payload['receipt_url'].presence || @payment_link.receipt_url
 
-    content = <<~MSG.strip
+    {
+      title: 'Pagamento Confirmado!',
+      body: "Olá, #{contact_name}! Pagamento de #{amount_formatted} recebido com sucesso.",
+      content: confirmation_content(contact_name, amount_formatted, transaction_code, receipt_url),
+      tag: "infinitepay_payment_confirmed_#{@payment_link.id}",
+      url: conversation_url(conversation)
+    }
+  end
+
+  def confirmation_content(contact_name, amount_formatted, transaction_code, receipt_url)
+    <<~MSG.strip
       ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
       ┃ 🎉 **PAGAMENTO CONFIRMADO!**   ┃
       ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -260,7 +174,7 @@ class Integrations::Infinitepay::WebhookProcessorService
        Seu pagamento foi recebido com sucesso. ✅
 
       \\> 📄 **Detalhes da transação**
-      \\> • **Descrição:** #{payment_link.description}
+      \\> • **Descrição:** #{@payment_link.description}
       \\> • **Valor:** #{amount_formatted} 💰
       \\> • **Pagamento:** #{capture_detail}
       \\> • **Código:** #{transaction_code}
@@ -273,14 +187,17 @@ class Integrations::Infinitepay::WebhookProcessorService
 
       ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
     MSG
+  end
 
-    {
-      title: title,
-      body: body,
-      content: content,
-      tag: "infinitepay_payment_confirmed_#{payment_link.id}",
-      url: conversation_url(conversation)
-    }
+  def capture_detail
+    installments = @raw_payload['installments'].to_i
+    if @raw_payload['capture_method'] == 'pix'
+      'PIX 🏦'
+    elsif installments > 1
+      "Cartão #{installments}x 💳"
+    else
+      'Cartão de Crédito 💳'
+    end
   end
 
   def format_brl(value)
@@ -295,11 +212,10 @@ class Integrations::Infinitepay::WebhookProcessorService
     "#{base_url}/app/accounts/#{conversation.account_id}/conversations/#{conversation.display_id}"
   end
 
-  def confirmation_message_sent?(payment_link)
-    payment_link.conversation.messages
-                .outgoing
-                .where("additional_attributes ->> 'payment_link_id' = ?", payment_link.id.to_s)
-                .where("additional_attributes ->> 'infinitepay_event' = ?", 'payment_confirmed')
-                .exists?
+  def confirmation_message_sent?
+    @payment_link.conversation.messages.outgoing.exists?(
+      ["additional_attributes ->> 'payment_link_id' = ? AND additional_attributes ->> 'infinitepay_event' = ?",
+       @payment_link.id.to_s, 'payment_confirmed']
+    )
   end
 end

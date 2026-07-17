@@ -81,5 +81,19 @@ RSpec.describe BulkActionsJob do
       expect(Conversation.second.snoozed_until).to be_present
       expect(Conversation.third.snoozed_until).to be_present
     end
+
+    it 'removes labels through the locked helper and cancels the durable canonical edge' do
+      conversation_1.add_labels('captain_revisar_pagamento')
+      params = {
+        type: 'Conversation',
+        ids: [conversation_1.display_id],
+        labels: { remove: ['captain_revisar_pagamento'] }
+      }
+
+      described_class.perform_now(account: account, params: params, user: agent)
+
+      expect(conversation_1.reload.label_list).not_to include('captain_revisar_pagamento')
+      expect(Captain::PaymentReviewTrigger.find_by!(conversation: conversation_1)).to be_cancelled
+    end
   end
 end

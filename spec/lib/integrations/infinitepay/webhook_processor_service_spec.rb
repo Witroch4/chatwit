@@ -1,7 +1,13 @@
 require 'rails_helper'
 
+# rubocop:disable RSpec/AnyInstance, RSpec/MultipleExpectations
+
 describe Integrations::Infinitepay::WebhookProcessorService do
   describe '#build_event_payload' do
+    subject(:event_payload) do
+      described_class.new(payment_link: payment_link, receipt: {}, raw_payload: {}).send(:event_payload)
+    end
+
     before do
       allow_any_instance_of(Account).to receive(:enable_default_features)
     end
@@ -43,8 +49,6 @@ describe Integrations::Infinitepay::WebhookProcessorService do
       )
     end
 
-    subject(:event_payload) { described_class.new({}).send(:build_event_payload, payment_link) }
-
     it 'includes full contact context and minimal conversation context' do
       expect(event_payload[:payment_link_id]).to eq(payment_link.id)
       expect(event_payload[:order_nsu]).to eq(payment_link.order_nsu)
@@ -77,3 +81,4 @@ describe Integrations::Infinitepay::WebhookProcessorService do
     end
   end
 end
+# rubocop:enable RSpec/AnyInstance, RSpec/MultipleExpectations

@@ -1049,6 +1049,23 @@
           "LABEL": "Inbox",
           "PLACEHOLDER": "Choose the inbox to deploy the assistant.",
           "ERROR": "An inbox selection is required."
+        },
+        "MODE": {
+          "LABEL": "Mode",
+          "CONTINUOUS": "Continuous automation",
+          "PHASE2_ONLY": "Payment review (phase 2)"
+        },
+        "PHASE2_MODEL": {
+          "LABEL": "LLM model",
+          "DEFAULT": "Installation default"
+        },
+        "PHASE2_PROMPT": {
+          "LABEL": "Prompt",
+          "PLACEHOLDER": "Leave blank to use the default payment-review prompt."
+        },
+        "PHASE2_PRESETS": {
+          "LABEL": "Allowed payment favorites",
+          "EMPTY": "No payment favorites are available for this account yet."
         }
       },
       "EMPTY_STATE": {

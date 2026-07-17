@@ -23,4 +23,10 @@ module Enterprise::SuperAdmin::AccountsController
 
     super
   end
+
+  def toggle_captain_payment_phase2
+    enabled = ::Internal::Accounts::InternalAttributesService.new(requested_resource).toggle_captain_payment_phase2!
+    notice = enabled ? 'Captain Payment Phase 2 enabled' : 'Captain Payment Phase 2 disabled'
+    redirect_back(fallback_location: [namespace, requested_resource], notice: notice)
+  end
 end

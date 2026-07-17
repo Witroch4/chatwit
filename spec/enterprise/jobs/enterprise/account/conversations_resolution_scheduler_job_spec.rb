@@ -72,5 +72,19 @@ RSpec.describe Account::ConversationsResolutionSchedulerJob, type: :job do
           .with(inbox_without_captain)
       end
     end
+
+    context 'when Captain is configured as phase2_only' do
+      let!(:phase2_inbox) { create(:inbox, account: account) }
+
+      before do
+        create(:captain_inbox, captain_assistant: assistant, inbox: phase2_inbox, mode: :phase2_only)
+      end
+
+      it 'does not enqueue the standard Captain resolution job' do
+        expect do
+          described_class.perform_now
+        end.not_to have_enqueued_job(Captain::InboxPendingConversationsResolutionJob).with(phase2_inbox)
+      end
+    end
   end
 end

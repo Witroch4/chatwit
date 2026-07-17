@@ -44,6 +44,7 @@ class Message < ApplicationRecord
   include MessageFilterHelpers
   include Liquidable
   NUMBER_OF_PERMITTED_ATTACHMENTS = 15
+  INTERNAL_EVENT_ATTRIBUTES = %w[idempotency_key idempotency_payload_hash].freeze
 
   TEMPLATE_PARAMS_SCHEMA = {
     'type': 'object',
@@ -78,6 +79,12 @@ class Message < ApplicationRecord
   validates :content_type, presence: true
   validates :content, length: { maximum: 150_000 }
   validates :processed_message_content, length: { maximum: 150_000 }
+  validates :idempotency_key, length: { maximum: 255 }, allow_nil: true
+  validates :idempotency_payload_hash,
+            presence: true,
+            format: { with: /\A[0-9a-f]{64}\z/ },
+            if: -> { idempotency_key.present? }
+  attr_readonly :idempotency_key, :idempotency_payload_hash
 
   # when you have a temperory id in your frontend and want it echoed back via action cable
   attr_accessor :echo_id
@@ -144,7 +151,7 @@ class Message < ApplicationRecord
   end
 
   def push_event_data
-    data = attributes.symbolize_keys.merge(
+    data = attributes.except(*INTERNAL_EVENT_ATTRIBUTES).symbolize_keys.merge(
       created_at: created_at.to_i,
       message_type: message_type_before_type_cast,
       conversation_id: conversation&.display_id,

@@ -18,6 +18,19 @@ RSpec.describe Captain::InboxPendingConversationsResolutionJob, type: :job do
       .to have_enqueued_job.on_queue('low')
   end
 
+  context 'when Captain is configured as phase2_only' do
+    before do
+      CaptainInbox.find_by!(inbox: inbox).update!(mode: :phase2_only)
+      inbox.reload
+    end
+
+    it 'does not resolve an old pending conversation even if the job was already queued' do
+      described_class.perform_now(inbox)
+
+      expect(resolvable_pending_conversation.reload).to be_pending
+    end
+  end
+
   context 'when captain_tasks is disabled' do
     it 'resolves pending conversations inactive for over 1 hour' do
       described_class.perform_now(inbox)

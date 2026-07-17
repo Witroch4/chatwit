@@ -4,7 +4,7 @@ class Internal::Accounts::InternalAttributesService
   # List of keys that can be managed through this service
   # TODO: Add account_notes field in future
   # This field can be used to store notes about account on Chatwoot cloud
-  VALID_KEYS = %w[manually_managed_features].freeze
+  VALID_KEYS = %w[manually_managed_features captain_payment_phase2].freeze
 
   def initialize(account)
     @account = account
@@ -48,6 +48,18 @@ class Internal::Accounts::InternalAttributesService
                        .uniq
 
     set('manually_managed_features', features)
+  end
+
+  # Captain Payment Phase 2 activation flag (fork-owned, per account, immune to plan reconcile)
+  def captain_payment_phase2_enabled?
+    get('captain_payment_phase2') == true
+  end
+
+  # Flip the flag and return the resulting boolean state
+  def toggle_captain_payment_phase2!
+    new_value = !captain_payment_phase2_enabled?
+    set('captain_payment_phase2', new_value)
+    new_value
   end
 
   # Get list of valid features that can be manually managed

@@ -20,6 +20,14 @@ describe Messages::MessageBuilder do
       message = message_builder
       expect(message.content).to eq params[:content]
     end
+
+    it 'does not persist a caller supplied idempotency key for a human user' do
+      params = ActionController::Parameters.new(content: 'test', idempotency_key: 'human-key')
+
+      message = described_class.new(user, conversation, params).perform
+
+      expect(message.idempotency_key).to be_nil
+    end
   end
 
   describe '#content_attributes' do

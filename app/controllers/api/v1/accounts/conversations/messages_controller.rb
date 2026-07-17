@@ -7,8 +7,13 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
 
   def create
     user = Current.user || @resource
-    mb = Messages::MessageBuilder.new(user, @conversation, params)
-    @message = mb.perform
+    @message = if idempotent_bot_request?
+                 Messages::IdempotentCreateService.new(user: user, conversation: @conversation, params: params).perform
+               else
+                 Messages::MessageBuilder.new(user, @conversation, params).perform
+               end
+  rescue Messages::IdempotentCreateService::ConflictError => e
+    render json: { error: e.message, code: 'idempotency_conflict' }, status: :conflict
   rescue StandardError => e
     render_could_not_create_error(e.message)
   end
@@ -55,6 +60,10 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   private
+
+  def idempotent_bot_request?
+    @resource.is_a?(AgentBot) && params[:idempotency_key].present?
+  end
 
   def message
     @message ||= @conversation.messages.find(permitted_params[:id])

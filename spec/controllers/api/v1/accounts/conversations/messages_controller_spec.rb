@@ -111,6 +111,13 @@ RSpec.describe 'Conversation Messages API', type: :request do
     context 'when it is an authenticated agent bot' do
       let!(:agent_bot) { create(:agent_bot) }
 
+      def post_bot_message(params)
+        post api_v1_account_conversation_messages_url(account_id: account.id, conversation_id: conversation.display_id),
+             params: params,
+             headers: { api_access_token: agent_bot.access_token.token },
+             as: :json
+      end
+
       it 'creates a new outgoing message' do
         create(:agent_bot_inbox, inbox: inbox, agent_bot: agent_bot)
         params = { content: 'test-message' }
@@ -155,6 +162,73 @@ RSpec.describe 'Conversation Messages API', type: :request do
         expect(response).to have_http_status(:success)
         expect(conversation.messages.count).to eq(1)
         expect(conversation.messages.first.content_type).to eq(params[:content_type])
+      end
+
+      context 'with an idempotency key' do
+        before do
+          create(:agent_bot_inbox, inbox: inbox, agent_bot: agent_bot)
+        end
+
+        it 'returns the original message for an identical retry' do
+          params = { content: 'payment CTA', idempotency_key: 'socialwise-flow:session-1:node-2:1' }
+
+          post_bot_message(params)
+          first_id = response.parsed_body['id']
+          post_bot_message(params)
+
+          expect(response).to have_http_status(:success)
+          expect(response.parsed_body['id']).to eq(first_id)
+          expect(conversation.messages.where(idempotency_key: params[:idempotency_key]).count).to eq(1)
+        end
+
+        it 'preserves the client echo id in an identical retry response' do
+          params = {
+            content: 'payment CTA',
+            echo_id: 'client-message-1',
+            idempotency_key: 'socialwise-flow:session-1:node-2:1'
+          }
+
+          post_bot_message(params)
+          first_representation = response.parsed_body.slice('id', 'echo_id')
+          post_bot_message(params)
+
+          expect(response.parsed_body.slice('id', 'echo_id')).to eq(first_representation)
+        end
+
+        it 'returns conflict when the client echo id changes' do
+          params = { content: 'payment CTA', echo_id: 'client-message-1', idempotency_key: 'socialwise-flow:session-1:node-2:1' }
+          post_bot_message(params)
+
+          post_bot_message(params.merge(echo_id: 'client-message-2'))
+
+          expect(response).to have_http_status(:conflict)
+          expect(response.parsed_body['code']).to eq('idempotency_conflict')
+        end
+
+        it 'returns conflict when the same key is reused for a different payload' do
+          key = 'socialwise-flow:session-1:node-2:1'
+          post_bot_message(content: 'payment CTA', idempotency_key: key)
+
+          post_bot_message(content: 'different CTA', idempotency_key: key)
+
+          expect(response).to have_http_status(:conflict)
+          expect(response.parsed_body['code']).to eq('idempotency_conflict')
+          expect(conversation.messages.where(idempotency_key: key).count).to eq(1)
+        end
+
+        it 'scopes the same key independently per conversation' do
+          other_conversation = create(:conversation, inbox: inbox, account: account)
+          params = { content: 'payment CTA', idempotency_key: 'socialwise-flow:session-1:node-2:1' }
+
+          post_bot_message(params)
+          post api_v1_account_conversation_messages_url(account_id: account.id, conversation_id: other_conversation.display_id),
+               params: params,
+               headers: { api_access_token: agent_bot.access_token.token },
+               as: :json
+
+          expect(response).to have_http_status(:success)
+          expect(Message.where(idempotency_key: params[:idempotency_key]).count).to eq(2)
+        end
       end
     end
   end

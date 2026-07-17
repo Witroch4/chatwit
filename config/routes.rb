@@ -64,6 +64,7 @@ Rails.application.routes.draw do
           end
           namespace :captain do
             resource :preferences, only: [:show, :update]
+            resources :llm_models, only: [:index]
             resources :assistants do
               member do
                 post :playground
@@ -154,7 +155,9 @@ Rails.application.routes.draw do
               end
               resources :assignments, only: [:create]
               resources :dossiers, only: [:create, :show]
-              resources :labels, only: [:create, :index]
+              resources :labels, only: [:create, :index] do
+                post :add, on: :collection
+              end
               resource :participants, only: [:show, :create, :update, :destroy]
               resource :direct_uploads, only: [:create]
               resource :draft_messages, only: [:show, :update, :destroy]
@@ -664,6 +667,7 @@ Rails.application.routes.draw do
       resources :accounts, only: [:index, :new, :create, :show, :edit, :update, :destroy] do
         post :seed, on: :member
         post :reset_cache, on: :member
+        post :toggle_captain_payment_phase2, on: :member
       end
       resources :users, only: [:index, :new, :create, :show, :edit, :update, :destroy] do
         delete :avatar, on: :member, action: :destroy_avatar

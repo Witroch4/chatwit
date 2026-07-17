@@ -5,13 +5,14 @@ class Messages::MessageBuilder
 
   attr_reader :message
 
-  def initialize(user, conversation, params)
+  def initialize(user, conversation, params, idempotency_payload_hash: nil)
     @params = params
     @private = params[:private] || false
     @conversation = conversation
     @user = user
     @account = conversation.account
     @message_type = params[:message_type] || 'outgoing'
+    @idempotency_payload_hash = idempotency_payload_hash
     @attachments = params[:attachments]
     @automation_rule = content_attributes&.dig(:automation_rule_id)
     return unless params.instance_of?(ActionController::Parameters)
@@ -143,8 +144,19 @@ class Messages::MessageBuilder
       in_reply_to: @in_reply_to,
       echo_id: @params[:echo_id],
       source_id: @params[:source_id]
-    }.merge(external_created_at).merge(automation_rule_id).merge(campaign_id).merge(template_params)
+    }.merge(external_created_at).merge(automation_rule_id).merge(campaign_id).merge(template_params).merge(idempotency_attributes)
   end
+
+  def idempotency_attributes
+    return {} unless idempotent_sender? && @idempotency_payload_hash.present? && @params[:idempotency_key].to_s.strip.present?
+
+    { idempotency_key: @params[:idempotency_key].to_s.strip, idempotency_payload_hash: @idempotency_payload_hash }
+  end
+
+  # Agent Bots (Task 2) and the Enterprise phase-2 Captain assistant (Task 11)
+  # are the only senders allowed to create idempotent messages. The class-name
+  # comparison keeps OSS decoupled from the Enterprise-only constant.
+  def idempotent_sender? = @user.is_a?(AgentBot) || @user.class.name == 'Captain::Assistant' # rubocop:disable Style/ClassEqualityComparison
 
   def email_inbox?
     @conversation.inbox&.inbox_type == 'Email'
