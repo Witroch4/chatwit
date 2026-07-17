@@ -6,7 +6,8 @@ RSpec.describe Integrations::Infinitepay::VerifyWebhookJob do
   let(:order_nsu) { 'chatwit-1-2-abc123' }
   let(:verify_url) { 'http://platform-api:8000/api/v1/socialwise/integrations/captain/payment-events/verify' }
   let(:event) do
-    InfinitepayWebhookEvent.record(payload: { 'order_nsu' => order_nsu, 'paid_amount' => 999_999 })
+    InfinitepayWebhookEvent.record(payload: { 'order_nsu' => order_nsu, 'paid_amount' => 999_999,
+                                              'transaction_nsu' => 'tx-123', 'invoice_slug' => 'slug-123' })
   end
 
   around do |example|
@@ -29,13 +30,14 @@ RSpec.describe Integrations::Infinitepay::VerifyWebhookJob do
                    checkedAt: Time.current.utc.iso8601, reasonCode: 'provider_confirmed' } }.to_json
     end
 
-    it 'verifies with expected authenticated metadata only and reconciles on paid' do
+    it 'verifies with expected metadata plus the quarantined query pointers and reconciles on paid' do
       stub = stub_request(:post, verify_url)
              .with(
                headers: { 'X-Chatwit-Secret' => 'shared-secret', 'X-Chatwoot-Account-Id' => account.id.to_s },
                body: hash_including(
                  'expectedLink' => hash_including('handle' => 'official-handle', 'orderNsu' => order_nsu,
-                                                  'amountCents' => 500)
+                                                  'amountCents' => 500,
+                                                  'transactionNsu' => 'tx-123', 'invoiceSlug' => 'slug-123')
                )
              )
              .to_return(status: 200, body: receipt_body, headers: { 'Content-Type' => 'application/json' })
@@ -60,13 +62,12 @@ RSpec.describe Integrations::Infinitepay::VerifyWebhookJob do
       expect(payment_link.reload.status).to eq('pending')
     end
 
-    it 'discards unknown receipts without any effect' do
+    it 'retries unknown receipts (provider propagation delay) without any effect' do
       stub_request(:post, verify_url)
         .to_return(status: 200, body: receipt_body(status: 'unknown'), headers: { 'Content-Type' => 'application/json' })
 
-      described_class.perform_now(event.id)
-
-      expect(event.reload).to be_discarded
+      expect { described_class.perform_now(event.id) }.to have_enqueued_job(described_class)
+      expect(event.reload).to be_awaiting_verification
       expect(payment_link.reload.status).to eq('pending')
     end
   end

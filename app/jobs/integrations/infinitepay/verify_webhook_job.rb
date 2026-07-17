@@ -19,18 +19,18 @@ class Integrations::Infinitepay::VerifyWebhookJob < ApplicationJob
     payment_link = PaymentLink.find_by(order_nsu: event.order_nsu)
     return forward_flow_event(event) if payment_link.nil?
 
-    receipt = Integrations::Infinitepay::VerifyEventService.new(payment_link: payment_link).receipt
+    receipt = Integrations::Infinitepay::VerifyEventService.new(payment_link: payment_link, raw_payload: event.payload).receipt
     case receipt['status']
     when 'paid'
       Integrations::Infinitepay::ReconciliationService.new(
         order_nsu: event.order_nsu, receipt: receipt, raw_payload: event.payload
       ).perform
       event.update!(status: :processed, verified_at: Time.current)
-    when 'pending'
-      event.update!(status: :awaiting_verification)
-      raise VerificationPending, event.order_nsu
     else
-      event.update!(status: :discarded)
+      # pending/unknown both retry with backoff: card captures propagate with
+      # delay on the provider side; the event stays visible for ops either way.
+      event.update!(status: :awaiting_verification)
+      raise VerificationPending, "#{event.order_nsu}:#{receipt['reasonCode']}"
     end
   end
 
