@@ -1063,6 +1063,11 @@
           "LABEL": "Prompt",
           "PLACEHOLDER": "Leave blank to use the default payment-review prompt."
         },
+        "PHASE2_PIX_KEY": {
+          "LABEL": "Official Pix key (optional)",
+          "PLACEHOLDER": "CNPJ, e-mail or random Pix key",
+          "HELP": "When set, the captain can send this key via the send_pix_key action if the lead struggles with the payment link. Leave blank to disable."
+        },
         "PHASE2_PRESETS": {
           "LABEL": "Allowed payment favorites",
           "EMPTY": "No payment favorites are available for this account yet."

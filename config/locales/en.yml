@@ -238,6 +238,7 @@ en:
     captain:
       handoff: 'Transferring to another agent for further assistance.'
       payment_review_note: 'Captain payment review needs attention (%{reason}). The payment label was kept for a new cycle.'
+      pix_key_message: 'Você também pode pagar via Pix. Chave: %{pix_key}'
     dossier:
       ready_note: 'Dossier ready (%{count} selected messages): %{filename}'
       failed_note: 'Dossier generation failed: %{error}'

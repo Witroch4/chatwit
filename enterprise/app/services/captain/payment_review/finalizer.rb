@@ -26,9 +26,7 @@ class Captain::PaymentReview::Finalizer
     enqueue_verified_reconciliation
   end
 
-  def no_action!
-    finalize!(outcome: :no_action)
-  end
+  def no_action! = finalize!(outcome: :no_action)
 
   def reply!(decision)
     finalize!(
@@ -49,6 +47,16 @@ class Captain::PaymentReview::Finalizer
       reason_code: decision.reason_code,
       message_params: envelope_message_params(envelope),
       envelope: envelope
+    )
+  end
+
+  # Deterministic pix message from the operator-configured key (never the LLM).
+  def send_pix_key!(decision, pix_key)
+    finalize!(
+      outcome: :pix_key_accepted,
+      action: 'send_pix_key',
+      reason_code: decision.reason_code,
+      message_params: { content: I18n.t('conversations.captain.pix_key_message', pix_key: pix_key) }
     )
   end
 
@@ -165,11 +173,8 @@ class Captain::PaymentReview::Finalizer
 
   def envelope_message_params(envelope)
     payload = envelope.message.to_h
-    {
-      content: payload['content'],
-      content_type: payload['content_type'],
-      content_attributes: payload['content_attributes']
-    }.compact
+    { content: payload['content'], content_type: payload['content_type'],
+      content_attributes: payload['content_attributes'] }.compact
   end
 
   def authorized_preset!(decision)
@@ -199,11 +204,8 @@ class Captain::PaymentReview::Finalizer
 
   def charge_message_params(charge)
     attrs = charge[:message_attributes]
-    {
-      content: attrs[:content],
-      content_type: attrs[:content_type],
-      content_attributes: attrs[:content_attributes]
-    }.compact
+    { content: attrs[:content], content_type: attrs[:content_type],
+      content_attributes: attrs[:content_attributes] }.compact
   end
 
   def create_private_note(conversation, reason:)

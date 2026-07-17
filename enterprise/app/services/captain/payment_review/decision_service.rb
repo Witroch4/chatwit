@@ -93,11 +93,11 @@ class Captain::PaymentReview::DecisionService
   end
 
   def capability_flags
-    return { send_cta: false, send_pix_key: false, send_status: false } if context.nil?
+    return { send_cta: false, send_pix_key: local_pix_key.present?, send_status: false } if context.nil?
 
     {
       send_cta: context.can_send_cta,
-      send_pix_key: context.has_official_pix_key,
+      send_pix_key: local_pix_key.present? || context.has_official_pix_key,
       send_status: context.can_send_status
     }
   end
@@ -115,6 +115,10 @@ class Captain::PaymentReview::DecisionService
     return [] if ids.empty?
 
     account.payment_presets.where(id: ids).select(:id, :name)
+  end
+
+  def local_pix_key
+    captain_inbox&.phase2_pix_key
   end
 
   def history_messages

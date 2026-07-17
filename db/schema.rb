@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_17_000100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -331,6 +331,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
     t.text "content"
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
+    t.integer "position", null: false
+    t.index ["account_id", "position"], name: "index_canned_responses_on_account_id_and_position"
   end
 
   create_table "captain_assistant_responses", force: :cascade do |t|
@@ -412,6 +414,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
     t.string "phase2_model"
     t.text "phase2_prompt"
     t.jsonb "phase2_payment_preset_ids", default: [], null: false
+    t.string "phase2_pix_key"
     t.index ["captain_assistant_id", "inbox_id"], name: "index_captain_inboxes_on_captain_assistant_id_and_inbox_id", unique: true
     t.index ["captain_assistant_id"], name: "index_captain_inboxes_on_captain_assistant_id"
     t.index ["inbox_id"], name: "index_captain_inboxes_on_inbox_id", unique: true
@@ -1235,7 +1238,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
     t.string "description", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "whatsapp_interactive_template_id"
     t.index ["account_id"], name: "index_payment_presets_on_account_id"
+    t.index ["whatsapp_interactive_template_id"], name: "index_payment_presets_on_whatsapp_interactive_template_id"
   end
 
   create_table "payment_reconciliations", force: :cascade do |t|
@@ -1531,6 +1536,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_000600) do
   add_foreign_key "payment_links", "conversations"
   add_foreign_key "payment_links", "users"
   add_foreign_key "payment_presets", "accounts"
+  add_foreign_key "payment_presets", "whatsapp_interactive_templates", on_delete: :nullify
   add_foreign_key "stickers", "accounts"
   add_foreign_key "whatsapp_interactive_templates", "accounts"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

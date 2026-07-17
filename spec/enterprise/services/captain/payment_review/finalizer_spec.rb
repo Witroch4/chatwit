@@ -194,6 +194,22 @@ RSpec.describe Captain::PaymentReview::Finalizer do
     end
   end
 
+  describe '#send_pix_key!' do
+    let(:decision) do
+      Captain::PaymentReview::DecisionSchema::Decision.new(action: 'send_pix_key', reason_code: 'asks_pix_key')
+    end
+
+    it 'sends the operator-configured key deterministically with the run idempotency key' do
+      finalizer.send_pix_key!(decision, '57.944.155/0001-01')
+
+      message = conversation.messages.order(:id).last
+      expect(message.content).to include('57.944.155/0001-01')
+      expect(message.idempotency_key).to eq("captain-payment-review:#{run.id}:send_pix_key")
+      expect(run.reload.outcome).to eq('pix_key_accepted')
+      expect(conversation.reload.label_list).not_to include(label)
+    end
+  end
+
   describe '#handoff!' do
     let(:decision) do
       Captain::PaymentReview::DecisionSchema::Decision.new(action: 'handoff_required', reason_code: 'unsupported_question')

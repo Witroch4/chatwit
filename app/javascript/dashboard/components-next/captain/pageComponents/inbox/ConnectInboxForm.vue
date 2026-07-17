@@ -33,6 +33,7 @@ const initialState = {
   mode: 'continuous',
   phase2Model: '',
   phase2Prompt: '',
+  phase2PixKey: '',
   phase2PaymentPresetIds: [],
 };
 
@@ -121,6 +122,7 @@ const prepareInboxPayload = () => ({
   mode: state.mode,
   phase2Model: isPhase2.value ? state.phase2Model : null,
   phase2Prompt: isPhase2.value ? state.phase2Prompt : null,
+  phase2PixKey: isPhase2.value ? state.phase2PixKey : null,
   phase2PaymentPresetIds: isPhase2.value ? state.phase2PaymentPresetIds : [],
 });
 
@@ -193,6 +195,25 @@ const handleSubmit = async () => {
           :placeholder="t('CAPTAIN.INBOXES.FORM.PHASE2_PROMPT.PLACEHOLDER')"
           class="w-full p-3 text-sm border rounded-lg bg-n-alpha-black2 border-n-weak text-n-slate-12"
         />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label
+          for="phase2-pix-key"
+          class="mb-0.5 text-sm font-medium text-n-slate-12"
+        >
+          {{ t('CAPTAIN.INBOXES.FORM.PHASE2_PIX_KEY.LABEL') }}
+        </label>
+        <input
+          id="phase2-pix-key"
+          v-model="state.phase2PixKey"
+          type="text"
+          :placeholder="t('CAPTAIN.INBOXES.FORM.PHASE2_PIX_KEY.PLACEHOLDER')"
+          class="w-full p-3 text-sm border rounded-lg bg-n-alpha-black2 border-n-weak text-n-slate-12"
+        />
+        <p class="text-xs text-n-slate-11">
+          {{ t('CAPTAIN.INBOXES.FORM.PHASE2_PIX_KEY.HELP') }}
+        </p>
       </div>
 
       <div class="flex flex-col gap-1">
