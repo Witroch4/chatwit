@@ -90,11 +90,25 @@ RSpec.describe CaptainFeaturable do
 
     context 'when configured with invalid model' do
       before do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
         account.captain_models = { 'editor' => 'invalid-model' }
       end
 
       it 'falls back to default model' do
         expect(account.captain_editor_model).to eq(Llm::Models.default_model_for('editor'))
+      end
+    end
+
+    context 'when the WitDev route stores a canonical generative alias' do
+      before do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:model).and_return('witdev_claude/sonnet')
+        account.captain_models = { 'editor' => 'witdev/gpt-5.5' }
+      end
+
+      it 'does not validate the canonical alias against config/llm.yml' do
+        expect(account).to be_valid
+        expect(account.captain_editor_model).to eq('witdev/gpt-5.5')
       end
     end
 

@@ -29,8 +29,8 @@ class Llm::BaseAiService
   end
 
   def setup_model
-    if Chatwit::LlmProxy.enabled?
-      @model = Chatwit::LlmProxy.model
+    if Chatwit::LlmProxy.route_witdev?
+      @model = Chatwit::LlmProxy.resolve_model!(Chatwit::LlmProxy.model)
       return
     end
 

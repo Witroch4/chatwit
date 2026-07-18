@@ -58,7 +58,7 @@
                 </svg>
               </button>
             </div>
-          <% elsif @installation_configs[key]&.dig('type') == 'select' && @installation_configs[key]&.dig('options').present? %>
+          <% elsif @installation_configs[key]&.dig('type') == 'select' %>
             <%= form.select "app_config[#{key}]",
               @installation_configs[key]['options'].map { |val, label| [label, val] },
               { selected: @app_config[key] },

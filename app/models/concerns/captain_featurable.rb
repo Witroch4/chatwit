@@ -33,11 +33,7 @@ module CaptainFeaturable
     stored_models = captain_models || {}
     Llm::Models.feature_keys.each_with_object({}) do |feature_key, result|
       stored_value = stored_models[feature_key]
-      result[feature_key] = if stored_value.present? && Llm::Models.valid_model_for?(feature_key, stored_value)
-                              stored_value
-                            else
-                              Llm::Models.default_model_for(feature_key)
-                            end
+      result[feature_key] = model_with_default(feature_key, stored_value)
     end
   end
 
@@ -48,11 +44,23 @@ module CaptainFeaturable
     end
   end
 
+  def model_with_default(feature_key, stored_value)
+    return stored_value.presence || Chatwit::LlmProxy.model if witdev_generative_feature?(feature_key)
+    return stored_value if stored_value.present? && Llm::Models.valid_model_for?(feature_key, stored_value)
+
+    Llm::Models.default_model_for(feature_key)
+  end
+
+  def witdev_generative_feature?(feature_key)
+    Chatwit::LlmProxy.route_witdev? && Chatwit::CaptainModelResolver.generative_feature?(feature_key)
+  end
+
   def validate_captain_models
     return if captain_models.blank?
 
     captain_models.each do |feature_key, model_name|
       next if model_name.blank?
+      next if witdev_generative_feature?(feature_key)
       next if Llm::Models.valid_model_for?(feature_key, model_name)
 
       allowed_models = Llm::Models.models_for(feature_key)

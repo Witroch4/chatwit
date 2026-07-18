@@ -32,16 +32,15 @@ class Captain::BaseTaskService
   end
 
   def api_base
-    return Chatwit::LlmProxy.api_base if Chatwit::LlmProxy.enabled?
+    return Chatwit::LlmProxy.api_base if Chatwit::LlmProxy.route_witdev?
 
     endpoint = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence || 'https://api.openai.com/'
     endpoint = endpoint.chomp('/')
     "#{endpoint}/v1"
   end
 
-  def make_api_call(model:, messages:, schema: nil, tools: [])
-    # Chatwit: WitDev route overrides whatever legacy model the caller picked
-    model = Chatwit::LlmProxy.model if Chatwit::LlmProxy.enabled?
+  def make_api_call(model:, messages:, schema: nil, tools: [], feature: :editor)
+    model = resolve_request_model(model, feature)
 
     # Community edition prerequisite checks
     # Enterprise module handles these with more specific error messages (cloud vs self-hosted)
@@ -58,6 +57,14 @@ class Captain::BaseTaskService
     return response unless build_follow_up_context? && response[:message].present?
 
     response.merge(follow_up_context: build_follow_up_context(messages, response))
+  rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
+    { error: e.message, error_code: 422, request_messages: messages }
+  end
+
+  def resolve_request_model(legacy_model, feature)
+    return legacy_model unless Chatwit::LlmProxy.route_witdev?
+
+    Chatwit::CaptainModelResolver.new(account: account).resolve!(feature)
   end
 
   def execute_ruby_llm_request(model:, messages:, schema: nil, tools: [])
@@ -163,11 +170,16 @@ class Captain::BaseTaskService
   end
 
   def llm_credential
-    @llm_credential ||= witdev_llm_credential || hook_llm_credential || system_llm_credential
+    @llm_credential ||= if Chatwit::LlmProxy.route_witdev?
+                          witdev_llm_credential
+                        else
+                          hook_llm_credential || system_llm_credential
+                        end
   end
 
   def witdev_llm_credential
-    { api_key: Chatwit::LlmProxy.api_key, source: :witdev } if Chatwit::LlmProxy.enabled?
+    key = Chatwit::LlmProxy.api_key
+    { api_key: key, source: :witdev } if key.present?
   end
 
   def hook_llm_credential

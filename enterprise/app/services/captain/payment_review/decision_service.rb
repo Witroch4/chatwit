@@ -32,10 +32,11 @@ class Captain::PaymentReview::DecisionService
 
   def call
     messages = build_messages
+    resolved_model = model
     failure = nil
 
     MAX_ATTEMPTS.times do
-      raw = complete(messages: messages_with_correction(messages, failure), model: model)
+      raw = complete(messages: messages_with_correction(messages, failure), model: resolved_model)
       begin
         decision = Captain::PaymentReview::DecisionSchema.parse(raw)
         validate_preset!(decision)
@@ -48,6 +49,8 @@ class Captain::PaymentReview::DecisionService
     end
 
     raise DecisionFailed, failure.to_s
+  rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
+    raise DecisionFailed, e.message
   end
 
   private
@@ -59,14 +62,16 @@ class Captain::PaymentReview::DecisionService
   end
 
   def model
-    captain_inbox&.phase2_model.presence ||
-      proxy_model.presence ||
-      InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value.presence ||
-      LlmConstants::DEFAULT_MODEL
+    return legacy_model unless Chatwit::LlmProxy.route_witdev?
+
+    candidate = captain_inbox&.phase2_model.presence || Chatwit::LlmProxy.model
+    Chatwit::LlmProxy.resolve_model!(candidate)
   end
 
-  def proxy_model
-    Chatwit::LlmProxy.model if Chatwit::LlmProxy.enabled?
+  def legacy_model
+    captain_inbox&.phase2_model.presence ||
+      InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value.presence ||
+      LlmConstants::DEFAULT_MODEL
   end
 
   def build_messages
@@ -169,13 +174,13 @@ class Captain::PaymentReview::DecisionService
   end
 
   def llm_api_base
-    return Chatwit::LlmProxy.api_base if Chatwit::LlmProxy.enabled?
+    return Chatwit::LlmProxy.api_base if Chatwit::LlmProxy.route_witdev?
 
     InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence
   end
 
   def llm_api_key
-    return Chatwit::LlmProxy.api_key if Chatwit::LlmProxy.enabled?
+    return Chatwit::LlmProxy.api_key if Chatwit::LlmProxy.route_witdev?
 
     InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value
   end

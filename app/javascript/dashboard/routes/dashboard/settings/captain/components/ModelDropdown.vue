@@ -26,7 +26,7 @@ const PROVIDER_ICONS = {
 };
 
 const iconForModel = model => {
-  return PROVIDER_ICONS[model.provider];
+  return PROVIDER_ICONS[model.provider] || 'i-lucide-bot';
 };
 
 const { t } = useI18n();
@@ -45,14 +45,28 @@ const selectedModel = computed(() =>
   captainConfigStore.getSelectedModelForFeature(props.featureKey)
 );
 
+const featureConfig = computed(
+  () => captainConfigStore.getFeatures[props.featureKey] || {}
+);
+
+const isCatalogUnavailable = computed(
+  () => !captainConfigStore.isCatalogOperational
+);
+
+const invalidSelectedModel = computed(() => {
+  if (captainConfigStore.isSelectionValidForFeature(props.featureKey)) {
+    return null;
+  }
+
+  return featureConfig.value.selected || null;
+});
+
 const selectedModelId = ref(null);
 
 watch(
   selectedModel,
   newSelected => {
-    if (newSelected) {
-      selectedModelId.value = newSelected;
-    }
+    selectedModelId.value = newSelected || null;
   },
   { immediate: true }
 );
@@ -71,13 +85,24 @@ const getCreditLabel = model => {
   });
 };
 
-const toggleDropdown = () => {
-  isOpen.value = !isOpen.value;
-};
-
 const closeDropdown = () => {
   isOpen.value = false;
 };
+
+const toggleDropdown = () => {
+  if (isCatalogUnavailable.value) {
+    closeDropdown();
+    return;
+  }
+
+  isOpen.value = !isOpen.value;
+};
+
+watch(isCatalogUnavailable, unavailable => {
+  if (unavailable) {
+    closeDropdown();
+  }
+});
 
 provideDropdownContext({
   isOpen,
@@ -86,6 +111,11 @@ provideDropdownContext({
 });
 
 const selectModel = model => {
+  if (isCatalogUnavailable.value) {
+    closeDropdown();
+    return;
+  }
+
   selectedModelId.value = model.id;
   emit('change', { feature: props.featureKey, model: model.id });
   closeDropdown();
@@ -97,9 +127,20 @@ const selectModel = model => {
     <button
       type="button"
       class="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg border-n-weak dark:bg-n-solid-2 dark:hover:bg-n-solid-3 bg-n-alpha-2 hover:bg-n-alpha-1 min-w-[180px] justify-between"
+      :disabled="isCatalogUnavailable"
       @click="toggleDropdown"
     >
-      <span v-if="selectedModelDetails" class="text-n-slate-12">
+      <span v-if="isCatalogUnavailable" class="text-n-slate-10">
+        {{ t('CAPTAIN_SETTINGS.MODEL_CONFIG.CATALOG_UNAVAILABLE') }}
+      </span>
+      <span
+        v-else-if="invalidSelectedModel"
+        class="flex flex-col text-left text-n-slate-10"
+      >
+        <span>{{ invalidSelectedModel }}</span>
+        <span>{{ t('CAPTAIN_SETTINGS.MODEL_CONFIG.MODEL_UNAVAILABLE') }}</span>
+      </span>
+      <span v-else-if="selectedModelDetails" class="text-n-slate-12">
         {{ selectedModelDetails.display_name }}
       </span>
       <span v-else class="text-n-slate-10">

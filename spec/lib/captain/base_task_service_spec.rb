@@ -22,6 +22,7 @@ RSpec.describe Captain::BaseTaskService do
 
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     # Stub captain enabled check to allow OSS specs to test base functionality
     # without enterprise module interference
     allow(account).to receive(:feature_enabled?).and_call_original
@@ -173,6 +174,73 @@ RSpec.describe Captain::BaseTaskService do
       expect(result[:usage]['prompt_tokens']).to eq(10)
       expect(result[:usage]['completion_tokens']).to eq(20)
       expect(result[:usage]['total_tokens']).to eq(30)
+    end
+
+    context 'when the WitDev route is selected' do
+      let(:resolved_model) { 'witdev/gpt-5.5' }
+      let(:resolver) { instance_double(Chatwit::CaptainModelResolver, resolve!: resolved_model) }
+
+      before do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive_messages(api_key: 'proxy-key', api_base: 'http://platform-litellm:4000/v1')
+        allow(Chatwit::CaptainModelResolver).to receive(:new).with(account: account).and_return(resolver)
+      end
+
+      it 'resolves the default editor feature before executing through the proxy' do
+        expect(resolver).to receive(:resolve!).with(:editor)
+        expect(Llm::Config).to receive(:with_api_key)
+          .with('proxy-key', api_base: 'http://platform-litellm:4000/v1')
+          .and_yield(mock_context)
+        expect(mock_context).to receive(:chat).with(model: resolved_model).and_return(mock_chat)
+
+        result = service.send(:make_api_call, model: model, messages: messages)
+
+        expect(result[:message]).to eq('Response')
+      end
+
+      it 'returns 422 without executing when the selected alias is unavailable' do
+        allow(resolver).to receive(:resolve!).and_raise(
+          Chatwit::LlmProxy::ModelUnavailableError,
+          'LLM model alias is unavailable: witdev/dead'
+        )
+        expect(Llm::Config).not_to receive(:with_api_key)
+
+        result = service.send(:make_api_call, model: model, messages: messages, feature: :copilot)
+
+        expect(result).to include(
+          error: 'LLM model alias is unavailable: witdev/dead',
+          error_code: 422,
+          request_messages: messages
+        )
+      end
+
+      it 'returns 422 without executing when the canonical catalog is unavailable' do
+        allow(resolver).to receive(:resolve!).and_raise(
+          Chatwit::LlmProxy::CatalogUnavailableError,
+          'The canonical LLM catalog is unavailable'
+        )
+        expect(Llm::Config).not_to receive(:with_api_key)
+
+        result = service.send(:make_api_call, model: model, messages: messages)
+
+        expect(result).to include(
+          error: 'The canonical LLM catalog is unavailable',
+          error_code: 422,
+          request_messages: messages
+        )
+      end
+
+      it 'does not fall through to account or system credentials when the proxy key is missing' do
+        create(:integrations_hook, :openai, account: account, settings: { 'api_key' => 'hook-key' })
+        allow(Chatwit::LlmProxy).to receive(:api_key).and_return(nil)
+        expect(service).not_to receive(:hook_llm_credential)
+        expect(service).not_to receive(:system_llm_credential)
+        expect(Llm::Config).not_to receive(:with_api_key)
+
+        result = service.send(:make_api_call, model: model, messages: messages)
+
+        expect(result).to include(error: I18n.t('captain.api_key_missing'), error_code: 401)
+      end
     end
   end
 

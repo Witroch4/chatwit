@@ -16,7 +16,8 @@ class Captain::LabelSuggestionService < Captain::BaseTaskService
       messages: [
         { role: 'system', content: prompt_from_file('label_suggestion') },
         { role: 'user', content: content }
-      ]
+      ],
+      feature: :label_suggestion
     )
     return response if response[:error].present?
 

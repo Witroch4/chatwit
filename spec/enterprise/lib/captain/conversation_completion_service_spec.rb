@@ -10,6 +10,7 @@ RSpec.describe Captain::ConversationCompletionService do
 
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
     allow(mock_chat).to receive(:with_instructions)
     allow(mock_chat).to receive(:with_schema).and_return(mock_chat)
@@ -18,6 +19,23 @@ RSpec.describe Captain::ConversationCompletionService do
   end
 
   describe '#perform' do
+    context 'when mapping the runtime model feature' do
+      before do
+        create(:message, conversation: conversation, message_type: :incoming, content: 'Hello')
+      end
+
+      it 'maps conversation completion to the assistant model feature' do
+        expect(service).to receive(:make_api_call).with(
+          model: kind_of(String),
+          messages: kind_of(Array),
+          schema: Captain::ConversationCompletionSchema,
+          feature: :assistant
+        ).and_return(message: { 'complete' => false, 'reason' => 'Waiting' })
+
+        service.perform
+      end
+    end
+
     context 'when conversation is complete' do
       let(:mock_response) do
         instance_double(
@@ -144,6 +162,25 @@ RSpec.describe Captain::ConversationCompletionService do
       it 'does not fall back to the account hook key when no system key exists' do
         InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: nil)
 
+        expect(Llm::Config).not_to receive(:with_api_key)
+
+        result = service.perform
+
+        expect(result[:complete]).to be false
+        expect(result[:reason]).to eq(I18n.t('captain.api_key_missing'))
+      end
+    end
+
+    context 'when the WitDev route has no proxy key' do
+      before do
+        create(:message, conversation: conversation, message_type: :incoming, content: 'Hello')
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:api_key).and_return(nil)
+        resolver = instance_double(Chatwit::CaptainModelResolver, resolve!: 'witdev_claude/sonnet')
+        allow(Chatwit::CaptainModelResolver).to receive(:new).with(account: account).and_return(resolver)
+      end
+
+      it 'fails closed instead of using the installation key' do
         expect(Llm::Config).not_to receive(:with_api_key)
 
         result = service.perform

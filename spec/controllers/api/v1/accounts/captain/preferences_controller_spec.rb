@@ -12,6 +12,45 @@ RSpec.describe 'Api::V1::Accounts::Captain::Preferences', type: :request do
   end
 
   describe 'GET /api/v1/accounts/{account.id}/captain/preferences' do
+    context 'when the WitDev route is enabled' do
+      before do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:model).and_return('witdev_claude/sonnet')
+        allow(Chatwit::LlmProxy).to receive(:catalog_source).and_return('litellm_proxy')
+        allow(Chatwit::LlmProxy).to receive(:operational_catalog?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:operational_models).and_return(
+          [
+            { 'value' => 'witdev/gpt-5.5', 'label' => 'GPT-5.5', 'provider' => 'witdev',
+              'provider_label' => 'WitDev Codex', 'active' => true, 'hidden' => false }
+          ]
+        )
+      end
+
+      it 'returns central catalog metadata and generative feature options' do
+        get "/api/v1/accounts/#{account.id}/captain/preferences",
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(json_response.dig(:catalog, :route)).to eq('witdev')
+        expect(json_response.dig(:catalog, :source)).to eq('litellm_proxy')
+        expect(json_response.dig(:features, :editor, :models, 0, :id)).to eq('witdev/gpt-5.5')
+      end
+    end
+
+    context 'when the Chatwoot route is enabled' do
+      it 'omits WitDev catalog metadata from the legacy payload' do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
+
+        get "/api/v1/accounts/#{account.id}/captain/preferences",
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(json_response).not_to have_key(:catalog)
+      end
+    end
+
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
         get "/api/v1/accounts/#{account.id}/captain/preferences",
@@ -49,6 +88,63 @@ RSpec.describe 'Api::V1::Accounts::Captain::Preferences', type: :request do
   end
 
   describe 'PUT /api/v1/accounts/{account.id}/captain/preferences' do
+    context 'when the WitDev route is enabled' do
+      before do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:model).and_return('witdev_claude/sonnet')
+        allow(Chatwit::LlmProxy).to receive(:catalog_source).and_return('litellm_proxy')
+        allow(Chatwit::LlmProxy).to receive(:operational_catalog?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:operational_models).and_return(
+          [
+            { 'value' => 'witdev/gpt-5.5', 'label' => 'GPT-5.5', 'provider' => 'witdev',
+              'provider_label' => 'WitDev Codex', 'active' => true, 'hidden' => false }
+          ]
+        )
+      end
+
+      it 'persists an exact canonical alias accepted by the proxy catalog' do
+        allow(Chatwit::LlmProxy).to receive(:resolve_model!).with('witdev/gpt-5.5').and_return('witdev/gpt-5.5')
+
+        put "/api/v1/accounts/#{account.id}/captain/preferences",
+            headers: admin.create_new_auth_token,
+            params: { captain_models: { editor: 'witdev/gpt-5.5' } },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(account.reload.captain_models['editor']).to eq('witdev/gpt-5.5')
+      end
+
+      it 'rejects an unavailable canonical alias without changing saved models' do
+        allow(Chatwit::LlmProxy).to receive(:resolve_model!)
+          .with('witdev/gpt-5.5')
+          .and_raise(Chatwit::LlmProxy::ModelUnavailableError, 'LLM model alias is unavailable: witdev/gpt-5.5')
+        original_models = account.captain_models
+
+        put "/api/v1/accounts/#{account.id}/captain/preferences",
+            headers: admin.create_new_auth_token,
+            params: { captain_models: { editor: 'witdev/gpt-5.5' } },
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(account.reload.captain_models).to eq(original_models)
+      end
+
+      it 'rejects an unavailable catalog without changing saved models' do
+        allow(Chatwit::LlmProxy).to receive(:resolve_model!)
+          .with('witdev/gpt-5.5')
+          .and_raise(Chatwit::LlmProxy::CatalogUnavailableError, 'The canonical LLM catalog is unavailable')
+        original_models = account.captain_models
+
+        put "/api/v1/accounts/#{account.id}/captain/preferences",
+            headers: admin.create_new_auth_token,
+            params: { captain_models: { editor: 'witdev/gpt-5.5' } },
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(account.reload.captain_models).to eq(original_models)
+      end
+    end
+
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
         put "/api/v1/accounts/#{account.id}/captain/preferences",

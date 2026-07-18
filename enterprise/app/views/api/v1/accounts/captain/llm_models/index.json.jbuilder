@@ -4,3 +4,4 @@ json.models @models do |entry|
   json.provider_label entry['provider_label']
 end
 json.source @source
+json.operational @operational

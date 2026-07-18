@@ -245,7 +245,7 @@
   locked: false
 - name: CAPTAIN_WITDEV_MODEL
   display_title: 'WitDev Model'
-  description: 'Canonical model alias from the platform LLM catalog (platform-api /api/v1/llm/models), e.g. witdev_claude/sonnet. Only used when LLM Route is set to WitDev LLM Proxy. The list is loaded live from the platform; if it is unreachable, type the alias manually.'
+  description: 'Canonical model alias from the platform LLM catalog (platform-api /api/v1/llm/models), e.g. witdev_claude/sonnet. Only used when LLM Route is set to WitDev LLM Proxy. If the operational catalog is unavailable, the list is empty and saves fail closed.'
   locked: false
 - name: CAPTAIN_WITDEV_PROXY_API_KEY
   display_title: 'WitDev Proxy API Key'

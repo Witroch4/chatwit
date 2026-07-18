@@ -13,11 +13,29 @@ class Api::V1::Accounts::Captain::PreferencesController < Api::V1::Accounts::Bas
     @current_account.save!
 
     render json: preferences_payload
+  rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   private
 
   def preferences_payload
+    return legacy_preferences_payload unless Chatwit::LlmProxy.route_witdev?
+
+    resolver = Chatwit::CaptainModelResolver.new(account: @current_account)
+    {
+      providers: resolver.providers_payload,
+      models: resolver.models_payload,
+      features: Llm::Models.feature_keys.index_with { |feature| resolver.feature_config(feature) },
+      catalog: {
+        route: 'witdev',
+        source: Chatwit::LlmProxy.catalog_source,
+        operational: Chatwit::LlmProxy.operational_catalog?
+      }
+    }
+  end
+
+  def legacy_preferences_payload
     {
       providers: Llm::Models.providers,
       models: Llm::Models.models,
@@ -31,14 +49,18 @@ class Api::V1::Accounts::Captain::PreferencesController < Api::V1::Accounts::Bas
 
   def captain_params
     permitted = {}
-    permitted[:captain_models] = merged_captain_models if params[:captain_models].present?
+    if params[:captain_models].present?
+      models = permitted_captain_models
+      validate_witdev_models!(models)
+      permitted[:captain_models] = merged_captain_models(models)
+    end
     permitted[:captain_features] = merged_captain_features if params[:captain_features].present?
     permitted
   end
 
-  def merged_captain_models
+  def merged_captain_models(models)
     existing_models = @current_account.captain_models || {}
-    existing_models.merge(permitted_captain_models)
+    existing_models.merge(models)
   end
 
   def merged_captain_features
@@ -58,6 +80,13 @@ class Api::V1::Accounts::Captain::PreferencesController < Api::V1::Accounts::Bas
       :editor, :assistant, :copilot, :label_suggestion,
       :audio_transcription, :help_center_search
     ).to_h.stringify_keys
+  end
+
+  def validate_witdev_models!(models)
+    return unless Chatwit::LlmProxy.route_witdev?
+
+    resolver = Chatwit::CaptainModelResolver.new(account: @current_account)
+    models.each { |feature, alias_name| resolver.validate!(feature, alias_name) }
   end
 
   def features_with_account_preferences
