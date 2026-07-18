@@ -12,6 +12,7 @@ tmp
 public/packs
 node_modules
 vendor/bundle
+.worktrees/
 .DS_Store
 *.swp
 *~
