@@ -5,6 +5,7 @@ import wootConstants from 'dashboard/constants/globals';
 import { getI18nKey } from 'dashboard/routes/dashboard/settings/helper/settingsHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useAlert } from 'dashboard/composables';
+import { useConfig } from 'dashboard/composables/useConfig';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
 const { EXAMPLE_WEBHOOK_URL } = wootConstants;
@@ -55,13 +56,16 @@ export default {
     },
   },
   data() {
+    const { inboxEventsEnabled } = useConfig();
     return {
       url: this.value.url || '',
       name: this.value.name || '',
       subscriptions: this.value.subscriptions || [],
       includeAccessToken: this.value.include_access_token || false,
       secretVisible: false,
-      supportedWebhookEvents: SUPPORTED_WEBHOOK_EVENTS,
+      supportedWebhookEvents: inboxEventsEnabled
+        ? [...SUPPORTED_WEBHOOK_EVENTS, 'inbox_updated']
+        : SUPPORTED_WEBHOOK_EVENTS,
     };
   },
   computed: {

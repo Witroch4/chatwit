@@ -43,9 +43,8 @@ RSpec.describe Captain::LabelSuggestionService do
 
       it 'maps label suggestions to the label_suggestion model feature' do
         expect(service).to receive(:make_api_call).with(
-          model: Captain::BaseTaskService::GPT_MODEL,
           messages: kind_of(Array),
-          feature: :label_suggestion
+          feature: 'label_suggestion'
         ).and_return(message: 'bug')
 
         service.perform
@@ -69,6 +68,7 @@ RSpec.describe Captain::LabelSuggestionService do
 
       it 'builds labels_with_messages format correctly' do
         expect(service).to receive(:make_api_call) do |args|
+          expect(args[:feature]).to eq('label_suggestion')
           user_message = args[:messages].find { |m| m[:role] == 'user' }[:content]
 
           expect(user_message).to include('Messages:')

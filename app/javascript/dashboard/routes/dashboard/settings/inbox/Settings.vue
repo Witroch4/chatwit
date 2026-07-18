@@ -4,6 +4,8 @@ import { shouldBeUrl } from 'shared/helpers/Validators';
 import { useAlert } from 'dashboard/composables';
 import { useVuelidate } from '@vuelidate/core';
 import Avatar from 'next/avatar/Avatar.vue';
+import Banner from 'dashboard/components-next/banner/Banner.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
 import SettingIntroBanner from 'dashboard/components/widgets/SettingIntroBanner.vue';
 import SettingsToggleSection from 'dashboard/components-next/Settings/SettingsToggleSection.vue';
 import SettingsFieldSection from 'dashboard/components-next/Settings/SettingsFieldSection.vue';
@@ -21,10 +23,14 @@ import PreChatFormSettings from './PreChatForm/Settings.vue';
 import WeeklyAvailability from './components/WeeklyAvailability.vue';
 import GreetingsEditor from 'shared/components/GreetingsEditor.vue';
 import ConfigurationPage from './settingsPage/ConfigurationPage.vue';
+import VoiceConfigurationPage from './settingsPage/VoiceConfigurationPage.vue';
+import WhatsappCallingPage from './settingsPage/WhatsappCallingPage.vue';
 import CustomerSatisfactionPage from './settingsPage/CustomerSatisfactionPage.vue';
 import CollaboratorsPage from './settingsPage/CollaboratorsPage.vue';
 import BotConfiguration from './components/BotConfiguration.vue';
 import AccountHealth from './components/AccountHealth.vue';
+import WhatsappManualMigrationDialog from './components/WhatsappManualMigrationDialog.vue';
+import WhatsappManualMigrationBanner from './components/WhatsappManualMigrationBanner.vue';
 import { FEATURE_FLAGS } from '../../../../featureFlags';
 import SenderNameExamplePreview from './components/SenderNameExamplePreview.vue';
 import LockToSingleConversationPreview from './components/LockToSingleConversationPreview.vue';
@@ -40,12 +46,16 @@ import SelectInput from 'dashboard/components-next/select/Select.vue';
 import Widget from 'dashboard/modules/widget-preview/components/Widget.vue';
 import AccessToken from 'dashboard/routes/dashboard/settings/profile/AccessToken.vue';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { META_RESTRICTION_STATUS_URL } from 'dashboard/constants/globals';
 
 export default {
   components: {
+    Banner,
     BotConfiguration,
     CollaboratorsPage,
     ConfigurationPage,
+    VoiceConfigurationPage,
+    WhatsappCallingPage,
     CustomerSatisfactionPage,
     FacebookReauthorize,
     GreetingsEditor,
@@ -70,8 +80,11 @@ export default {
     ColorPicker,
     SelectInput,
     AccountHealth,
+    WhatsappManualMigrationDialog,
+    WhatsappManualMigrationBanner,
     Widget,
     AccessToken,
+    Icon,
   },
   mixins: [inboxMixin],
   setup() {
@@ -103,6 +116,7 @@ export default {
       isLoadingHealth: false,
       healthError: null,
       isRegisteringWebhook: false,
+      isTransferringWhatsAppToManual: false,
       widgetBubblePosition: 'right',
       widgetBubbleType: 'standard',
       widgetBubbleLauncherTitle: '',
@@ -175,19 +189,17 @@ export default {
         },
       ];
 
-      if (!this.isAVoiceChannel) {
-        visibleToAllChannelTabs = [
-          ...visibleToAllChannelTabs,
-          {
-            key: 'business-hours',
-            name: this.$t('INBOX_MGMT.TABS.BUSINESS_HOURS'),
-          },
-          {
-            key: 'csat',
-            name: this.$t('INBOX_MGMT.TABS.CSAT'),
-          },
-        ];
-      }
+      visibleToAllChannelTabs = [
+        ...visibleToAllChannelTabs,
+        {
+          key: 'business-hours',
+          name: this.$t('INBOX_MGMT.TABS.BUSINESS_HOURS'),
+        },
+        {
+          key: 'csat',
+          name: this.$t('INBOX_MGMT.TABS.CSAT'),
+        },
+      ];
 
       if (this.isAWebWidgetInbox) {
         visibleToAllChannelTabs = [
@@ -203,7 +215,6 @@ export default {
         this.isATwilioChannel ||
         this.isALineChannel ||
         this.isAPIInbox ||
-        this.isAVoiceChannel ||
         (this.isAnEmailChannel && !this.inbox.provider) ||
         this.shouldShowWhatsAppConfiguration ||
         this.isAWebWidgetInbox
@@ -234,6 +245,40 @@ export default {
           {
             key: 'whatsapp-health',
             name: this.$t('INBOX_MGMT.TABS.ACCOUNT_HEALTH'),
+          },
+        ];
+      }
+
+      if (
+        this.isATwilioChannel &&
+        this.inbox.phone_number &&
+        this.inbox.medium === 'sms' &&
+        this.isFeatureEnabledonAccount(
+          this.accountId,
+          FEATURE_FLAGS.CHANNEL_VOICE
+        )
+      ) {
+        visibleToAllChannelTabs = [
+          ...visibleToAllChannelTabs,
+          {
+            key: 'voice-configuration',
+            name: this.$t('INBOX_MGMT.TABS.VOICE'),
+          },
+        ];
+      }
+
+      if (
+        this.isAWhatsAppCloudChannel &&
+        this.isFeatureEnabledonAccount(
+          this.accountId,
+          FEATURE_FLAGS.CHANNEL_VOICE
+        )
+      ) {
+        visibleToAllChannelTabs = [
+          ...visibleToAllChannelTabs,
+          {
+            key: 'calls-configuration',
+            name: this.$t('INBOX_MGMT.TABS.CALLS'),
           },
         ];
       }
@@ -313,6 +358,12 @@ export default {
     instagramUnauthorized() {
       return this.isAnInstagramChannel && this.inbox.reauthorization_required;
     },
+    showInstagramRestrictionSettingsBanner() {
+      return this.isOnChatwootCloud && this.isAnInstagramChannel;
+    },
+    metaRestrictionStatusUrl() {
+      return META_RESTRICTION_STATUS_URL;
+    },
     tiktokUnauthorized() {
       return this.isATiktokChannel && this.inbox.reauthorization_required;
     },
@@ -366,6 +417,16 @@ export default {
         this.healthData.throughput?.level === 'NOT_APPLICABLE'
       );
     },
+    showWhatsAppManualMigration() {
+      return (
+        this.isAWhatsAppCloudChannel &&
+        this.isEmbeddedSignupWhatsApp &&
+        this.isFeatureEnabledonAccount(
+          this.accountId,
+          FEATURE_FLAGS.WHATSAPP_MANUAL_TRANSFER
+        )
+      );
+    },
     widgetBuilderStorageKey() {
       return `${LOCAL_STORAGE_KEYS.WIDGET_BUILDER}${this.inbox.id}`;
     },
@@ -377,6 +438,7 @@ export default {
         if (inboxChanged) {
           this.syncInboxData();
           this.setTabFromRouteParam();
+          this.openWhatsAppManualMigrationIfRequested();
         }
       }
     },
@@ -387,6 +449,7 @@ export default {
           this.fetchHealthData();
           this.$nextTick(() => {
             this.setTabFromRouteParam();
+            this.openWhatsAppManualMigrationIfRequested();
           });
         } else {
           this.selectedFeatureFlags = newInbox?.selected_feature_flags || [];
@@ -397,8 +460,52 @@ export default {
   },
   mounted() {
     this.fetchSharedData();
+    this.openWhatsAppManualMigrationIfRequested();
   },
   methods: {
+    openWhatsAppManualMigrationDialog() {
+      this.$refs.whatsappManualMigrationDialog?.open();
+    },
+    openWhatsAppManualMigrationIfRequested() {
+      if (
+        this.showWhatsAppManualMigration &&
+        this.$route.query.migration === 'whatsapp_manual'
+      ) {
+        this.$nextTick(() => {
+          this.openWhatsAppManualMigrationDialog();
+        });
+      }
+    },
+    async transferWhatsAppToManualSetup(form) {
+      this.isTransferringWhatsAppToManual = true;
+      try {
+        const providerConfig = { ...(this.inbox.provider_config || {}) };
+        delete providerConfig.source;
+        const payload = {
+          id: this.inbox.id,
+          formData: false,
+          channel: {
+            provider_config: {
+              ...providerConfig,
+              phone_number_id: form.phoneNumberId,
+              business_account_id: form.wabaId,
+              api_key: form.accessToken,
+            },
+          },
+        };
+        await this.$store.dispatch('inboxes/updateInbox', payload);
+        useAlert(
+          this.$t('INBOX_MGMT.SETTINGS_POPUP.WHATSAPP_MANUAL_TRANSFER_SUCCESS')
+        );
+        this.$refs.whatsappManualMigrationDialog?.close();
+      } catch (error) {
+        useAlert(
+          this.$t('INBOX_MGMT.SETTINGS_POPUP.WHATSAPP_MANUAL_TRANSFER_ERROR')
+        );
+      } finally {
+        this.isTransferringWhatsAppToManual = false;
+      }
+    },
     async copyWebhookSecret(value) {
       await copyTextToClipboard(value);
       useAlert(
@@ -712,6 +819,35 @@ export default {
           class="mx-6 mb-4"
           :class="bannerMaxWidth"
         />
+        <WhatsappManualMigrationBanner
+          v-if="showWhatsAppManualMigration"
+          class="mx-6 mb-6"
+          :class="bannerMaxWidth"
+          @start="openWhatsAppManualMigrationDialog"
+        />
+        <Banner
+          v-if="showInstagramRestrictionSettingsBanner"
+          color="amber"
+          class="mx-6 mb-4 max-w-4xl"
+        >
+          <div class="flex items-start gap-3 text-start">
+            <Icon
+              icon="i-lucide-triangle-alert"
+              class="flex-shrink-0 size-4 mt-0.5"
+            />
+            <span>
+              {{ $t('INBOX_MGMT.ADD.INSTAGRAM.SETTINGS_RESTRICTED_WARNING') }}
+              <a
+                :href="metaRestrictionStatusUrl"
+                class="link underline"
+                rel="noopener noreferrer nofollow"
+                target="_blank"
+              >
+                {{ $t('INBOX_MGMT.ADD.INSTAGRAM.STATUS_LINK') }}
+              </a>
+            </span>
+          </div>
+        </Banner>
 
         <div
           v-if="selectedTabKey === 'inbox-settings'"
@@ -822,7 +958,6 @@ export default {
             </SettingsFieldSection>
 
             <SettingsFieldSection
-              v-if="!isAVoiceChannel"
               :label="$t('INBOX_MGMT.HELP_CENTER.LABEL')"
               :help-text="$t('INBOX_MGMT.HELP_CENTER.SUB_TEXT')"
             >
@@ -1250,6 +1385,18 @@ export default {
         >
           <ConfigurationPage :inbox="inbox" />
         </div>
+        <div
+          v-if="selectedTabKey === 'voice-configuration'"
+          class="mx-6 max-w-4xl"
+        >
+          <VoiceConfigurationPage :inbox="inbox" />
+        </div>
+        <div
+          v-if="selectedTabKey === 'calls-configuration'"
+          class="mx-6 max-w-4xl"
+        >
+          <WhatsappCallingPage :inbox="inbox" />
+        </div>
         <div v-if="selectedTabKey === 'csat'">
           <CustomerSatisfactionPage :inbox="inbox" />
         </div>
@@ -1269,6 +1416,13 @@ export default {
             @register-webhook="registerWebhook"
           />
         </div>
+        <WhatsappManualMigrationDialog
+          v-if="showWhatsAppManualMigration"
+          ref="whatsappManualMigrationDialog"
+          :inbox="inbox"
+          :is-loading="isTransferringWhatsAppToManual"
+          @reconnect="transferWhatsAppToManualSetup"
+        />
       </div>
     </section>
   </div>

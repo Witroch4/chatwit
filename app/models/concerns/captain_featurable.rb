@@ -4,6 +4,7 @@ module CaptainFeaturable
   extend ActiveSupport::Concern
 
   included do
+    before_validation :normalize_captain_models
     validate :validate_captain_models
 
     # Dynamically define accessor methods for each captain feature
@@ -15,7 +16,7 @@ module CaptainFeaturable
 
       # Define model accessor methods (e.g., captain_editor_model)
       define_method("captain_#{feature_key}_model") do
-        captain_models_with_defaults[feature_key]
+        Llm::FeatureRouter.resolve(feature: feature_key, account: self)[:model]
       end
     end
   end
@@ -30,10 +31,8 @@ module CaptainFeaturable
   private
 
   def captain_models_with_defaults
-    stored_models = captain_models || {}
-    Llm::Models.feature_keys.each_with_object({}) do |feature_key, result|
-      stored_value = stored_models[feature_key]
-      result[feature_key] = model_with_default(feature_key, stored_value)
+    Llm::Models.feature_keys.index_with do |feature_key|
+      Llm::FeatureRouter.resolve(feature: feature_key, account: self)[:model]
     end
   end
 
@@ -42,13 +41,6 @@ module CaptainFeaturable
     Llm::Models.feature_keys.index_with do |feature_key|
       stored_features[feature_key] == true
     end
-  end
-
-  def model_with_default(feature_key, stored_value)
-    return stored_value.presence || Chatwit::LlmProxy.model if witdev_generative_feature?(feature_key)
-    return stored_value if stored_value.present? && Llm::Models.valid_model_for?(feature_key, stored_value)
-
-    Llm::Models.default_model_for(feature_key)
   end
 
   def witdev_generative_feature?(feature_key)
@@ -60,11 +52,29 @@ module CaptainFeaturable
 
     captain_models.each do |feature_key, model_name|
       next if model_name.blank?
+
+      unless Llm::Models.feature?(feature_key)
+        errors.add(:captain_models, "'#{feature_key}' is not a known feature")
+        next
+      end
+
       next if witdev_generative_feature?(feature_key)
       next if Llm::Models.valid_model_for?(feature_key, model_name)
 
       allowed_models = Llm::Models.models_for(feature_key)
       errors.add(:captain_models, "'#{model_name}' is not a valid model for #{feature_key}. Allowed: #{allowed_models.join(', ')}")
     end
+  end
+
+  def normalize_captain_models
+    return unless captain_models.is_a?(Hash)
+
+    normalized_models = captain_models.each_with_object({}) do |(feature_key, model_name), result|
+      next if model_name.blank?
+
+      result[feature_key.to_s] = model_name.to_s
+    end
+
+    self.captain_models = normalized_models.presence
   end
 end

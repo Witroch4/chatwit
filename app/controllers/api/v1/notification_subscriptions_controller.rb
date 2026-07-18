@@ -26,7 +26,9 @@ class Api::V1::NotificationSubscriptionsController < Api::BaseController
   def find_notification_subscription
     return @user.notification_subscriptions.find_by(["subscription_attributes->>'endpoint' = ?", params[:endpoint]]) if params[:endpoint].present?
 
-    return @user.notification_subscriptions.find_by(["subscription_attributes->>'push_token' = ?", params[:push_token]]) if params[:push_token].present?
+    if params[:push_token].present?
+      return @user.notification_subscriptions.find_by(["subscription_attributes->>'push_token' = ?", params[:push_token]])
+    end
 
     nil
   end

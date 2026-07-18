@@ -35,6 +35,7 @@ import FileBubble from './bubbles/File.vue';
 import AudioBubble from './bubbles/Audio.vue';
 import VideoBubble from './bubbles/Video.vue';
 import EmbedBubble from './bubbles/Embed.vue';
+import FallbackBubble from './bubbles/Fallback.vue';
 import InstagramStoryBubble from './bubbles/InstagramStory.vue';
 import EmailBubble from './bubbles/Email/Index.vue';
 import UnsupportedBubble from './bubbles/Unsupported.vue';
@@ -123,6 +124,7 @@ const props = defineProps({
     validator: value => Object.values(MESSAGE_STATUS).includes(value),
   },
   attachments: { type: Array, default: () => [] },
+  call: { type: Object, default: null }, // eslint-disable-line vue/no-unused-properties
   content: { type: String, default: null },
   contentAttributes: { type: Object, default: () => ({}) },
   contentType: {
@@ -162,6 +164,7 @@ const accountGetter = useMapGetter('accounts/getAccount');
 const currentAccountIdGetter = useMapGetter('getCurrentAccountId');
 const uiSettingsGetter = useMapGetter('getUISettings');
 const inbox = computed(() => inboxGetter.value(props.inboxId) || {});
+const isOnChatwootCloud = useMapGetter('globalConfig/isOnChatwootCloud');
 const { replaceInstallationName } = useBranding();
 const { getPlainText } = useMessageFormatter();
 const { width: viewportWidth } = useWindowSize();
@@ -188,6 +191,11 @@ function onDossierClick(event) {
     orderedIds,
   });
 }
+
+const isCaptainMessage = computed(() => {
+  const senderType = props.sender?.type ?? props.senderType;
+  return senderType === SENDER_TYPES.CAPTAIN_ASSISTANT;
+});
 
 /**
  * Computes the message variant based on props
@@ -396,6 +404,8 @@ const componentToRender = computed(() => {
   if (Array.isArray(props.attachments) && props.attachments.length === 1) {
     const fileType = props.attachments[0].fileType;
 
+    if (fileType === ATTACHMENT_TYPES.FALLBACK) return FallbackBubble;
+
     if (!props.content) {
       if (fileType === ATTACHMENT_TYPES.IMAGE) return ImageBubble;
       if (fileType === ATTACHMENT_TYPES.FILE) return FileBubble;
@@ -455,6 +465,10 @@ const contextMenuEnabledOptions = computed(() => {
       !props.private &&
       props.inboxSupportsReplyTo.outgoing &&
       !isFailedOrProcessing,
+    report:
+      isOnChatwootCloud.value &&
+      isCaptainMessage.value &&
+      !isMessageDeleted.value,
   };
 });
 

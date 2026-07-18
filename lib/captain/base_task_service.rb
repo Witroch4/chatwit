@@ -39,14 +39,13 @@ class Captain::BaseTaskService
     "#{endpoint}/v1"
   end
 
-  def make_api_call(model:, messages:, schema: nil, tools: [], feature: :editor)
-    model = resolve_request_model(model, feature)
-
+  def make_api_call(messages:, model: nil, feature: nil, schema: nil, tools: [])
     # Community edition prerequisite checks
     # Enterprise module handles these with more specific error messages (cloud vs self-hosted)
     return { error: I18n.t('captain.disabled'), error_code: 403 } unless captain_tasks_enabled?
     return { error: I18n.t('captain.api_key_missing'), error_code: 401 } unless api_key_configured?
 
+    model = resolved_model(model: model, feature: feature)
     instrumentation_params = build_instrumentation_params(model, messages)
     instrumentation_method = tools.any? ? :instrument_tool_session : :instrument_llm_call
 
@@ -61,10 +60,18 @@ class Captain::BaseTaskService
     { error: e.message, error_code: 422, request_messages: messages }
   end
 
-  def resolve_request_model(legacy_model, feature)
-    return legacy_model unless Chatwit::LlmProxy.route_witdev?
+  def resolved_model(model:, feature:)
+    if Chatwit::LlmProxy.route_witdev?
+      route_feature = feature.presence || 'editor'
+      return Llm::FeatureRouter.resolve(feature: route_feature, account: account)[:model]
+    end
 
-    Chatwit::CaptainModelResolver.new(account: account).resolve!(feature)
+    return model if feature.blank?
+
+    route = Llm::FeatureRouter.resolve(feature: feature, account: account)
+    return model if model.present? && route[:source] == :default
+
+    route[:model]
   end
 
   def execute_ruby_llm_request(model:, messages:, schema: nil, tools: [])
@@ -161,6 +168,15 @@ class Captain::BaseTaskService
     account.feature_enabled?('captain_tasks')
   end
 
+  # Extension point consulted by the Enterprise quota wrapper. Subclasses
+  # whose calls should not consume captain_responses should override this to
+  # return false. When false, the wrapper neither blocks the call on an
+  # exhausted captain_responses quota nor decrements it on success — the call
+  # participates in the quota system in neither direction.
+  def counts_toward_usage?
+    llm_credential&.dig(:source) != :hook
+  end
+
   def api_key_configured?
     llm_credential.present?
   end
@@ -172,14 +188,20 @@ class Captain::BaseTaskService
   def llm_credential
     @llm_credential ||= if Chatwit::LlmProxy.route_witdev?
                           witdev_llm_credential
-                        else
+                        elsif use_account_openai_hook?
                           hook_llm_credential || system_llm_credential
+                        else
+                          system_llm_credential
                         end
   end
 
   def witdev_llm_credential
     key = Chatwit::LlmProxy.api_key
     { api_key: key, source: :witdev } if key.present?
+  end
+
+  def use_account_openai_hook?
+    false
   end
 
   def hook_llm_credential

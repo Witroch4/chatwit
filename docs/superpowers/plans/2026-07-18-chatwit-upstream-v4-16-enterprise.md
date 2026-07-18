@@ -4,7 +4,7 @@
 
 **Goal:** Merge Chatwoot upstream 4.16 into Chatwit while preserving every fork-only feature and proving the Enterprise Captain stack before production rollout.
 
-**Architecture:** A real merge of `upstream/develop` preserves history and advances the merge-base. Upstream's new `Llm::FeatureRouter` remains authoritative for legacy Chatwoot routing, while the WitDev route delegates its four generative features to the central catalog through `Chatwit::CaptainModelResolver`. Conflict resolution is grouped by domain, but no merge commit is created until all groups are internally consistent.
+**Architecture:** A real merge of `upstream/develop` preserves history and advances the merge-base. Upstream's new `Llm::FeatureRouter` remains authoritative for legacy Chatwoot routing, while the WitDev route delegates all 10 generative features to the central catalog through `Chatwit::CaptainModelResolver`. Conflict resolution is grouped by domain, but no merge commit is created until all groups are internally consistent.
 
 **Tech Stack:** Git, Ruby 3.4.4, Rails 7.1, Enterprise overlay, RSpec, Vue 3, Vitest, ESLint, pnpm, PostgreSQL 17, Redis 8, Docker Swarm, Portainer.
 

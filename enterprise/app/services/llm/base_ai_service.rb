@@ -8,7 +8,11 @@ class Llm::BaseAiService
 
   attr_reader :model, :temperature
 
-  def initialize
+  def initialize(feature: nil, account: nil, fallback_model: nil)
+    @llm_feature = feature
+    @llm_account = account
+    @fallback_model = fallback_model
+
     Llm::Config.initialize!
     setup_model
     setup_temperature
@@ -29,13 +33,46 @@ class Llm::BaseAiService
   end
 
   def setup_model
-    if Chatwit::LlmProxy.route_witdev?
-      @model = Chatwit::LlmProxy.resolve_model!(Chatwit::LlmProxy.model)
-      return
-    end
+    @model = resolved_model
+  end
 
-    config_value = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value
-    @model = (config_value.presence || DEFAULT_MODEL)
+  def resolved_model
+    return Chatwit::LlmProxy.resolve_model!(Chatwit::LlmProxy.model) if witdev_global_route?
+
+    route = feature_route
+    return route[:model] if preferred_feature_route?(route)
+
+    @fallback_model.presence || installation_model.presence || route&.dig(:model) || DEFAULT_MODEL
+  end
+
+  def witdev_global_route?
+    Chatwit::LlmProxy.route_witdev? && @llm_feature.blank?
+  end
+
+  def preferred_feature_route?(route)
+    (Chatwit::LlmProxy.route_witdev? && witdev_generative_feature?) || account_override_route?(route) || captain_v2_assistant?
+  end
+
+  def feature_route
+    return if @llm_feature.blank?
+
+    Llm::FeatureRouter.resolve(feature: @llm_feature, account: @llm_account)
+  end
+
+  def account_override_route?(route)
+    route&.dig(:source) == :account_override
+  end
+
+  def captain_v2_assistant?
+    @llm_feature.to_s == 'assistant' && @llm_account&.feature_enabled?('captain_integration_v2')
+  end
+
+  def installation_model
+    InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value
+  end
+
+  def witdev_generative_feature?
+    Chatwit::CaptainModelResolver.generative_feature?(@llm_feature)
   end
 
   def setup_temperature

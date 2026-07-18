@@ -14,7 +14,7 @@ continua funcional antes de integrar em `develop` e publicar em produção.
 - Upstream: `a752e56765a46bb62571932fe6bebf0b71b31b61`, merge da release 4.16.0.
 - Divergência real: 405 commits upstream e 393 PRs upstream ausentes no fork.
 - Sobreposição: 157 arquivos modificados dos dois lados.
-- Previsão por `git merge-tree`: 76 conflitos, dos quais 30 são ícones binários de branding.
+- Previsão por `git merge-tree`: 76 conflitos, dos quais 28 são ícones binários de branding.
 - Baseline: 189 exemplos Ruby e 11 testes frontend relevantes passaram antes do merge.
 - Backup: `backup/pre-upstream-sync-20260718`.
 - Worktree: `.worktrees/upstream-v4.16.0-20260718`, branch
@@ -41,13 +41,16 @@ no caminho legado `CAPTAIN_LLM_ROUTE=chatwoot`.
 
 Na rota `CAPTAIN_LLM_ROUTE=witdev`, a precedência será:
 
-1. alias canônico salvo por conta para `editor`, `assistant`, `copilot` ou
-   `label_suggestion`;
+1. alias canônico salvo por conta para qualquer um dos 10 recursos generativos:
+   `editor`, `assistant`, `copilot`, `label_suggestion`, `document_faq_generation`,
+   `conversation_faq_generation`, `pdf_faq_generation`,
+   `help_center_article_generation`, `onboarding_content_generation` ou
+   `help_center_query_translation`;
 2. `CAPTAIN_WITDEV_MODEL`;
 3. falha fechada se o catálogo não tiver `source == "litellm_proxy"` ou o alias estiver
    ausente, inativo ou oculto.
 
-`Llm::FeatureRouter.resolve` será o ponto comum de chamada. Para os quatro recursos
+`Llm::FeatureRouter.resolve` será o ponto comum de chamada. Para os 10 recursos
 generativos na rota WitDev, ele delegará autorização a
 `Chatwit::CaptainModelResolver`; para `audio_transcription`, `help_center_search` e toda
 a rota legado, manterá a resolução upstream por `config/llm.yml`.

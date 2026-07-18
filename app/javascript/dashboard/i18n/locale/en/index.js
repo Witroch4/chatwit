@@ -40,6 +40,8 @@ import whatsappTemplates from './whatsappTemplates.json';
 import contentTemplates from './contentTemplates.json';
 import paymentLink from './paymentLink.json';
 import mfa from './mfa.json';
+import onboarding from './onboarding.json';
+import sessionLimit from './sessionLimit.json';
 import yearInReview from './yearInReview.json';
 import mobile from './mobile.json';
 
@@ -86,6 +88,8 @@ export default {
   ...contentTemplates,
   ...paymentLink,
   ...mfa,
+  ...onboarding,
+  ...sessionLimit,
   ...yearInReview,
   ...mobile,
 };

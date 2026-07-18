@@ -10,10 +10,10 @@ RSpec.describe Concerns::Agentable do
       attr_accessor :temperature
       attr_reader :account
 
-      def initialize(account:, name: 'Test Agent', temperature: 0.8)
-        @account = account
+      def initialize(name: 'Test Agent', temperature: 0.8, account: nil)
         @name = name
         @temperature = temperature
+        @account = account
       end
 
       def self.name
@@ -35,13 +35,11 @@ RSpec.describe Concerns::Agentable do
   let(:account) { create(:account) }
   let(:dummy_instance) { dummy_class.new(account: account) }
   let(:mock_agents_agent) { instance_double(Agents::Agent) }
-  let(:mock_installation_config) { instance_double(InstallationConfig, value: 'gpt-4-turbo') }
 
   before do
     allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
+    InstallationConfig.where(name: 'CAPTAIN_OPEN_AI_MODEL').destroy_all
     allow(Agents::Agent).to receive(:new).and_return(mock_agents_agent)
-    allow(InstallationConfig).to receive(:find_by).and_call_original
-    allow(InstallationConfig).to receive(:find_by).with(name: 'CAPTAIN_OPEN_AI_MODEL').and_return(mock_installation_config)
     allow(Captain::PromptRenderer).to receive(:render).and_return('rendered_template')
   end
 
@@ -51,7 +49,7 @@ RSpec.describe Concerns::Agentable do
         name: 'Test Agent',
         instructions: instance_of(Proc),
         tools: [],
-        model: 'gpt-4-turbo',
+        model: Llm::Models.default_model_for('assistant'),
         temperature: 0.8,
         response_schema: Captain::ResponseSchema
       )
@@ -59,11 +57,11 @@ RSpec.describe Concerns::Agentable do
       dummy_instance.agent
     end
 
-    it 'converts nil temperature to 0.0' do
+    it 'uses default temperature when temperature is nil' do
       dummy_instance.temperature = nil
 
       expect(Agents::Agent).to receive(:new).with(
-        hash_including(temperature: 0.0)
+        hash_including(temperature: 0.5)
       )
 
       dummy_instance.agent
@@ -165,27 +163,44 @@ RSpec.describe Concerns::Agentable do
   end
 
   describe '#agent_model' do
-    it 'returns value from InstallationConfig when present' do
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-4-turbo')
+    it 'returns the assistant feature default model' do
+      expect(dummy_instance.send(:agent_model)).to eq(Llm::Models.default_model_for('assistant'))
     end
 
-    it 'returns default model when config not found' do
-      allow(InstallationConfig).to receive(:find_by).and_return(nil)
+    it 'returns account override model when present' do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
+      account.update!(captain_models: { 'assistant' => 'gpt-5.2' })
 
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-4.1')
+      expect(dummy_instance.send(:agent_model)).to eq('gpt-5.2')
     end
 
-    it 'returns default model when config value is nil' do
-      allow(mock_installation_config).to receive(:value).and_return(nil)
+    it 'returns the installation model when account override is absent' do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
 
-      expect(dummy_instance.send(:agent_model)).to eq('gpt-4.1')
+      expect(dummy_instance.send(:agent_model)).to eq('gpt-4.1-nano')
+    end
+
+    it 'returns the Captain V2 default when Captain V2 is enabled' do
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'gpt-4.1-nano')
+      account.enable_features!('captain_integration_v2')
+
+      expect(dummy_instance.send(:agent_model)).to eq('gpt-5.2')
+      expect(account.reload.captain_models).to be_nil
+    end
+
+    it 'returns the assistant feature default model when account is nil' do
+      agent = dummy_class.new(account: nil)
+
+      expect(agent.send(:agent_model)).to eq(Llm::Models.default_model_for('assistant'))
     end
 
     it 'resolves the assistant feature for the account on the WitDev route' do
       resolver = instance_double(Chatwit::CaptainModelResolver)
       allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+      allow(Chatwit::LlmProxy).to receive(:operational_models)
+        .and_return([{ 'value' => 'witdev_claude/sonnet', 'provider' => 'anthropic' }])
       expect(Chatwit::CaptainModelResolver).to receive(:new).with(account: account).and_return(resolver)
-      expect(resolver).to receive(:resolve!).with(:assistant).and_return('witdev_claude/sonnet')
+      expect(resolver).to receive(:resolve!).with('assistant').and_return('witdev_claude/sonnet')
 
       expect(dummy_instance.send(:agent_model)).to eq('witdev_claude/sonnet')
     end

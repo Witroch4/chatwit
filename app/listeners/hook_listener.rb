@@ -43,7 +43,7 @@ class HookListener < BaseListener
   private
 
   def execute_hooks(event, message)
-    Rails.logger.info "[HOOK_LISTENER] === execute_hooks called ==="
+    Rails.logger.info '[HOOK_LISTENER] === execute_hooks called ==='
     Rails.logger.info "[HOOK_LISTENER] Event: #{event.name}"
     Rails.logger.info "[HOOK_LISTENER] Message ID: #{message.id}"
     Rails.logger.info "[HOOK_LISTENER] Message inbox ID: #{message.inbox&.id}"
@@ -53,7 +53,10 @@ class HookListener < BaseListener
     Rails.logger.info "[HOOK_LISTENER] Total hooks in account: #{hooks_count}"
 
     message.account.hooks.find_each do |hook|
-      Rails.logger.info "[HOOK_LISTENER] Checking hook ID: #{hook.id}, app_id: #{hook.app_id}, inbox_id: #{hook.inbox_id}, disabled: #{hook.disabled?}"
+      Rails.logger.info(
+        "[HOOK_LISTENER] Checking hook ID: #{hook.id}, app_id: #{hook.app_id}, " \
+        "inbox_id: #{hook.inbox_id}, disabled: #{hook.disabled?}"
+      )
 
       # In case of dialogflow, we would have a hook for each inbox.
       # Which means we will execute the same hook multiple times if the below filter isn't there
@@ -68,9 +71,9 @@ class HookListener < BaseListener
       end
 
       Rails.logger.info "[HOOK_LISTENER] DISPATCHING: HookJob for hook #{hook.id} (#{hook.app_id})"
-      HookJob.perform_later(hook, event.name, message: message)
+      HookJob.perform_later(hook, event.name, message: message, previous_changes: event.data[:previous_changes])
     end
-    Rails.logger.info "[HOOK_LISTENER] === execute_hooks completed ==="
+    Rails.logger.info '[HOOK_LISTENER] === execute_hooks completed ==='
   end
 
   def execute_account_hooks(event, account, event_data = {})
@@ -85,12 +88,13 @@ class HookListener < BaseListener
     return false if hook.disabled?
 
     supported_events_map = {
-      'slack' => ['message.created'],
+      'slack' => ['message.created', 'message.updated'],
       'dialogflow' => ['message.created', 'message.updated'],
       'google_translate' => ['message.created'],
       'leadsquared' => ['contact.updated', 'conversation.created', 'conversation.resolved'],
       'socialwise_flow' => ['message.created', 'message.updated'],
-      'jusmonitoria' => %w[contact.created contact.updated message.created conversation.updated conversation.resolved]
+      'jusmonitoria' => %w[contact.created contact.updated message.created conversation.updated conversation.resolved],
+      'linear' => ['message.created']
     }
 
     return false unless supported_events_map.key?(hook.app_id)

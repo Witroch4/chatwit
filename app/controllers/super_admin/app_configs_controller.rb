@@ -47,7 +47,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     if errors.any?
       redirect_to super_admin_app_config_path(config: @config), alert: errors.join(', ')
     else
-      redirect_to super_admin_settings_path, notice: "App Configs - #{@config.titleize} updated successfully"
+      redirect_to super_admin_settings_path, flash: success_flash
     end
   end
 
@@ -128,6 +128,21 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     missing = Chatwit::LlmProxy.missing_requirements.join(', ')
     @chatwit_witdev_warning = 'LLM Route is set to WitDev LLM Proxy but the route is UNAVAILABLE and Captain will fail closed. ' \
                               "Missing: #{missing}. Fill the field(s) below and restart the app."
+  end
+
+  def success_notice
+    message = "#{@config.titleize} settings updated successfully"
+    return message unless restart_required_config_saved?
+
+    "#{message.delete_suffix('.')}. Restart Chatwoot web and worker processes to apply this change everywhere."
+  end
+
+  def success_flash
+    restart_required_config_saved? ? { success: success_notice } : { notice: success_notice }
+  end
+
+  def restart_required_config_saved?
+    params.fetch('app_config', {}).keys.intersect?(InstallationConfig::RESTART_REQUIRED_CONFIG_KEYS)
   end
 end
 

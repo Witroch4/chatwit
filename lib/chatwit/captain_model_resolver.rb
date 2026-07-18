@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
 class Chatwit::CaptainModelResolver
-  GENERATIVE_FEATURES = %w[editor assistant copilot label_suggestion].freeze
+  LEGACY_FEATURES = %w[audio_transcription help_center_search].freeze
 
   def initialize(account:)
     @account = account
   end
 
   def self.generative_feature?(feature)
-    GENERATIVE_FEATURES.include?(feature.to_s)
+    feature_name = feature.to_s
+    Llm::Models.feature?(feature_name) && LEGACY_FEATURES.exclude?(feature_name)
   end
 
   def selected_alias(feature)
@@ -35,7 +36,7 @@ class Chatwit::CaptainModelResolver
       default: Chatwit::LlmProxy.model,
       selected: selected,
       selection_valid: Chatwit::LlmProxy.operational_models.any? { |entry| entry['value'] == selected },
-      enabled: account.captain_preferences[:features][feature_name] == true
+      enabled: stored_features[feature_name] == true
     }
   end
 
@@ -59,15 +60,18 @@ class Chatwit::CaptainModelResolver
   attr_reader :account
 
   def stored_models
-    account.captain_models || {}
+    account&.captain_models || {}
+  end
+
+  def stored_features
+    account&.captain_features || {}
   end
 
   def legacy_feature_config(feature)
     config = Llm::Models.feature_config(feature)
-    preferences = account.captain_preferences
     config.merge(
-      enabled: preferences[:features][feature] == true,
-      selected: preferences[:models][feature],
+      enabled: stored_features[feature] == true,
+      selected: stored_models[feature].presence || config[:default],
       selection_valid: true
     )
   end

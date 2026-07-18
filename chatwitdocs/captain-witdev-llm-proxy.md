@@ -42,8 +42,8 @@ não reautorizam aliases removidos.
 
 ## Seleção global e por conta
 
-`CAPTAIN_WITDEV_MODEL` é o default global da rota WitDev. Para os quatro recursos
-generativos do Captain, a precedência é:
+`CAPTAIN_WITDEV_MODEL` é o default global da rota WitDev. Para os 10 recursos
+generativos do Captain e do Help Center, a precedência é:
 
 1. alias salvo na preferência da conta para o recurso;
 2. `CAPTAIN_WITDEV_MODEL`;
@@ -57,6 +57,12 @@ Os recursos e seus usos em runtime são:
 | `assistant` | Agents SDK e avaliação de conclusão de conversa |
 | `copilot` | sugestões de resposta |
 | `label_suggestion` | sugestões de etiquetas |
+| `document_faq_generation` | geração de FAQs a partir de documentos |
+| `conversation_faq_generation` | geração de FAQs a partir de conversas |
+| `pdf_faq_generation` | geração de FAQs a partir de PDFs |
+| `help_center_article_generation` | geração de artigos da Central de Ajuda |
+| `onboarding_content_generation` | geração de conteúdo de onboarding |
+| `help_center_query_translation` | tradução de consultas da Central de Ajuda |
 
 O modelo da revisão de pagamento fase 2 é separado: usa o alias do inbox
 (`phase2_model`) quando preenchido e, caso contrário, o default global. O modelo

@@ -16,6 +16,7 @@ RSpec.describe Captain::ReplySuggestionService do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
     allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     create(:message, conversation: conversation, message_type: :incoming, content: 'I need help')
+    allow(account).to receive(:feature_enabled?).and_call_original
     allow(account).to receive(:feature_enabled?).with('captain_tasks').and_return(true)
 
     allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
@@ -30,14 +31,10 @@ RSpec.describe Captain::ReplySuggestionService do
   end
 
   describe '#perform' do
-    it 'maps reply suggestions to the copilot model feature' do
-      resolver = instance_double(Chatwit::CaptainModelResolver)
-      allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
-      allow(Chatwit::LlmProxy).to receive_messages(api_key: 'proxy-key', api_base: 'http://platform-litellm:4000/v1')
-      allow(Chatwit::CaptainModelResolver).to receive(:new).with(account: account).and_return(resolver)
-      expect(resolver).to receive(:resolve!).with(:copilot).and_return('witdev/gpt-5.5')
+    it 'routes through the editor feature' do
+      expect(Llm::FeatureRouter).to receive(:resolve).with(feature: 'editor', account: account).and_call_original
 
-      expect(service.perform[:message]).to eq('Sure, I can help!')
+      service.perform
     end
 
     it 'returns the suggested reply' do

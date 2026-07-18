@@ -26,7 +26,11 @@ icones reutilizaveis apps/socialwise-frontend/components/icons/index.tsx
 
 > **Universal Agent Instructions** — Compatible with Claude Code, Cursor, Copilot, Codex, Gemini CLI, and other AI coding agents.
 
-## LLM: listagem de modelos (contrato canônico — LEITURA OBRIGATÓRIA)
+## LLM — fonte única e consulta obrigatória
+
+Antes de criar, alterar, depurar ou operar qualquer fluxo de LLM, leia
+`/home/wital/witdev-platform-core/docs/LLM-CANONICAL-FLOW-ALL-APPS.md`.
+Este é o único documento normativo para catálogo, seleção e roteamento de modelos nesta máquina.
 
 Regra inegociável (espelha o CLAUDE.md da witdev-platform-core): **`platform-litellm` é a
 autoridade máxima de modelos e roteamento; `platform-api /api/v1/llm/models` é o ÚNICO
@@ -42,7 +46,7 @@ modelos e NÃO chama o LiteLLM `/model/info` ou `/v1/models` diretamente para li
 - Execução (completions) vai ao proxy LiteLLM OpenAI-compatible
   (`CAPTAIN_WITDEV_PROXY_URL`, default `http://platform-litellm:4000` + `/v1`) com
   `CAPTAIN_WITDEV_PROXY_API_KEY`; rota ativada por `CAPTAIN_LLM_ROUTE=witdev`.
-- Detalhe operacional: `witdev-platform-core/docs/agent-memory/llm-model-catalog-contract.md`.
+- Fonte de verdade: `/home/wital/witdev-platform-core/docs/LLM-CANONICAL-FLOW-ALL-APPS.md`.
 
 
 ## Regras Arquiteturais Criticas (LEITURA OBRIGATORIA)
@@ -208,7 +212,17 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
 
 - MVP focus: Least code change, happy-path only
 - Ship the happy path first; iterate after confirmation
-- Prefer minimal, readable code; clarity beats cleverness
+- Prefer the smallest production-ready change that solves the current problem.
+- Build for the expected production path first. Do not add speculative guards, fallbacks, retries, or edge-case handling unless the caller can actually hit that case or production has proven it necessary.
+- When an impossible or misconfigured state would indicate a setup/deployment bug, let it fail loudly instead of silently skipping behavior.
+- For locked/internal configs that must exist in production, prefer direct reads (`find`, `find_by!`, required hash keys) over silent fallbacks.
+- Do not add validation or response checks unless the code uses the result or the check changes behavior meaningfully.
+- Prefer existing repo dependencies/client libraries over hand-rolled protocol code for auth, signing, parsing, or API plumbing.
+- Avoid one-use private helpers unless they hide real complexity or make the main flow meaningfully easier to read.
+- Prefer minimal, readable code over elaborate abstractions; clarity beats cleverness
+- Break down complex tasks into small, testable units
+- Iterate after confirmation
+- In specs, avoid custom helper methods for setup/data. Prefer `let` values and direct per-example setup; only add a helper when it removes meaningful repeated complexity.
 - Remove dead/unreachable/unused code
 - Don't write multiple versions — pick the best approach
 - Avoid writing specs unless explicitly asked
@@ -224,9 +238,10 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
 
 ## Fluxo canônico de entrega (OBRIGATÓRIO)
 
-- Ao concluir qualquer tarefa no Chatwit, não oferecer opções de integração: sempre criar commit convencional, mesclar localmente na branch `develop` e executar `git push origin develop`.
+- **SEMPRE mesclar localmente de volta em `develop`, criar COMMIT convencional e executar PUSH com `git push origin develop`.**
+- Ao concluir qualquer tarefa no Chatwit, não oferecer opções de integração nem deixar a entrega apenas em branch/worktree.
 - Preservar integralmente as mudanças locais existentes durante a mesclagem; nunca descartar trabalho do usuário.
-- Depois do push, a única pergunta de handoff permitida é se deve executar o build/deploy em produção com `./build.sh`.
+- Depois do push, perguntar APENAS se deve fazer deploy com build em produção via `./build.sh`.
 - Nunca executar `./build.sh` sem autorização explícita do usuário. Quando autorizado, acompanhar build, push das imagens e rollout dos serviços até o resultado final.
 
 ## Commit Messages
@@ -248,8 +263,12 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
 
 ## Project-Specific
 
-- Use `components-next/` for message bubbles (the rest is being deprecated)
-- Only update `en.yml` and `en.json` (other languages handled by community)
+- **Translations**:
+  - For product and source-string changes, only update `en.yml` and `en.json`; other languages are handled through Crowdin and the community
+  - Crowdin-generated translation sync PRs may update non-English locale files; do not flag those changes solely for modifying translated locale files
+  - Backend i18n → `en.yml`, Frontend i18n → `en.json`
+- **Frontend**:
+  - Use `components-next/` for message bubbles (the rest is being deprecated)
 
 ## Ruby Best Practices
 
@@ -282,6 +301,13 @@ Practical checklist for any change impacting core logic or public APIs
 ---
 
 ## Historico de Migração
+
+### 2026-07-18 - Upstream sync v4.16.0 (405 commits)
+- Sync type: Normal merge
+- Upstream commit: `a752e56765a46bb62571932fe6bebf0b71b31b61`
+- Conflicts: 76 resolved, including 28 binary branding assets preserved from Chatwit
+- Critical: all 10 generative features from `config/llm.yml` use the canonical WitDev catalog and proxy when `CAPTAIN_LLM_ROUTE=witdev`; `audio_transcription` and `help_center_search` remain on the legacy Chatwoot route. SocialWise, JusMonitorIA, Payment Phase 2, Evolution Go, rich messages, mobile PWA and Web Push were preserved.
+- Documentation: `chatwitdocs/upstream-sync-v4.16.0.md`
 
 ### 2026-04-20 - Upstream sync v4.13.0 (160 commits)
 - Sync type: Normal merge
