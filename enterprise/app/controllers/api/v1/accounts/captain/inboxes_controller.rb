@@ -8,9 +8,12 @@ class Api::V1::Accounts::Captain::InboxesController < Api::V1::Accounts::BaseCon
   end
 
   def create
+    validate_phase2_model!
     inbox = Current.account.inboxes.find(assistant_params[:inbox_id])
     @captain_inbox = @assistant.captain_inboxes.build(captain_inbox_attributes(inbox))
     @captain_inbox.save!
+  rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def destroy
@@ -44,5 +47,12 @@ class Api::V1::Accounts::Captain::InboxesController < Api::V1::Accounts::BaseCon
 
   def assistant_params
     params.require(:inbox).permit(:inbox_id, :mode, :phase2_model, :phase2_prompt, :phase2_pix_key, phase2_payment_preset_ids: [])
+  end
+
+  def validate_phase2_model!
+    phase2_model = assistant_params[:phase2_model]
+    return unless Chatwit::LlmProxy.route_witdev? && phase2_model.present?
+
+    Chatwit::LlmProxy.resolve_model!(phase2_model)
   end
 end

@@ -7,7 +7,8 @@ class Captain::ReplySuggestionService < Captain::BaseTaskService
       messages: [
         { role: 'system', content: system_prompt },
         { role: 'user', content: formatted_conversation }
-      ]
+      ],
+      feature: :copilot
     )
   end
 

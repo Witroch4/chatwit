@@ -8,8 +8,10 @@ RSpec.describe Concerns::Agentable do
       include Concerns::Agentable
 
       attr_accessor :temperature
+      attr_reader :account
 
-      def initialize(name: 'Test Agent', temperature: 0.8)
+      def initialize(account:, name: 'Test Agent', temperature: 0.8)
+        @account = account
         @name = name
         @temperature = temperature
       end
@@ -30,12 +32,15 @@ RSpec.describe Concerns::Agentable do
     end
   end
 
-  let(:dummy_instance) { dummy_class.new }
+  let(:account) { create(:account) }
+  let(:dummy_instance) { dummy_class.new(account: account) }
   let(:mock_agents_agent) { instance_double(Agents::Agent) }
   let(:mock_installation_config) { instance_double(InstallationConfig, value: 'gpt-4-turbo') }
 
   before do
+    allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     allow(Agents::Agent).to receive(:new).and_return(mock_agents_agent)
+    allow(InstallationConfig).to receive(:find_by).and_call_original
     allow(InstallationConfig).to receive(:find_by).with(name: 'CAPTAIN_OPEN_AI_MODEL').and_return(mock_installation_config)
     allow(Captain::PromptRenderer).to receive(:render).and_return('rendered_template')
   end
@@ -174,6 +179,15 @@ RSpec.describe Concerns::Agentable do
       allow(mock_installation_config).to receive(:value).and_return(nil)
 
       expect(dummy_instance.send(:agent_model)).to eq('gpt-4.1')
+    end
+
+    it 'resolves the assistant feature for the account on the WitDev route' do
+      resolver = instance_double(Chatwit::CaptainModelResolver)
+      allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+      expect(Chatwit::CaptainModelResolver).to receive(:new).with(account: account).and_return(resolver)
+      expect(resolver).to receive(:resolve!).with(:assistant).and_return('witdev_claude/sonnet')
+
+      expect(dummy_instance.send(:agent_model)).to eq('witdev_claude/sonnet')
     end
   end
 

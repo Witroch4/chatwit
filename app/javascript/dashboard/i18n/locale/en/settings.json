@@ -394,6 +394,8 @@
       "TITLE": "Model Configuration",
       "DESCRIPTION": "Select AI models for different features.",
       "SELECT_MODEL": "Select model",
+      "CATALOG_UNAVAILABLE": "Canonical model catalog unavailable",
+      "MODEL_UNAVAILABLE": "Model unavailable — select another",
       "CREDITS_PER_MESSAGE": "{credits} credit/message",
       "COMING_SOON": "Coming soon",
       "EDITOR": {

@@ -222,6 +222,13 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
 - The setup workflow in `.codex/environments/environment.toml` should dynamically generate per-worktree DB/port values (Rails, Vite, Redis DB index) to avoid collisions.
 - Start each worktree with its own Overmind socket/title so multiple instances can run at the same time.
 
+## Fluxo canônico de entrega (OBRIGATÓRIO)
+
+- Ao concluir qualquer tarefa no Chatwit, não oferecer opções de integração: sempre criar commit convencional, mesclar localmente na branch `develop` e executar `git push origin develop`.
+- Preservar integralmente as mudanças locais existentes durante a mesclagem; nunca descartar trabalho do usuário.
+- Depois do push, a única pergunta de handoff permitida é se deve executar o build/deploy em produção com `./build.sh`.
+- Nunca executar `./build.sh` sem autorização explícita do usuário. Quando autorizado, acompanhar build, push das imagens e rollout dos serviços até o resultado final.
+
 ## Commit Messages
 
 - Conventional Commits: `type(scope): subject`

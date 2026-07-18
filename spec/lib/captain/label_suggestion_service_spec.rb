@@ -13,6 +13,7 @@ RSpec.describe Captain::LabelSuggestionService do
 
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     label1
     label2
     allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
@@ -38,6 +39,16 @@ RSpec.describe Captain::LabelSuggestionService do
         result = service.perform
 
         expect(result[:message]).to eq('bug, feature-request')
+      end
+
+      it 'maps label suggestions to the label_suggestion model feature' do
+        expect(service).to receive(:make_api_call).with(
+          model: Captain::BaseTaskService::GPT_MODEL,
+          messages: kind_of(Array),
+          feature: :label_suggestion
+        ).and_return(message: 'bug')
+
+        service.perform
       end
 
       it 'removes "Labels:" prefix from response' do

@@ -34,7 +34,7 @@ module Llm::Config
     def configure_ruby_llm
       RubyLLM.configure do |config|
         configure_openai(config)
-        config.gemini_api_key = gemini_api_key if gemini_api_key.present?
+        config.gemini_api_key = gemini_api_key if !Chatwit::LlmProxy.route_witdev? && gemini_api_key.present?
         config.model_registry_file = Rails.root.join('config/llm_models.json').to_s
         config.logger = Rails.logger
       end
@@ -43,7 +43,7 @@ module Llm::Config
     # Chatwit: WitDev route points the OpenAI-compatible provider at the
     # platform LiteLLM proxy; the legacy route keeps stock Chatwoot behavior.
     def configure_openai(config)
-      if Chatwit::LlmProxy.enabled?
+      if Chatwit::LlmProxy.route_witdev?
         config.openai_api_key = Chatwit::LlmProxy.api_key
         config.openai_api_base = Chatwit::LlmProxy.api_base
       else

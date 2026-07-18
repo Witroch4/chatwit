@@ -8,15 +8,15 @@ RSpec.describe Captain::ReplySuggestionService do
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:captured_messages) { [] }
+  let(:mock_response) { instance_double(RubyLLM::Message, content: 'Sure, I can help!', input_tokens: 50, output_tokens: 20) }
+  let(:mock_chat) { instance_double(RubyLLM::Chat) }
+  let(:mock_context) { instance_double(RubyLLM::Context, chat: mock_chat) }
 
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     create(:message, conversation: conversation, message_type: :incoming, content: 'I need help')
     allow(account).to receive(:feature_enabled?).with('captain_tasks').and_return(true)
-
-    mock_response = instance_double(RubyLLM::Message, content: 'Sure, I can help!', input_tokens: 50, output_tokens: 20)
-    mock_chat = instance_double(RubyLLM::Chat)
-    mock_context = instance_double(RubyLLM::Context, chat: mock_chat)
 
     allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
     allow(mock_chat).to receive(:with_tool).and_return(mock_chat)
@@ -30,6 +30,16 @@ RSpec.describe Captain::ReplySuggestionService do
   end
 
   describe '#perform' do
+    it 'maps reply suggestions to the copilot model feature' do
+      resolver = instance_double(Chatwit::CaptainModelResolver)
+      allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+      allow(Chatwit::LlmProxy).to receive_messages(api_key: 'proxy-key', api_base: 'http://platform-litellm:4000/v1')
+      allow(Chatwit::CaptainModelResolver).to receive(:new).with(account: account).and_return(resolver)
+      expect(resolver).to receive(:resolve!).with(:copilot).and_return('witdev/gpt-5.5')
+
+      expect(service.perform[:message]).to eq('Sure, I can help!')
+    end
+
     it 'returns the suggested reply' do
       result = service.perform
 

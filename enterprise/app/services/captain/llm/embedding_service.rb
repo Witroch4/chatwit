@@ -29,7 +29,7 @@ class Captain::Llm::EmbeddingService
   # Chatwit: the WitDev route repoints the global OpenAI config at the LiteLLM
   # proxy, which only covers chat — embeddings stay pinned to the legacy keys.
   def embed_vectors(content, model)
-    return RubyLLM.embed(content, model: model).vectors unless Chatwit::LlmProxy.enabled?
+    return RubyLLM.embed(content, model: model).vectors unless Chatwit::LlmProxy.route_witdev?
 
     api_key = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value
     api_base = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence&.chomp('/')

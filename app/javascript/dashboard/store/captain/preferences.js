@@ -6,6 +6,7 @@ export const useCaptainConfigStore = defineStore('captainConfig', {
     providers: {},
     models: {},
     features: {},
+    catalog: { route: 'chatwoot', source: 'legacy', operational: true },
     uiFlags: {
       isFetching: false,
     },
@@ -44,6 +45,10 @@ export const useCaptainConfigStore = defineStore('captainConfig', {
       const feature = state.features[featureKey];
       return feature?.selected || feature?.default || null;
     },
+    isCatalogOperational: state =>
+      state.catalog.route !== 'witdev' || state.catalog.operational === true,
+    isSelectionValidForFeature: state => featureKey =>
+      state.features[featureKey]?.selection_valid !== false,
   },
 
   actions: {
@@ -54,6 +59,11 @@ export const useCaptainConfigStore = defineStore('captainConfig', {
         this.providers = response.data.providers || {};
         this.models = response.data.models || {};
         this.features = response.data.features || {};
+        this.catalog = response.data.catalog || {
+          route: 'chatwoot',
+          source: 'legacy',
+          operational: true,
+        };
       } catch (error) {
         // Ignore error
       } finally {
@@ -66,6 +76,11 @@ export const useCaptainConfigStore = defineStore('captainConfig', {
       this.providers = response.data.providers || {};
       this.models = response.data.models || {};
       this.features = response.data.features || {};
+      this.catalog = response.data.catalog || {
+        route: 'chatwoot',
+        source: 'legacy',
+        operational: true,
+      };
     },
   },
 });

@@ -32,6 +32,8 @@ RSpec.describe Captain::PaymentReview::DecisionService do
   let(:captured_prompts) { [] }
 
   before do
+    allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+    allow(Chatwit::LlmProxy).to receive(:resolve_model!) { |alias_name| alias_name }
     allow(service).to receive(:complete) do |messages:, model:|
       captured_prompts << { messages: messages, model: model }
       llm_output
@@ -39,17 +41,60 @@ RSpec.describe Captain::PaymentReview::DecisionService do
   end
 
   describe 'model resolution' do
-    it 'uses the captain inbox phase2_model' do
+    it 'resolves the captain inbox phase2_model through the canonical catalog' do
+      expect(Chatwit::LlmProxy).to receive(:resolve_model!).with('witdev_claude/sonnet').and_return('witdev_claude/sonnet')
+
       service.call
       expect(captured_prompts.first[:model]).to eq('witdev_claude/sonnet')
     end
 
-    it 'falls back to the installation chain when phase2_model is blank' do
+    it 'resolves the configured global WitDev alias when phase2_model is blank' do
       captain_inbox.update!(phase2_model: nil)
-      allow(Chatwit::LlmProxy).to receive(:enabled?).and_return(true)
       allow(Chatwit::LlmProxy).to receive(:model).and_return('proxy-default')
+      expect(Chatwit::LlmProxy).to receive(:resolve_model!).with('proxy-default').and_return('proxy-default')
+
       service.call
       expect(captured_prompts.first[:model]).to eq('proxy-default')
+    end
+
+    it 'converts catalog errors to DecisionFailed before completing' do
+      allow(Chatwit::LlmProxy).to receive(:resolve_model!)
+        .and_raise(Chatwit::LlmProxy::CatalogUnavailableError, 'catalog unavailable')
+      expect(service).not_to receive(:complete)
+
+      expect { service.call }.to raise_error(described_class::DecisionFailed, 'catalog unavailable')
+    end
+
+    it 'uses the legacy phase-2 model before the global model on the Chatwoot route' do
+      allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'legacy-openai-model')
+      expect(Chatwit::LlmProxy).not_to receive(:resolve_model!)
+
+      service.call
+
+      expect(captured_prompts.first[:model]).to eq('witdev_claude/sonnet')
+    end
+
+    it 'uses the legacy global model when the Chatwoot phase-2 model is blank' do
+      allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
+      captain_inbox.update!(phase2_model: nil)
+      create(:installation_config, name: 'CAPTAIN_OPEN_AI_MODEL', value: 'legacy-openai-model')
+      expect(Chatwit::LlmProxy).not_to receive(:resolve_model!)
+
+      service.call
+
+      expect(captured_prompts.first[:model]).to eq('legacy-openai-model')
+    end
+  end
+
+  describe 'LLM route credentials' do
+    it 'uses the WitDev API base and key whenever the WitDev route is selected' do
+      allow(Chatwit::LlmProxy).to receive(:enabled?).and_return(false)
+      allow(Chatwit::LlmProxy).to receive(:api_base).and_return('http://platform-litellm:4000/v1')
+      allow(Chatwit::LlmProxy).to receive(:api_key).and_return('witdev-key')
+
+      expect(service.send(:llm_api_base)).to eq('http://platform-litellm:4000/v1')
+      expect(service.send(:llm_api_key)).to eq('witdev-key')
     end
   end
 

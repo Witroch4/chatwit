@@ -43,7 +43,7 @@ module Concerns::Agentable
   end
 
   def agent_model
-    return Chatwit::LlmProxy.model if Chatwit::LlmProxy.enabled?
+    return Chatwit::CaptainModelResolver.new(account: account).resolve!(:assistant) if Chatwit::LlmProxy.route_witdev?
 
     InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value.presence || LlmConstants::DEFAULT_MODEL
   end

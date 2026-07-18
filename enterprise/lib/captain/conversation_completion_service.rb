@@ -21,7 +21,8 @@ class Captain::ConversationCompletionService < Captain::BaseTaskService
         { role: 'system', content: prompt_from_file('conversation_completion') },
         { role: 'user', content: content }
       ],
-      schema: RESPONSE_SCHEMA
+      schema: RESPONSE_SCHEMA,
+      feature: :assistant
     )
 
     return default_incomplete_response(response[:error]) if response[:error].present?
@@ -56,9 +57,11 @@ class Captain::ConversationCompletionService < Captain::BaseTaskService
     { complete: false, reason: reason }
   end
 
-  # This is an internal operational evaluation, not a customer-triggered feature,
-  # so it should always use the installation key.
+  # On the legacy route this internal evaluation always uses the installation
+  # key rather than an account hook. The WitDev route remains proxy-only.
   def llm_credential
+    return super if Chatwit::LlmProxy.route_witdev?
+
     @llm_credential ||= system_llm_credential
   end
 

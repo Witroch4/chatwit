@@ -106,6 +106,60 @@ RSpec.describe 'Api::V1::Accounts::Captain::Inboxes', type: :request do
         expect(json_response[:default_prompt]).to eq(Captain::PaymentReview::DEFAULT_PROMPT)
       end
 
+      it 'accepts a canonical phase2 alias on the WitDev route' do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        expect(Chatwit::LlmProxy).to receive(:resolve_model!).with('witdev_claude/sonnet').and_return('witdev_claude/sonnet')
+
+        post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+             params: { inbox: { inbox_id: inbox2.id, mode: 'phase2_only', phase2_model: 'witdev_claude/sonnet' } },
+             headers: admin.create_new_auth_token
+
+        expect(response).to have_http_status(:success)
+        expect(CaptainInbox.find_by!(inbox: inbox2).phase2_model).to eq('witdev_claude/sonnet')
+      end
+
+      it 'rejects an unauthorized phase2 alias before creating a captain inbox' do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:resolve_model!).with('witdev/unauthorized')
+                                                            .and_raise(Chatwit::LlmProxy::ModelUnavailableError, 'alias unavailable')
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+               params: { inbox: { inbox_id: inbox2.id, phase2_model: 'witdev/unauthorized' } },
+               headers: admin.create_new_auth_token
+        end.not_to change(CaptainInbox, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(json_response[:error]).to eq('alias unavailable')
+      end
+
+      it 'rejects phase2 persistence when the canonical catalog is unavailable' do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(true)
+        allow(Chatwit::LlmProxy).to receive(:resolve_model!)
+          .and_raise(Chatwit::LlmProxy::CatalogUnavailableError, 'catalog unavailable')
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+               params: { inbox: { inbox_id: inbox2.id, phase2_model: 'witdev/canonical' } },
+               headers: admin.create_new_auth_token
+        end.not_to change(CaptainInbox, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(json_response[:error]).to eq('catalog unavailable')
+      end
+
+      it 'does not consult the canonical catalog for phase2 on the legacy route' do
+        allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
+        expect(Chatwit::LlmProxy).not_to receive(:resolve_model!)
+
+        post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",
+             params: { inbox: { inbox_id: inbox2.id, mode: 'phase2_only', phase2_model: 'legacy-model' } },
+             headers: admin.create_new_auth_token
+
+        expect(response).to have_http_status(:success)
+        expect(CaptainInbox.find_by!(inbox: inbox2).phase2_model).to eq('legacy-model')
+      end
+
       context 'when inbox does not exist' do
         it 'returns not found status' do
           post "/api/v1/accounts/#{account.id}/captain/assistants/#{assistant.id}/inboxes",

@@ -39,6 +39,10 @@ class Chatwit::AudioTranscriptionService
     InstallationConfig.find_by(name: 'CAPTAIN_WITDEV_TRANSCRIPTION_MODEL')&.value.presence || RECOMMENDED_MODEL
   end
 
+  def self.resolved_model
+    Chatwit::LlmProxy.resolve_model!(model)
+  end
+
   def self.audio_capable?(alias_name)
     AUDIO_ALIAS_ALLOWLIST.any? { |prefix| alias_name.to_s.start_with?(prefix) }
   end
@@ -60,7 +64,7 @@ class Chatwit::AudioTranscriptionService
 
   def precondition_error
     return 'WitDev proxy API key not configured' unless self.class.available?
-    return "model #{self.class.model} does not support audio (use witdev_antigravity/*)" unless self.class.audio_capable?(self.class.model)
+    return "model #{resolved_model} does not support audio (use witdev_antigravity/*)" unless self.class.audio_capable?(resolved_model)
 
     nil
   end
@@ -102,7 +106,7 @@ class Chatwit::AudioTranscriptionService
 
   def request_body(audio_base64)
     {
-      model: self.class.model,
+      model: resolved_model,
       messages: [{
         role: 'user',
         content: [
@@ -115,5 +119,9 @@ class Chatwit::AudioTranscriptionService
 
   def cache_transcription(text)
     attachment.update!(meta: (attachment.meta || {}).merge('transcribed_text' => text))
+  end
+
+  def resolved_model
+    @resolved_model ||= self.class.resolved_model
   end
 end

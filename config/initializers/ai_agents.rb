@@ -2,16 +2,27 @@
 
 require 'agents'
 
-Rails.application.config.after_initialize do
-  # Chatwit: WitDev route drives the Agents SDK through the platform LiteLLM
-  # proxy (OpenAI-compatible) with the canonical model alias.
-  if Chatwit::LlmProxy.enabled?
+module Chatwit::AiAgentsConfiguration
+  def self.configure_witdev
     Agents.configure do |config|
       config.openai_api_key = Chatwit::LlmProxy.api_key
       config.openai_api_base = Chatwit::LlmProxy.api_base
-      config.default_model = Chatwit::LlmProxy.model
       config.debug = false
+      config.default_model = nil
+      begin
+        config.default_model = Chatwit::LlmProxy.resolve_model!(Chatwit::LlmProxy.model)
+      rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
+        Rails.logger.error "Failed to configure AI Agents SDK default WitDev model: #{e.message}"
+      end
     end
+  end
+end
+
+Rails.application.config.after_initialize do
+  # Chatwit: WitDev route drives the Agents SDK through the platform LiteLLM
+  # proxy (OpenAI-compatible) with the canonical model alias.
+  if Chatwit::LlmProxy.route_witdev?
+    Chatwit::AiAgentsConfiguration.configure_witdev
   else
     api_key = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value
     gemini_api_key = InstallationConfig.find_by(name: 'CAPTAIN_GEMINI_API_KEY')&.value
