@@ -8,6 +8,39 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
+    <%# Pre-boot shell: paints before the Vite bundle lands, so a cold start shows
+        the app background and the brand loader instead of a blank white/black
+        webview. Vue clears #app on mount, which removes the splash. %>
+    <style>
+      html { background-color: #f7f7f7; }
+      @media (prefers-color-scheme: dark) { html { background-color: #1c1d20; } }
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #app-splash svg { animation: app-splash-spin 1s steps(8) infinite; }
+      @keyframes app-splash-spin { to { transform: rotate(360deg); } }
+    </style>
+    <script>
+      // Mirrors setColorTheme() in dashboard/helper/themeHelper.js so the first
+      // paint already matches the theme the user picked, instead of flashing the
+      // light shell before the bundle applies the dark one.
+      (function () {
+        try {
+          var scheme = window.localStorage.getItem('color_scheme') || 'auto';
+          var isDark =
+            scheme === 'dark' ||
+            (scheme === 'auto' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.style.backgroundColor = isDark ? '#1c1d20' : '#f7f7f7';
+        } catch (e) {
+          // Storage blocked (private mode): the stylesheet default still applies.
+        }
+      })();
+    </script>
     <% if @global_config['DISPLAY_MANIFEST'] %>
       <meta name="msapplication-TileColor" content="#2781F6">
       <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
@@ -30,6 +63,7 @@
       <link class="favicon" rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
       <link class="favicon" rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
       <link rel="manifest" href="/manifest.json">
+      <%= render 'layouts/pwa_splash' %>
     <% end %>
     <link rel="icon" type="image/png" sizes="512x512" href="<%= @global_config['LOGO_THUMBNAIL'] %>">
     <%= csrf_meta_tags %>
@@ -80,7 +114,22 @@
     <%= vite_javascript_tag @application_pack %>
   </head>
   <body class="text-slate-600 bg-n-background">
-    <div id="app"></div>
+    <div id="app">
+      <div id="app-splash">
+        <svg width="48" height="48" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+          <g transform="translate(50 50)" stroke="#8a8f98" stroke-width="8" stroke-linecap="round">
+            <line y1="-34" y2="-16" stroke-opacity="1" />
+            <line y1="-34" y2="-16" stroke-opacity="0.88" transform="rotate(45)" />
+            <line y1="-34" y2="-16" stroke-opacity="0.76" transform="rotate(90)" />
+            <line y1="-34" y2="-16" stroke-opacity="0.64" transform="rotate(135)" />
+            <line y1="-34" y2="-16" stroke-opacity="0.52" transform="rotate(180)" />
+            <line y1="-34" y2="-16" stroke-opacity="0.40" transform="rotate(225)" />
+            <line y1="-34" y2="-16" stroke-opacity="0.28" transform="rotate(270)" />
+            <line y1="-34" y2="-16" stroke-opacity="0.16" transform="rotate(315)" />
+          </g>
+        </svg>
+      </div>
+    </div>
     <noscript id="noscript">This app works best with JavaScript enabled.</noscript>
     <%= yield %>
     <% if @dashboard_scripts.present? %>

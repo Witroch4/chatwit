@@ -16,6 +16,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useFontSize } from 'dashboard/composables/useFontSize';
 import {
   registerSubscription,
+  registerServiceWorker,
   verifyServiceWorkerExistence,
   syncPwaAuthBridge,
 } from './helper/pushHelper';
@@ -81,6 +82,9 @@ export default {
   mounted() {
     this.initializeColorTheme();
     this.listenToThemeChanges();
+    // Registered on boot, not only after the account loads, so the offline
+    // shell cache is already warm on the next cold start of the PWA.
+    registerServiceWorker();
     // If user locale is set, use it; otherwise use account locale
     this.setLocale(
       this.uiSettings?.locale || window.chatwootConfig.selectedLocale

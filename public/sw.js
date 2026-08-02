@@ -359,16 +359,24 @@ const updateAppBadge = async () => {
   }
 };
 
-// Offline shell: navigations are network-first with cache fallback, hashed
-// build assets are stale-while-revalidate. API/websocket traffic is never
-// touched, so online behavior stays byte-identical.
+// Offline shell: navigations prefer the network but fall back to the cached
+// shell once it is slower than NAVIGATION_NETWORK_TIMEOUT_MS, hashed build
+// assets are stale-while-revalidate. API/websocket traffic is never touched.
 const SHELL_CACHE = 'chatwit-shell-v1';
 const SHELL_PRECACHE_URLS = [
+  '/',
   '/manifest.json',
   '/android-icon-192x192.png',
   '/favicon-96x96.png',
 ];
 const BUILD_ASSET_RE = /\/(vite|vite-dev|packs|assets)\//;
+
+// Cold starts on a phone routinely hit a radio that is still waking up: the
+// navigation fetch then hangs for up to a minute before it rejects, and the
+// PWA sits on a frozen blank screen the whole time (killing and reopening the
+// app is what "fixes" it). Race the network against a short timer and fall
+// back to the cached shell, revalidating in the background.
+const NAVIGATION_NETWORK_TIMEOUT_MS = 2000;
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -383,6 +391,11 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     (async () => {
+      // Lets the browser start the navigation request in parallel with booting
+      // this worker, instead of paying the worker startup cost first.
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable().catch(() => {});
+      }
       const keys = await caches.keys();
       await Promise.all(
         keys
@@ -415,17 +428,39 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(SHELL_CACHE);
-        try {
-          const response = await fetch(request);
-          if (response.ok) cache.put(request, response.clone());
+        const fromNetwork = (async () => {
+          const preloaded = await event.preloadResponse;
+          const response = preloaded || (await fetch(request));
+          // cache.put rejects on redirected responses; the shell is only a
+          // fallback, so a miss is not worth failing the navigation over.
+          if (response.ok) cache.put(request, response.clone()).catch(() => {});
           return response;
-        } catch (err) {
-          const cached = await cache.match(request, { ignoreSearch: true });
-          if (cached) return cached;
-          const fallback = await cache.match('/app', { ignoreSearch: true });
-          if (fallback) return fallback;
-          throw err;
-        }
+        })();
+
+        const cached =
+          (await cache.match(request, { ignoreSearch: true })) ||
+          (await cache.match('/', { ignoreSearch: true }));
+        // First ever load: there is nothing to show yet, so wait for the network.
+        if (!cached) return fromNetwork;
+
+        let timer;
+        const winner = await Promise.race([
+          fromNetwork.catch(() => null),
+          new Promise(resolve => {
+            timer = setTimeout(
+              () => resolve(null),
+              NAVIGATION_NETWORK_TIMEOUT_MS
+            );
+          }),
+        ]);
+        clearTimeout(timer);
+        if (winner) return winner;
+
+        // Slow or dead network: paint the cached shell now and let the fresh
+        // one land in the cache for the next launch. The hashed assets that
+        // shell references live in this same cache, so the app stays coherent.
+        event.waitUntil(fromNetwork.catch(() => {}));
+        return cached;
       })()
     );
     return;

@@ -4,24 +4,31 @@ import auth from '../api/auth';
 import { useAlert } from 'dashboard/composables';
 import { syncSessionToServiceWorker } from './swAuthBridge';
 
-export const verifyServiceWorkerExistence = (callback = () => {}) => {
+// The worker also backs the offline shell that the PWA cold start depends on,
+// so registering it must not hinge on push support: iOS only exposes
+// PushManager to installed web apps.
+export const registerServiceWorker = () => {
   if (!('serviceWorker' in navigator)) {
     // Service Worker isn't supported on this browser, disable or hide UI.
-    return;
+    return Promise.resolve(null);
   }
 
+  return navigator.serviceWorker.register('/sw.js').catch(registrationError => {
+    // eslint-disable-next-line
+    console.log('SW registration failed: ', registrationError);
+    return null;
+  });
+};
+
+export const verifyServiceWorkerExistence = (callback = () => {}) => {
   if (!('PushManager' in window)) {
     // Push isn't supported on this browser, disable or hide UI.
     return;
   }
 
-  navigator.serviceWorker
-    .register('/sw.js')
-    .then(registration => callback(registration))
-    .catch(registrationError => {
-      // eslint-disable-next-line
-      console.log('SW registration failed: ', registrationError);
-    });
+  registerServiceWorker().then(registration => {
+    if (registration) callback(registration);
+  });
 };
 
 export const hasPushPermissions = () => {
