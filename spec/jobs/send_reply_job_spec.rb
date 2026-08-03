@@ -124,6 +124,71 @@ RSpec.describe SendReplyJob do
     end
   end
 
+  # Anti-regressao (2026-08-03, inbox 108 / flow "Mandado de Seguranca"):
+  # o SocialWise Flow no caminho async cria a mensagem interativa via REST. Sem este
+  # roteamento, Instagram/Facebook caem no send service padrao, que monta apenas
+  # `message: { text: ... }` — a mensagem chega ao lead sem nenhum botao, com HTTP 200.
+  context 'with an async SocialWise Flow interactive message' do
+    let(:rich_service) { instance_double(Instagram::RichMessageService, perform: nil) }
+    let(:meta_interactive) do
+      {
+        'message_format' => 'QUICK_REPLIES',
+        'text' => 'Duvidas sobre o Mandado de Seguranca?',
+        'quick_replies' => [
+          { 'content_type' => 'text', 'title' => 'Falar com a Dra', 'payload' => 'flow_qr_1' }
+        ]
+      }
+    end
+
+    it 'routes an Instagram message with a meta payload to the rich message service' do
+      instagram_channel = create(:channel_instagram)
+      message = create(:message,
+                       conversation: create(:conversation, inbox: instagram_channel.inbox),
+                       message_type: :outgoing,
+                       content_type: :integrations,
+                       content_attributes: { 'meta_interactive' => meta_interactive })
+
+      allow(Instagram::RichMessageService).to receive(:new)
+        .with(message: message, rich_payload: meta_interactive).and_return(rich_service)
+      expect(Instagram::SendOnInstagramService).not_to receive(:new)
+
+      described_class.perform_now(message.id)
+
+      expect(rich_service).to have_received(:perform)
+    end
+
+    it 'keeps the plain send service when there is no meta payload' do
+      instagram_channel = create(:channel_instagram)
+      message = create(:message,
+                       conversation: create(:conversation, inbox: instagram_channel.inbox),
+                       message_type: :outgoing)
+      plain_service = instance_double(Instagram::SendOnInstagramService, perform: nil)
+
+      allow(Instagram::SendOnInstagramService).to receive(:new).with(message: message).and_return(plain_service)
+      expect(Instagram::RichMessageService).not_to receive(:new)
+
+      described_class.perform_now(message.id)
+
+      expect(plain_service).to have_received(:perform)
+    end
+
+    it 'leaves WhatsApp on its own provider path' do
+      channel = create(:channel_whatsapp, sync_templates: false, validate_provider_config: false)
+      message = create(:message,
+                       conversation: create(:conversation, inbox: channel.inbox),
+                       message_type: :outgoing,
+                       content_type: :integrations,
+                       content_attributes: { 'interactive' => { 'type' => 'button' } })
+      whatsapp_service = instance_double(Whatsapp::SendOnWhatsappService, perform: nil)
+
+      allow(Whatsapp::SendOnWhatsappService).to receive(:new).with(message: message).and_return(whatsapp_service)
+
+      described_class.perform_now(message.id)
+
+      expect(whatsapp_service).to have_received(:perform)
+    end
+  end
+
   context 'with the Socialwise ownership permit fence' do
     let(:whatsapp_service) { instance_double(Whatsapp::SendOnWhatsappService, perform: nil) }
     let(:channel) { create(:channel_whatsapp, sync_templates: false, validate_provider_config: false) }

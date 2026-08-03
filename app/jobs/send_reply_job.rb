@@ -21,6 +21,8 @@ class SendReplyJob < ApplicationJob
 
     channel_name = message.conversation.inbox.channel.class.to_s
 
+    return if send_meta_rich_message(message)
+
     return send_on_facebook_page(message) if channel_name == 'Channel::FacebookPage'
 
     service_class = CHANNEL_SERVICES[channel_name]
@@ -41,6 +43,37 @@ class SendReplyJob < ApplicationJob
     return false if epoch.blank?
 
     !Integrations::SocialwiseFlow::OwnershipGuard.new(message.conversation).can_publish?(epoch: epoch)
+  end
+
+  # Mensagens interativas criadas pela API REST (SocialWise Flow no caminho async)
+  # chegam com `content_attributes.interactive` no formato WhatsApp, que so o
+  # WhatsappCloudService sabe ler. Em Instagram/Facebook o send service padrao
+  # monta apenas `message: { text: ... }` e os botoes somem em silencio (HTTP 200).
+  # Quando a plataforma anexa `content_attributes.meta_interactive` — o payload ja
+  # convertido para BUTTON_TEMPLATE/QUICK_REPLIES — roteamos para o RichMessageService,
+  # o mesmo caminho que a resposta sincrona do webhook ja usava.
+  def send_meta_rich_message(message)
+    rich_payload = message.content_attributes&.dig('meta_interactive')
+    return false if rich_payload.blank?
+
+    service = meta_rich_service(message, rich_payload)
+    return false if service.nil?
+
+    Rails.logger.info(
+      "[SOCIALWISE-FLOW-ASYNC] Routing message #{message.id} to #{service.class} " \
+      "(format: #{rich_payload['message_format']})"
+    )
+    service.perform
+    true
+  end
+
+  def meta_rich_service(message, rich_payload)
+    channel = message.conversation.inbox.channel
+
+    return ::Instagram::RichMessageService.new(message: message, rich_payload: rich_payload) if channel.is_a?(Channel::Instagram)
+    return ::Facebook::RichMessageService.new(message: message, rich_payload: rich_payload) if channel.is_a?(Channel::FacebookPage)
+
+    nil
   end
 
   def send_on_facebook_page(message)
