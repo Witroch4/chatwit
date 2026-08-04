@@ -62,6 +62,12 @@ export const useSwipeBack = (elementRef, onBack) => {
     }
   };
 
+  const resetSwipe = () => {
+    tracking = false;
+    swipeOffset.value = 0;
+    isSwiping.value = false;
+  };
+
   const onTouchEnd = () => {
     if (!tracking || !isHorizontal) {
       tracking = false;
@@ -78,9 +84,16 @@ export const useSwipeBack = (elementRef, onBack) => {
         isSwiping.value = false;
       }, 200);
     } else {
-      swipeOffset.value = 0;
-      isSwiping.value = false;
+      resetSwipe();
     }
+  };
+
+  // The gesture starts in the 20px left edge — the same strip iOS uses for its
+  // own system gestures. When iOS wins, it steals the touch and `touchend`
+  // never fires, so without this the swipe state stays stuck forever and the
+  // layout keeps believing a swipe is in progress.
+  const onTouchCancel = () => {
+    resetSwipe();
   };
 
   onMounted(() => {
@@ -89,6 +102,7 @@ export const useSwipeBack = (elementRef, onBack) => {
     el.addEventListener('touchstart', onTouchStart, { passive: true });
     el.addEventListener('touchmove', onTouchMove, { passive: true });
     el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchCancel);
   });
 
   onUnmounted(() => {
@@ -97,6 +111,7 @@ export const useSwipeBack = (elementRef, onBack) => {
     el.removeEventListener('touchstart', onTouchStart);
     el.removeEventListener('touchmove', onTouchMove);
     el.removeEventListener('touchend', onTouchEnd);
+    el.removeEventListener('touchcancel', onTouchCancel);
   });
 
   const swipeProgress = computed(() => {

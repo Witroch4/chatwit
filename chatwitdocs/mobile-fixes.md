@@ -2,6 +2,56 @@
 
 Date: 2026-03-14
 
+## 2026-08-04 - Chat sem composer: estado de swipe preso deixava a tab bar cobrindo o input
+
+### Contexto
+
+Print real do iPhone: conversa aberta, mensagens renderizando normalmente, **sem
+nenhuma caixa de digitação** — impossível responder. Intermitente, e o usuário só
+conseguia sair fechando e reabrindo o PWA.
+
+### Causa raiz
+
+Primeiro descarte importante: `MessagesView` e `MobileReplyBox` dividem o **mesmo**
+`v-if="chatLoaded"` em `MobileChatView.vue`. Como as mensagens apareciam, `chatLoaded`
+era `true` e o composer **estava montado** — o problema nunca foi renderização, era
+oclusão. A cadeia completa:
+
+1. `MobileBottomTabBar` tem raiz `fixed bottom-0 left-0 right-0 z-50`: ela **não ocupa
+   espaço no flex**, ela **sobrepõe**. Por isso o layer 0 do `MobileLayout` compensa com
+   `pb-[52px]` — compensação que a camada do chat não tem, porque no chat a barra
+   normalmente está escondida.
+2. `v-show="!isInChatView || isChatSwiping"`: com `isChatSwiping` preso em `true`, a
+   barra reaparece **dentro do chat** e cobre os ~52px de baixo, exatamente onde vive o
+   `MobileReplyBox`. Nenhum erro no console — o input está no DOM, só coberto.
+3. `isChatSwiping` prendia por **duas** portas independentes:
+   - **Swipe-back bem-sucedido.** Em `useSwipeBack.onTouchEnd`, o `onBack()` roda
+     **antes** de zerar `swipeOffset`. O `onBack()` desmonta o `MobileChatView`, e o
+     `watch(swipeProgress)` que emitiria `swipeEnd` é invalidado no unmount (o job
+     pre-flush do filho é descartado depois que o pai re-renderiza). O sinal se perde.
+   - **`touchcancel` sem handler.** O gesto começa nos 20px da borda esquerda — a mesma
+     faixa dos gestos de sistema do iOS. Quando o iOS ganha, ele rouba o toque e
+     `touchend` **nunca** dispara; sem listener de `touchcancel`, nada zerava o estado.
+4. Sendo um `ref` do `MobileLayout`, só um reload completo limpava — daí "fecho e abro
+   e volta ao normal".
+
+### Correções
+
+- **`composables/useSwipeBack.js`:** novo `resetSwipe()` compartilhado e listener de
+  `touchcancel` (registrado e removido junto dos demais). Fecha a porta do gesto roubado
+  pelo iOS, que antes deixava o estado preso **sem nem sair do chat**.
+- **`components-next/mobile/MobileLayout.vue`:** `watch(isInChatView)` zera o estado de
+  swipe quando a chat view some. O flag é espelho de estado que pertence ao filho, e o
+  filho não tem como garantir o aviso final — sem chat view não existe swipe, então a
+  invariante passa a ser afirmada no pai em vez de confiada ao filho.
+
+### Testes
+
+Novo `composables/spec/useSwipeBack.spec.js` trava as duas saídas do gesto (cancelado
+pelo iOS e solto abaixo do threshold). Verificado que o teste **falha** sem o listener de
+`touchcancel` e passa com ele. Suíte de composables + mobile: 215 testes, 31 arquivos,
+todos verdes. Desktop intocado — `useSwipeBack` e `MobileLayout` são exclusivos do mobile.
+
 ## 2026-06-15 - Composer 36px (paridade nativa) + faixa preta no rodapé do PWA
 
 ### Contexto

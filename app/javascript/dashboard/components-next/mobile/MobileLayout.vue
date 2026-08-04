@@ -155,6 +155,17 @@ const onSwipeEnd = () => {
   isChatSwiping.value = false;
 };
 
+// The swipe flag lives here but is owned by MobileChatView, and the successful
+// swipe-back destroys that view before its watcher can emit `swipeEnd` — the
+// signal is lost and the flag stays true. A stuck flag brings the tab bar back
+// over the chat (`v-show` below), and since the bar is `fixed bottom-0 z-50` it
+// covers the composer: the user lands in a chat with no way to reply until a
+// full reload. No chat view means no swipe, so assert that here instead of
+// trusting the child to always report back.
+watch(isInChatView, inChatView => {
+  if (!inChatView) onSwipeEnd();
+});
+
 const bgDimStyle = computed(() => ({
   opacity: chatSwipeProgress.value * 0.3,
 }));
