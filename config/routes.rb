@@ -667,7 +667,10 @@ Rails.application.routes.draw do
 
   # ----------------------------------------------------------------------
   # Routes for channel integrations
-  mount Facebook::Messenger::Server, at: 'bot'
+  # /bot serve DOIS fluxos do objeto `page` (a Meta so aceita uma URL por
+  # objeto): messaging vai para a gem, `feed` (comentarios de post e de
+  # anuncio) vai para o Socialwise. Ver Chatwit::FacebookBotDispatcher.
+  mount Chatwit::FacebookBotDispatcher.new(Facebook::Messenger::Server), at: 'bot'
   get 'webhooks/twitter', to: 'api/v1/webhooks#twitter_crc'
   post 'webhooks/twitter', to: 'api/v1/webhooks#twitter_events'
   post 'webhooks/line/:line_channel_id', to: 'webhooks/line#process_payload'
