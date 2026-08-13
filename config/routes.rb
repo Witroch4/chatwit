@@ -680,6 +680,11 @@ Rails.application.routes.draw do
   post 'webhooks/evolution_go', to: 'webhooks/evolution_go#process_payload'
   get 'webhooks/instagram', to: 'webhooks/instagram#verify'
   post 'webhooks/instagram', to: 'webhooks/instagram#events'
+  # Objeto `page` / campo `feed`: comentarios em posts e em anuncios da Pagina.
+  # Rota propria porque o `/bot` (Facebook::Messenger::Server) so entende
+  # entries de `messaging`.
+  get 'webhooks/facebook_feed', to: 'webhooks/facebook_feed#verify'
+  post 'webhooks/facebook_feed', to: 'webhooks/facebook_feed#events'
   post 'webhooks/tiktok', to: 'webhooks/tiktok#events'
   post 'webhooks/shopify', to: 'webhooks/shopify#events'
   post 'webhooks/infinitepay', to: 'webhooks/infinitepay#process_payload'

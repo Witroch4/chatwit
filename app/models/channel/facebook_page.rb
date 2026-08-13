@@ -48,10 +48,14 @@ class Channel::FacebookPage < ApplicationRecord
 
   def subscribe
     # ref https://developers.facebook.com/docs/messenger-platform/reference/webhook-events
+    # `feed` entra junto com os campos de messaging porque a Graph SUBSTITUI o
+    # conjunto inteiro a cada chamada: assinar so `feed` derrubaria o Messenger
+    # desta Pagina. `feed` habilita os comentarios (inclusive de anuncio) que o
+    # Socialwise modera.
     Facebook::Messenger::Subscriptions.subscribe(
       access_token: page_access_token,
       subscribed_fields: %w[
-        messages message_deliveries message_echoes message_reads standby messaging_handovers
+        messages message_deliveries message_echoes message_reads standby messaging_handovers feed
       ]
     )
   rescue StandardError => e
