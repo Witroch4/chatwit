@@ -59,3 +59,54 @@ O script foi ligado em:
 - `build.sh`
 
 Assim, quando o patch deixar de aplicar, o processo falha cedo em vez de quebrar só em runtime.
+
+## 2026-08-17 — QR code não era gerado (405 client-outdated)
+
+### Sintoma
+
+Na tela de criação de inbox WhatsApp, o pareamento nunca exibia o QR code: a UI
+ficava em `Pairing session stopped` e `GET /instance/qr` respondia `400` a cada
+polling, com o log `No QR code available yet, waiting a bit more...`.
+
+### Causa
+
+A versão do WhatsApp Web anunciada no handshake estava incoerente com o build
+hash enviado junto, e o servidor recusava a conexão com `405 client outdated`.
+Nesse caso a whatsmeow entrega `events.ClientOutdated` no lugar de `events.QR`,
+então o canal de QR recebia `err-client-outdated` e nada era armazenado.
+
+Dois defeitos somados:
+
+1. `pkg/whatsmeow/service/whatsmeow.go` buscava a versão atual em
+   `web.whatsapp.com/sw.js` mas gravava só em `store.DeviceProps.Version`, que é
+   apenas o rótulo exibido em "Aparelhos conectados". O handshake seguia usando o
+   valor fixo de `store.waVersion`.
+2. `store.SetWAVersion` desta versão da `whatsmeow-lib` atualiza `waVersion` e
+   `waVersionHash`, mas não o `BaseClientPayload`, montado no init da package com
+   a versão fixa. Só chamar `SetWAVersion` produzia um payload incoerente: build
+   hash novo, `AppVersion` antigo — recusado do mesmo jeito. O upstream
+   (`tulir/whatsmeow`) corrige dentro do próprio `SetWAVersion`; como a
+   `whatsmeow-lib` é submódulo de terceiros, o ajuste ficou no nosso código.
+
+### Correção
+
+Em `pkg/whatsmeow/service/whatsmeow.go`, após resolver a versão (por ENV ou pelo
+fetch em `sw.js`), chamar `store.SetWAVersion` **e** atribuir
+`store.BaseClientPayload.UserAgent.AppVersion`.
+
+### Diagnóstico rápido em produção
+
+```bash
+docker service logs chatwoot_app_evolution_go --since 5m 2>&1 \
+  | grep -Ei 'Setting whatsapp version|Client outdated|QR code generated'
+```
+
+- `QR code generated #1` → pareamento saudável
+- `Client outdated (405) ... (client version: X)` → versão recusada pelo WhatsApp
+
+Se o valor publicado em `sw.js` for recusado, dá para fixar uma versão conhecida
+sem rebuild, via `WHATSAPP_VERSION_MAJOR` / `WHATSAPP_VERSION_MINOR` /
+`WHATSAPP_VERSION_PATCH` no serviço (o branch de ENV passa pelo mesmo caminho
+corrigido). Em 2026-08-17 tanto a versão do `sw.js` (`2.3000.1045368834`) quanto
+a fixada no upstream (`2.3000.1045305987`) funcionaram, então o stack segue sem
+pin, usando o fetch dinâmico.
