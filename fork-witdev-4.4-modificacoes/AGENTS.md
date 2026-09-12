@@ -1,5 +1,11 @@
 # Chatwoot Development Guidelines (SocialWise Flow & Rich Messages)
 
+## LLM — fonte única e consulta obrigatória
+
+Antes de criar, alterar, depurar ou operar qualquer fluxo de LLM, leia
+`/home/wital/witdev-platform-core/docs/LLM-CANONICAL-FLOW-ALL-APPS.md`.
+Este é o único documento normativo para catálogo, seleção e roteamento de modelos nesta máquina.
+
 > Este documento consolida o que funcionou no projeto, lições aprendidas e checklists para e### Antiflicker (Eliminação Total do Flash Effect) ✅
 
 **PRINCÍPIO FUNDAMENTAL**: Single Source of Truth - apenas backend verifica feature flags.

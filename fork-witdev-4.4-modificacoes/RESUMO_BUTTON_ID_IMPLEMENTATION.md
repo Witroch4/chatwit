@@ -94,7 +94,7 @@ O payload do Dialogflow agora inclui:
 ```json
 {
   "wamid": "wamid.HBgNNTUyMTk5NjMyMjE5NRUCABIYIEJBOTVGQjE5NTYwNkI5NDYzNDA1MzQ2RDM4ODVGRTk4AA==",
-  "whatsapp_api_key": "EAAGIBII4GXQBO2qgvJ2jdcUmgkdqBo5bUKEanJWmCLpcZAsq0Ovpm4JNlrNLeZAv3OYNrdCqqQBAHfEfPFD0FPnZAOQJURB9GKcbjXeDpa83XdAsa3i6fTr23lBFM2LwUZC23xXrZAnB8QjCCFZBxrxlBvzPj8LsejvUjz0C04Q8Jsl8nTGHUd4ZBRPc4NiHFnc",
+  "whatsapp_api_key": "EAAG_REDACTED_WHATSAPP_ACCESS_TOKEN",
   "phone_number_id": "123456789",
   "business_id": "987654321",
   "button_id": "btn_confirm_order",
@@ -113,7 +113,7 @@ O payload do Dialogflow agora inclui:
 ```json
 {
   "wamid": "wamid.HBgNNTUyMTk5NjMyMjE5NRUCABIYIEJBOTVGQjE5NTYwNkI5NDYzNDA1MzQ2RDM4ODVGRTk4AA==",
-  "whatsapp_api_key": "EAAGIBII4GXQBO2qgvJ2jdcUmgkdqBo5bUKEanJWmCLpcZAsq0Ovpm4JNlrNLeZAv3OYNrdCqqQBAHfEfPFD0FPnZAOQJURB9GKcbjXeDpa83XdAsa3i6fTr23lBFM2LwUZC23xXrZAnB8QjCCFZBxrxlBvzPj8LsejvUjz0C04Q8Jsl8nTGHUd4ZBRPc4NiHFnc",
+  "whatsapp_api_key": "EAAG_REDACTED_WHATSAPP_ACCESS_TOKEN",
   "phone_number_id": "123456789",
   "business_id": "987654321",
   "button_id": null,

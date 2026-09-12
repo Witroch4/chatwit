@@ -128,7 +128,7 @@ end
   "inbox_name": "WhatsApp - ANA",
   "account_id": 3,
   "account_name": "DraAmandaSousa",
-  "whatsapp_api_key": "EAAGIBII4GXQBO2qgvJ2jdcUmgkdqBo5bUKEanJWmCLpcZAsq0Ovpm4JNlrNLeZAv3OYNrdCqqQBAHfEfPFD0FPnZAOQJURB9GKcbjXeDpa83XdAsa3i6fTr23lBFM2LwUZC23xXrZAnB8QjCCFZBxrxlBvzPj8LsejvUjz0C04Q8Jsl8nTGHUd4ZBRPc4NiHFnc",
+  "whatsapp_api_key": "EAAG_REDACTED_WHATSAPP_ACCESS_TOKEN",
   "phone_number_id": "123456789",
   "business_id": "987654321",
   "button_id": "btn_confirm_123",
@@ -165,7 +165,7 @@ end
         "interaction_type": "button_reply"
       }
     },
-    "whatsapp_api_key": "EAAGIBII4GXQBO2qgvJ2jdcUmgkdqBo5bUKEanJWmCLpcZAsq0Ovpm4JNlrNLeZAv3OYNrdCqqQBAHfEfPFD0FPnZAOQJURB9GKcbjXeDpa83XdAsa3i6fTr23lBFM2LwUZC23xXrZAnB8QjCCFZBxrxlBvzPj8LsejvUjz0C04Q8Jsl8nTGHUd4ZBRPc4NiHFnc",
+    "whatsapp_api_key": "EAAG_REDACTED_WHATSAPP_ACCESS_TOKEN",
     "whatsapp_phone_number_id": "123456789",
     "whatsapp_business_id": "987654321"
   }

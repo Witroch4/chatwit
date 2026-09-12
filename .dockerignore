@@ -17,3 +17,6 @@ vendor/bundle
 *.swp
 *~
 chatwitdocs/chatwoot-mobile-app/
+compose-*.yaml
+compose-*.yml
+fork-witdev-4.4-modificacoes/

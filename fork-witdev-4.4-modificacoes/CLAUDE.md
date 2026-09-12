@@ -2,6 +2,12 @@
 
 Este arquivo é a fonte única da verdade para o desenvolvimento no repositório **Chatwit**, um fork do Chatwoot. Ele orienta o desenvolvimento, detalha a arquitetura, consolida diretrizes de código e registra as lições aprendidas.
 
+## LLM — fonte única e consulta obrigatória
+
+Antes de criar, alterar, depurar ou operar qualquer fluxo de LLM, leia
+`/home/wital/witdev-platform-core/docs/LLM-CANONICAL-FLOW-ALL-APPS.md`.
+Este é o único documento normativo para catálogo, seleção e roteamento de modelos nesta máquina.
+
 ## 1\. Visão Geral do Produto
 
 Chatwit é uma plataforma de suporte ao cliente de código aberto, alternativa a serviços como Intercom e Zendesk. Ela centraliza conversas de múltiplos canais (live chat, email, redes sociais, WhatsApp, etc.) em uma única interface, projetada para implantações auto-hospedadas (self-hosted) e em nuvem.
