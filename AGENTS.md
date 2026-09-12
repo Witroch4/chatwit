@@ -316,6 +316,36 @@ Practical checklist for any change impacting core logic or public APIs
 
 ## Historico de Migração
 
+### 2026-09-12 - Upstream sync v4.17.1 (334 PRs)
+- Sync type: Normal merge
+- New merge-base: `2f1ed80f89` (upstream/develop HEAD no momento do sync)
+- Conflicts: 43 resolvidos
+- Critical:
+  - `attach_contact` saiu de `incoming_message_base_service.rb` para o concern `Whatsapp::IncomingContactMessageHandler` (nova assinatura com `contact_info_response_handled:`). Nunca redefinir o método na classe — sombreia o concern.
+  - `whatsapp_health_management.rb` foi deletado pelo upstream (virou `inbox_health_management.rb` + `inbox_secret_management.rb`). O `refresh_whatsapp_provider_config` do Chatwit vive agora em `app/controllers/api/v1/accounts/concerns/whatsapp_provider_config_management.rb`.
+  - As customizações de transcrição de áudio do fork foram upstreamadas em `Llm::SpeechToTextService`; só os erros de gate distintos ficam em `Messages::AudioTranscriptionService#transcription_gate_error`.
+  - `equivalents()` dos phone normalizers foi substituído por `variants()`/`contact_candidates()` do upstream. Argentina deliberadamente sem alias (fixo ambíguo).
+  - A política de auto-resolve do Captain migrou de account para assistant (#15299). O guard de `CaptainInbox#phase2_only?` do Chatwit precisou ser reintroduzido em 3 pontos: `InboxPendingConversationsResolutionJob`, `ConversationsResolutionSchedulerJob` e `HookExecutionService#captain_assistant_configured?`. Verificar esses pontos a cada sync.
+  - `lib/llm/feature_router.rb`: a rota witdev é short-circuit no topo de `resolve`; o resto usa `model_and_source` do upstream (que agora inclui `installation_override`).
+  - O upstream ainda usa `v13.0` em `phone_id_path`; o fork usa `WHATSAPP_API_VERSION` (default v22.0). Specs vindos do upstream precisam ter os stubs `graph.facebook.com/v13.0` e `/v14.0` trocados por `/v22.0`.
+  - Migration `20260715000000_add_completed_at_to_applied_slas` do upstream foi renomeada para `20260715003000` por colisão com a nossa `add_position_to_canned_responses`. Sempre checar `ls db/migrate | grep -oP "^\d+" | sort | uniq -d` após um merge.
+- Documentação: `chatwitdocs/upstream-sync-v4.17.1-spec.md`
+
+### 2026-09-12 - Upstream sync v4.17.1 (334 PRs)
+- Sync type: Normal merge
+- New merge-base: `2f1ed80f89` (upstream/develop HEAD no momento do sync)
+- Conflicts: 43 resolvidos
+- Critical:
+  - `attach_contact` saiu de `incoming_message_base_service.rb` para o concern `Whatsapp::IncomingContactMessageHandler` (nova assinatura com `contact_info_response_handled:`). Nunca redefinir o método na classe — sombreia o concern.
+  - `whatsapp_health_management.rb` foi deletado pelo upstream (virou `inbox_health_management.rb` + `inbox_secret_management.rb`). O `refresh_whatsapp_provider_config` do Chatwit vive agora em `app/controllers/api/v1/accounts/concerns/whatsapp_provider_config_management.rb`.
+  - As customizações de transcrição de áudio do fork foram upstreamadas em `Llm::SpeechToTextService`; só os erros de gate distintos ficam em `Messages::AudioTranscriptionService#transcription_gate_error`.
+  - `equivalents()` dos phone normalizers foi substituído por `variants()`/`contact_candidates()` do upstream. Argentina deliberadamente sem alias (fixo ambíguo).
+  - A política de auto-resolve do Captain migrou de account para assistant (#15299). O guard de `CaptainInbox#phase2_only?` do Chatwit precisou ser reintroduzido em 3 pontos: `InboxPendingConversationsResolutionJob`, `ConversationsResolutionSchedulerJob` e `HookExecutionService#captain_assistant_configured?`. Verificar esses pontos a cada sync.
+  - `lib/llm/feature_router.rb`: a rota witdev é short-circuit no topo de `resolve`; o resto usa `model_and_source` do upstream (que agora inclui `installation_override`).
+  - O upstream ainda usa `v13.0` em `phone_id_path`; o fork usa `WHATSAPP_API_VERSION` (default v22.0). Specs vindos do upstream precisam ter os stubs `graph.facebook.com/v13.0` e `/v14.0` trocados por `/v22.0`.
+  - Migration `20260715000000_add_completed_at_to_applied_slas` do upstream foi renomeada para `20260715003000` por colisão com a nossa `add_position_to_canned_responses`. Sempre checar `ls db/migrate | grep -oP "^\d+" | sort | uniq -d` após um merge.
+- Documentação: `chatwitdocs/upstream-sync-v4.17.1-spec.md`
+
 ### 2026-07-18 - Upstream sync v4.16.0 (405 commits)
 - Sync type: Normal merge
 - Upstream commit: `a752e56765a46bb62571932fe6bebf0b71b31b61`

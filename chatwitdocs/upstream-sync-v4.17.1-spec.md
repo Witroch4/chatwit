@@ -319,3 +319,80 @@ segue assim após o merge.
 - [ ] Verificar renderização de rich messages (WhatsApp interactive + Instagram cards)
 - [ ] Verificar PWA mobile (`MobileLayout`) e Web Push
 - [ ] Verificar auto-provisioning do Chatwit Platform Bot no startup
+
+---
+
+## 8. Resultado da execução (2026-09-12)
+
+**Sync concluído.** Merge normal, 43 conflitos resolvidos individualmente.
+
+| Item | Valor |
+|------|-------|
+| Merge commit | `967ab38cf6` |
+| Novo merge-base | `2f1ed80f89` (= upstream/develop HEAD) |
+| Upstream ahead após o merge | 0 |
+| Backup | `backup/pre-upstream-sync-20260912` |
+| Versão | 4.16.0 → **4.17.1** |
+
+### Desvios do plano
+
+Três problemas apareceram durante a execução e não estavam previstos na análise:
+
+1. **Colisão de timestamp de migration.** A migration do upstream
+   `20260715000000_add_completed_at_to_applied_slas` colide com a nossa
+   `20260715000000_add_position_to_canned_responses`, que já rodou em produção.
+   O Rails identifica migrations pela versão, então a do upstream seria pulada
+   silenciosamente e `applied_slas.completed_at` nunca existiria. Renomeamos a do
+   upstream para `20260715003000` — renomear a nossa faria o Rails reexecutá-la
+   em produção e falhar com coluna duplicada.
+
+2. **`feature:` duplicado no `ConversationCompletionService`.** O auto-merge do git
+   combinou o `feature: 'conversation_completion'` novo do upstream com o nosso
+   `feature: :assistant`, produzindo a mesma keyword duas vezes na chamada de
+   `make_api_call`. Removemos o nosso: o #15317 dá ao conversation completion sua
+   própria feature de roteamento.
+
+3. **Política `phase2_only` do Captain perdida em 3 pontos.** O #15299 moveu a
+   política de auto-resolve de account para assistant, substituindo o gate
+   `captain_auto_response_configured?` (que exigia `CaptainInbox#continuous?`) por
+   um que só verifica a presença do assistant. Inboxes em `phase2_only` — que usam
+   o Captain apenas para payment review — voltariam a responder, fazer handoff de
+   quota e suprimir greeting/OOO. Guard reintroduzido em
+   `InboxPendingConversationsResolutionJob`, `ConversationsResolutionSchedulerJob`
+   e `HookExecutionService#captain_assistant_configured?`.
+
+### Customizações que o upstream absorveu
+
+Duas customizações do fork já estavam no upstream e foram descartadas em favor da
+versão oficial, sem perda funcional:
+
+- **Transcrição de áudio** → `Llm::SpeechToTextService` traz limite decimal de
+  25 MB, `temperature: 0.0`, `extension_from_content_type` e instrumentação
+  idênticos aos nossos. Só os erros de gate distintos foram restaurados.
+- **Espera por anexos do Captain** → `Captain::Conversation::ResponseSchedulerService`
+  generaliza nosso `calculate_attachment_wait_time` com as mesmas constantes.
+
+O `equivalents()` dos phone normalizers foi substituído por
+`variants()`/`contact_candidates()` (#14657), que resolve a duplicidade de contato
+brasileiro de forma mais estrita e exclui a Argentina de propósito (um 54 sem o 9 é
+fixo válido e um alias 549 sintético pode atender outro assinante).
+
+### Validação executada
+
+| Suíte | Resultado |
+|-------|-----------|
+| `rubocop` nos 19 arquivos editados à mão | 0 ofensas novas (2 pré-existentes em `incoming_message_base_service.rb`) |
+| `eslint` nos 14 arquivos frontend editados | 0 erros |
+| Specs WhatsApp (incoming, cloud service, normalizers, send_on) | 145 exemplos, 0 falhas |
+| `whatsapp_cloud_service_spec` | 40 exemplos, 0 falhas |
+| Specs Enterprise Captain (listener, jobs, completion, transcription, hooks) | 122 exemplos, 0 falhas |
+| `hook_execution_service_spec` | 41 exemplos, 0 falhas |
+| Controllers (inboxes, app_config, captain preferences) + `account_spec` + `action_service` | 243 exemplos, 0 falhas |
+| `feature_router_spec` | 15 exemplos, 0 falhas |
+| vitest (inboxes API/store, editorHelper) | 152 testes, 0 falhas |
+
+### Pendente para o deploy
+
+- `bundle install` e `pnpm install` — feitos localmente, precisam rodar no build
+- `bundle exec rails db:migrate` — **24 migrations**, com 2 backfills e 1 enqueue de
+  job; rodar com o Sidekiq ativo
