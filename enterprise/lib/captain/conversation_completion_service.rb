@@ -16,13 +16,12 @@ class Captain::ConversationCompletionService < Captain::BaseTaskService
     return default_incomplete_response('No messages found') if content.blank?
 
     response = make_api_call(
-      model: InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_MODEL')&.value.presence || GPT_MODEL,
+      feature: 'conversation_completion',
       messages: [
         { role: 'system', content: prompt_from_file('conversation_completion') },
         { role: 'user', content: content }
       ],
-      schema: RESPONSE_SCHEMA,
-      feature: :assistant
+      schema: RESPONSE_SCHEMA
     )
 
     return default_incomplete_response(response[:error]) if response[:error].present?

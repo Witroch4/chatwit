@@ -8,6 +8,19 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     CAPTAIN_WITDEV_CATALOG_URL
     CAPTAIN_WITDEV_TRANSCRIPTION_MODEL
   ].freeze
+  GENERAL_CONFIGS = %w[ENABLE_ACCOUNT_SIGNUP FIREBASE_PROJECT_ID FIREBASE_CREDENTIALS WEBHOOK_TIMEOUT MAXIMUM_FILE_UPLOAD_SIZE
+                       WIDGET_TOKEN_EXPIRY].freeze
+  META_INCIDENT_CONFIGS = %w[DISABLE_META_INBOX_CREATION DISABLE_META_MESSAGE_SENDING].freeze
+  SHOPIFY_CONFIGS = %w[
+    ENABLE_SHOPIFY_INTEGRATION
+    SHOPIFY_CLIENT_ID
+    SHOPIFY_CLIENT_SECRET
+    SHOPIFY_APP_STORE_URL
+    SHOPIFY_PARTNER_ORGANIZATION_ID
+    SHOPIFY_PARTNER_APP_ID
+    SHOPIFY_PARTNER_ACCESS_TOKEN
+    SHOPIFY_PARTNER_API_VERSION
+  ].freeze
 
   before_action :set_config
   before_action :allowed_configs
@@ -27,21 +40,12 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
   end
 
   def create
-    errors = []
+    errors = shopify_partner_config_errors
     params['app_config'].each do |key, value|
+      break if errors.any?
       next unless @allowed_configs.include?(key)
 
-      i = InstallationConfig.find_by(name: key)
-      begin
-        validate_changed_witdev_model!(key, value, i)
-      rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
-        errors << e.message
-        next
-      end
-
-      i ||= InstallationConfig.new(name: key, value: value, locked: false)
-      i.value = value
-      errors.concat(i.errors.full_messages) unless i.save
+      persist_installation_config(key, value, errors)
     end
 
     if errors.any?
@@ -53,18 +57,31 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
 
   private
 
+  def persist_installation_config(key, value, errors)
+    config = InstallationConfig.find_by(name: key)
+    validate_changed_witdev_model!(key, value, config)
+
+    config ||= InstallationConfig.new(name: key, value: value, locked: false)
+    config.value = value
+    errors.concat(config.errors.full_messages) unless config.save
+  rescue Chatwit::LlmProxy::CatalogUnavailableError, Chatwit::LlmProxy::ModelUnavailableError => e
+    errors << e.message
+  end
+
   def set_config
     @config = params[:config] || 'general'
   end
 
   def allowed_configs
+    general_configs = GENERAL_CONFIGS + (ChatwootApp.chatwoot_cloud? ? META_INCIDENT_CONFIGS : [])
+
     mapping = {
       'facebook' => %w[FB_APP_ID FB_VERIFY_TOKEN FB_APP_SECRET IG_VERIFY_TOKEN FACEBOOK_API_VERSION ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT],
-      'shopify' => %w[SHOPIFY_CLIENT_ID SHOPIFY_CLIENT_SECRET],
+      'shopify' => SHOPIFY_CONFIGS,
       'microsoft' => %w[AZURE_APP_ID AZURE_APP_SECRET],
       'email' => %w[MAILER_INBOUND_EMAIL_DOMAIN ACCOUNT_EMAILS_LIMIT ACCOUNT_EMAILS_PLAN_LIMITS],
       'linear' => %w[LINEAR_CLIENT_ID LINEAR_CLIENT_SECRET],
-      'slack' => %w[SLACK_CLIENT_ID SLACK_CLIENT_SECRET],
+      'slack' => %w[SLACK_CLIENT_ID SLACK_CLIENT_SECRET SLACK_SIGNING_SECRET],
       'instagram' => %w[INSTAGRAM_APP_ID INSTAGRAM_APP_SECRET INSTAGRAM_VERIFY_TOKEN INSTAGRAM_API_VERSION ENABLE_INSTAGRAM_CHANNEL_HUMAN_AGENT],
       'tiktok' => %w[TIKTOK_APP_ID TIKTOK_APP_SECRET TIKTOK_API_VERSION],
       'whatsapp_embedded' => %w[WHATSAPP_APP_ID WHATSAPP_APP_SECRET WHATSAPP_CONFIGURATION_ID WHATSAPP_API_VERSION],
@@ -73,10 +90,20 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
       'captain' => %w[CAPTAIN_OPEN_AI_API_KEY CAPTAIN_GEMINI_API_KEY CAPTAIN_OPEN_AI_MODEL CAPTAIN_OPEN_AI_ENDPOINT] + CHATWIT_WITDEV_LLM_CONFIGS
     }
 
-    @allowed_configs = mapping.fetch(
-      @config,
-      %w[ENABLE_ACCOUNT_SIGNUP FIREBASE_PROJECT_ID FIREBASE_CREDENTIALS WEBHOOK_TIMEOUT MAXIMUM_FILE_UPLOAD_SIZE WIDGET_TOKEN_EXPIRY]
-    )
+    @allowed_configs = mapping.fetch(@config, general_configs)
+  end
+
+  def shopify_partner_config_errors
+    return [] unless @config == 'shopify'
+
+    saved_values = InstallationConfig.where(name: Shopify::PartnerConfiguration::KEYS).each_with_object({}) do |config, values|
+      values[config.name] = config.value
+    end
+    submitted_values = params.fetch('app_config', {}).permit(*SHOPIFY_CONFIGS).to_h
+    Shopify::PartnerConfiguration.validate_for_save!(saved_values.merge(submitted_values))
+    []
+  rescue Shopify::PartnerClient::ConfigurationError => e
+    [e.message]
   end
 
   # Chatwit: turn both WitDev model fields into fail-closed selects fed only by

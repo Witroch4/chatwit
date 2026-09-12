@@ -1,5 +1,5 @@
 # Service to handle phone number normalization for WhatsApp messages
-# Currently supports Brazil and Argentina phone number format variations
+# Currently supports Brazil, Argentina, and Mexico phone number format variations
 # Supports both WhatsApp Cloud API and Twilio WhatsApp providers
 class Whatsapp::PhoneNumberNormalizationService
   def initialize(inbox)
@@ -19,18 +19,23 @@ class Whatsapp::PhoneNumberNormalizationService
     normalizer = find_normalizer_for_country(clean_number)
     return raw_number unless normalizer
 
-    canonical = format_for_provider(normalizer.normalize(clean_number), provider)
+    # The contact may already be stored under any of the country's equivalent formats
+    existing_contact_inbox = normalizer.variants(clean_number).lazy
+                                       .filter_map { |number| find_existing_contact_inbox(format_for_provider(number, provider)) }
+                                       .first
 
-    # Reuse an existing contact stored under ANY equivalent form (e.g. Brazilian
-    # numbers with/without the 9th digit) so number variants never create a
-    # duplicate. When the contact is new, always store the canonical form so
-    # future variants of the same number converge onto it.
-    existing = normalizer.equivalents(clean_number)
-                         .lazy
-                         .filter_map { |variant| find_existing_contact_inbox(format_for_provider(variant, provider)) }
-                         .first
+    existing_contact_inbox&.source_id || raw_number
+  end
 
-    existing&.source_id || canonical
+  # Keep the provider value first so exact contact matches always win. Each
+  # country normalizer explicitly opts into contact-safe alternatives; source-id
+  # normalization alone is not enough because the alternate may be another
+  # valid number (for example an Argentina landline without the mobile 9).
+  def phone_number_candidates(clean_number)
+    normalizer = find_normalizer_for_country(clean_number)
+    return [clean_number] unless normalizer
+
+    normalizer.contact_candidates(clean_number)
   end
 
   private
@@ -68,6 +73,7 @@ class Whatsapp::PhoneNumberNormalizationService
 
   NORMALIZERS = [
     Whatsapp::PhoneNormalizers::BrazilPhoneNormalizer,
-    Whatsapp::PhoneNormalizers::ArgentinaPhoneNormalizer
+    Whatsapp::PhoneNormalizers::ArgentinaPhoneNormalizer,
+    Whatsapp::PhoneNormalizers::MexicoPhoneNormalizer
   ].freeze
 end

@@ -110,7 +110,7 @@ class Attachment < ApplicationRecord
     audio_file_data[:playback_url] = transcoded_playback_url if Audio::Mp3TranscodeService.requires_transcode?(self)
     audio_file_data.merge(
       {
-        # Keep audio playback inline while avoiding the ActiveStorage proxy path.
+        # Resolve via the configured Active Storage route so proxy setups (S3/CORS) are honoured.
         data_url: inline_audio_url,
         transcribed_text: meta&.[]('transcribed_text') || ''
       }
@@ -124,7 +124,7 @@ class Attachment < ApplicationRecord
   def inline_audio_url
     return '' unless file.attached?
 
-    Rails.application.routes.url_helpers.rails_storage_redirect_url(file, disposition: 'inline')
+    url_for(file)
   end
 
   def file_metadata

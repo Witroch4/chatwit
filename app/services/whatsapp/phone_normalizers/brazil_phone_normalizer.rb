@@ -1,39 +1,50 @@
 # Handles Brazil phone number normalization
 # ref: https://github.com/chatwoot/chatwoot/issues/5840
+# ref: https://www.gov.br/anatel/pt-br/regulado/numeracao/perguntas-frequentes
 #
 # Brazil changed its mobile number system by adding a "9" prefix to existing numbers.
-# This normalizer adds the "9" digit if the number is 12 digits (making it 13 digits total)
-# to match the new format: 55 + DDD + 9 + number
+# This normalizer adds the "9" only to legacy eight-digit mobile ranges, leaving
+# eight-digit landlines (which start with 2-5) unchanged.
 class Whatsapp::PhoneNormalizers::BrazilPhoneNormalizer < Whatsapp::PhoneNormalizers::BasePhoneNormalizer
   COUNTRY_CODE_LENGTH = 2
   DDD_LENGTH = 2
+  LEGACY_MOBILE_NUMBER_PATTERN = /\A[6-9]\d{7}\z/
+  CANONICAL_MOBILE_NUMBER_PATTERN = /\A9([6-9]\d{7})\z/
 
   def normalize(waid)
     return waid unless handles_country?(waid)
 
     ddd = waid[COUNTRY_CODE_LENGTH, DDD_LENGTH]
-    number = waid[COUNTRY_CODE_LENGTH + DDD_LENGTH, waid.length - (COUNTRY_CODE_LENGTH + DDD_LENGTH)]
-    normalized_number = "55#{ddd}#{number}"
-    normalized_number = "55#{ddd}9#{number}" if normalized_number.length != 13
-    normalized_number
+    number = subscriber(waid)
+    return waid unless number.match?(LEGACY_MOBILE_NUMBER_PATTERN)
+
+    "55#{ddd}9#{number}"
   end
 
-  # Both the 13-digit (with 9th digit, canonical) and 12-digit (without it)
-  # forms, so the same number matches regardless of how it was first stored.
-  def equivalents(waid)
-    return [waid] unless handles_country?(waid)
+  def variants(waid)
+    normalized = normalize(waid)
+    [normalized, legacy_mobile_form(normalized)].compact.uniq
+  end
 
-    ddd = waid[COUNTRY_CODE_LENGTH, DDD_LENGTH]
-    rest = waid[(COUNTRY_CODE_LENGTH + DDD_LENGTH)..] || ''
-    # A 9-digit local part is the 8-digit base plus the mandatory 9th digit;
-    # an 8-digit local part is already the base. Decide by length, never by
-    # "starts with 9" — subscriber numbers can legitimately start with 9
-    # (e.g. 9694-5743), and stripping it would miss the canonical variant.
-    base = rest.length >= 9 ? rest[1..] : rest
-    ["55#{ddd}9#{base}", "55#{ddd}#{base}"]
+  def contact_candidates(waid)
+    [waid, *variants(waid)].uniq
   end
 
   private
+
+  # Mirror of #normalize: strip the 9 only when what remains is itself a legacy mobile range, never a landline.
+  def legacy_mobile_form(waid)
+    return unless handles_country?(waid)
+
+    match = subscriber(waid).match(CANONICAL_MOBILE_NUMBER_PATTERN)
+    return if match.nil?
+
+    "55#{waid[COUNTRY_CODE_LENGTH, DDD_LENGTH]}#{match[1]}"
+  end
+
+  def subscriber(waid)
+    waid[(COUNTRY_CODE_LENGTH + DDD_LENGTH)..].to_s
+  end
 
   def country_code_pattern
     /^55/

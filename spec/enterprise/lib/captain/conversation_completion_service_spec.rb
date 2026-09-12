@@ -9,7 +9,7 @@ RSpec.describe Captain::ConversationCompletionService do
   let(:mock_context) { instance_double(RubyLLM::Context, chat: mock_chat) }
 
   before do
-    create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
+    InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_API_KEY').update!(value: 'test-key')
     allow(Chatwit::LlmProxy).to receive(:route_witdev?).and_return(false)
     allow(Llm::Config).to receive(:with_api_key).and_yield(mock_context)
     allow(mock_chat).to receive(:with_instructions)
@@ -20,20 +20,48 @@ RSpec.describe Captain::ConversationCompletionService do
   end
 
   describe '#perform' do
-    context 'when mapping the runtime model feature' do
-      before do
-        create(:message, conversation: conversation, message_type: :incoming, content: 'Hello')
+    describe 'model routing' do
+      let(:mock_response) do
+        instance_double(RubyLLM::Message, content: { 'complete' => true, 'reason' => 'Done' }, input_tokens: 10, output_tokens: 5)
       end
 
-      it 'maps conversation completion to the assistant model feature' do
-        expect(service).to receive(:make_api_call).with(
-          model: kind_of(String),
-          messages: kind_of(Array),
-          schema: Captain::ConversationCompletionSchema,
-          feature: :assistant
-        ).and_return(message: { 'complete' => false, 'reason' => 'Waiting' })
+      before do
+        create(:message, conversation: conversation, message_type: :incoming, content: 'Hello')
+        allow(mock_chat).to receive(:ask).and_return(mock_response)
+      end
 
-        service.perform
+      it 'uses the internal GPT-4.1 route on Chatwoot Cloud' do
+        allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(false)
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'gpt-5.1')
+        account.enable_features!('captain_integration_v2')
+        allow(mock_context).to receive(:chat).with(model: 'gpt-4.1').and_return(mock_chat)
+
+        expect(service.perform).to include(complete: true)
+      end
+
+      it 'uses the installation model on self-hosted Enterprise' do
+        allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(true)
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'gpt-5.1')
+        allow(mock_context).to receive(:chat).with(model: 'gpt-5.1').and_return(mock_chat)
+
+        expect(service.perform).to include(complete: true)
+      end
+
+      it 'uses the account override ahead of the installation model on self-hosted Enterprise' do
+        allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(true)
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: 'gpt-5.1')
+        account.update!(captain_models: { 'conversation_completion' => 'gpt-5.2' })
+        allow(mock_context).to receive(:chat).with(model: 'gpt-5.2').and_return(mock_chat)
+
+        expect(service.perform).to include(complete: true)
+      end
+
+      it 'falls back to the internal GPT-4.1 route when the self-hosted installation model is blank' do
+        allow(ChatwootApp).to receive(:self_hosted_paid?).and_return(true)
+        InstallationConfig.find_or_initialize_by(name: 'CAPTAIN_OPEN_AI_MODEL').update!(value: '')
+        allow(mock_context).to receive(:chat).with(model: 'gpt-4.1').and_return(mock_chat)
+
+        expect(service.perform).to include(complete: true)
       end
     end
 

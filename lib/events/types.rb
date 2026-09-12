@@ -25,6 +25,10 @@ module Events::Types
   CONVERSATION_CAPTAIN_INFERENCE_RESOLVED = 'conversation.captain_inference_resolved'
   CONVERSATION_CAPTAIN_INFERENCE_HANDOFF = 'conversation.captain_inference_handoff'
   CONVERSATION_CAPTAIN_PAYMENT_REVIEW_REQUESTED = 'conversation.captain_payment_review_requested'
+  CAPTAIN_CONVERSATION_HANDED_OFF = 'captain.conversation.handed_off'
+  CAPTAIN_CONVERSATION_RESOLVED = 'captain.conversation.resolved'
+  CAPTAIN_RESPONSE_COMPLETED = 'captain.response.completed'
+  CAPTAIN_RESPONSE_FAILED = 'captain.response.failed'
 
   CONVERSATION_STATUS_CHANGED = 'conversation.status_changed'
   CONVERSATION_CONTACT_CHANGED = 'conversation.contact_changed'

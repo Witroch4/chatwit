@@ -11,11 +11,14 @@ class Whatsapp::PhoneNormalizers::BasePhoneNormalizer
     raise NotImplementedError, 'Subclasses must implement #normalize'
   end
 
-  # All equivalent source_id forms of a number (e.g. with/without a country
-  # specific trunk digit), canonical form first. Used to reuse an existing
-  # contact stored under any variant before creating a new one.
-  def equivalents(waid)
+  # Formats an existing contact_inbox may already be stored under, most canonical first.
+  def variants(waid)
     [normalize(waid)]
+  end
+
+  # Opt-in per country: only safe where the alternate form can't belong to a different subscriber.
+  def contact_candidates(waid)
+    [waid]
   end
 
   private

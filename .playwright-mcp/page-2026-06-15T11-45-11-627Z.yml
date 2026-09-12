@@ -1,0 +1,13 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - button "+" [ref=e3] [cursor=pointer]
+    - generic [ref=e4]:
+      - textbox "Digite uma mensagem" [ref=e5]
+      - button "L" [ref=e6] [cursor=pointer]
+    - button "M" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - button "+" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]:
+      - textbox "Digite uma mensagem" [ref=e11]
+      - button "L" [ref=e12] [cursor=pointer]
+    - button "M" [ref=e13] [cursor=pointer]

@@ -17,4 +17,5 @@ export const BUS_EVENTS = {
   // Rich message events (SocialWise/Chatwit)
   RICH_POSTBACK: 'RICH_POSTBACK',
   RICH_CARDS_FALLBACK: 'RICH_CARDS_FALLBACK',
+  MFA_STATE_CHANGED: 'MFA_STATE_CHANGED',
 };

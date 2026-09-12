@@ -10,14 +10,7 @@ class Whatsapp::PhoneNormalizers::ArgentinaPhoneNormalizer < Whatsapp::PhoneNorm
     waid.sub(/^549/, '54')
   end
 
-  # Both the without-9 (canonical) and with-9 forms, so the same number
-  # matches regardless of how it was first stored.
-  def equivalents(waid)
-    return [waid] unless handles_country?(waid)
-
-    without_nine = waid.sub(/^549/, '54')
-    [without_nine, without_nine.sub(/^54/, '549')]
-  end
+  # No #variants override: a 54 number without the 9 is a valid landline, so a synthesized 549 alias can answer as a different subscriber.
 
   private
 

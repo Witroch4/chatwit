@@ -7,7 +7,9 @@ import yaml from '@rollup/plugin-yaml';
 
 export default defineConfig({
   plugins: [vue(vueOptions), yaml()],
-  resolve: { alias: aliases },
+  resolve: {
+    alias: { ...aliases, 'test-i18n': path.resolve('./vitest.i18n.js') },
+  },
   test: {
     environment: 'jsdom',
     include: ['app/**/*.{test,spec}.?(c|m)[jt]s?(x)'],

@@ -19,6 +19,7 @@ Metrics/ClassLength:
     - 'app/models/message.rb'
     - 'app/models/conversation.rb'
     - 'app/services/whatsapp/interactive_template_payload_builder.rb'
+    - 'config/initializers/rack_attack.rb'
 
 Metrics/MethodLength:
   Max: 19

@@ -10,4 +10,5 @@ export const LOCAL_STORAGE_KEYS = {
   FAVORITE_WA_TEMPLATES: 'favoriteWhatsappTemplates',
   RECENT_WA_TEMPLATES: 'recentWhatsappTemplates',
   SIDEBAR_MINIMIZED_SECTIONS: 'sidebarMinimizedSections',
+  CAPTAIN_OVERVIEW_V2: 'captain_overview_v2',
 };

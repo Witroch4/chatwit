@@ -1,0 +1,25 @@
+- main [ref=e4]:
+  - generic [ref=e5]:
+    - img "Chatwit"
+    - heading "Entrar no Chatwit" [level=2] [ref=e6]
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - link "Login via SSO" [ref=e11] [cursor=pointer]:
+        - /url: /app/login/sso
+        - generic [ref=e13]: Login via SSO
+      - generic [ref=e18]: Ou
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]: E-mail
+        - textbox "nome@empresa.com.br" [ref=e24]
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - text: Senha
+          - paragraph [ref=e27]:
+            - link "Esqueceu-se da sua senha?" [ref=e28] [cursor=pointer]:
+              - /url: /app/auth/reset/password
+        - generic [ref=e30]:
+          - textbox "Senha" [ref=e31]
+          - button "Show password" [ref=e32] [cursor=pointer]
+      - button "Entrar" [ref=e34] [cursor=pointer]:
+        - generic [ref=e35]: Entrar

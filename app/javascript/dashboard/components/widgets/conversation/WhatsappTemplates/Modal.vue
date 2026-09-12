@@ -25,6 +25,14 @@ export default {
       type: Number,
       default: undefined,
     },
+    sendRenderedContent: {
+      type: Boolean,
+      default: false,
+    },
+    requestContactInfoOnly: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['onSend', 'cancel', 'update:show'],
   setup() {
@@ -81,6 +89,14 @@ export default {
       return ['create', 'interactive'].includes(this.currentView)
         ? 'modal-bigger'
         : 'modal-big';
+    },
+  },
+  watch: {
+    show(value) {
+      if (!value) this.selectedWaTemplate = null;
+    },
+    requestContactInfoOnly() {
+      this.selectedWaTemplate = null;
     },
   },
   methods: {
@@ -198,6 +214,7 @@ export default {
       <TemplatesPicker
         v-if="currentView === 'picker'"
         :inbox-id="inboxId"
+        :request-contact-info-only="requestContactInfoOnly"
         @on-select="pickTemplate"
         @on-select-interactive="onSendInteractiveTemplate"
         @on-edit-interactive="showEditInteractiveView"
@@ -205,6 +222,7 @@ export default {
       <WhatsAppTemplateReply
         v-else-if="currentView === 'reply'"
         :template="selectedWaTemplate"
+        :send-rendered-content="sendRenderedContent"
         @reset-template="onResetTemplate"
         @send-message="onSendMessage"
       />

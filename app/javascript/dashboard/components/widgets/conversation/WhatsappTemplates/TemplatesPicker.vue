@@ -23,6 +23,10 @@ const props = defineProps({
     type: Number,
     default: undefined,
   },
+  requestContactInfoOnly: {
+    type: Boolean,
+    default: false,
+  },
 });
 const emit = defineEmits([
   'onSelect',
@@ -129,14 +133,26 @@ const matchesInteractiveQuery = template => {
     );
 };
 
+const hasRequestContactInfoButton = template => {
+  const buttons = findComponentByType(template, COMPONENT_TYPES.BUTTONS);
+  return buttons?.buttons?.some(
+    button => button.type?.toUpperCase() === 'REQUEST_CONTACT_INFO'
+  );
+};
+
+const availableTemplateMessages = computed(() => {
+  if (!props.requestContactInfoOnly) return whatsAppTemplateMessages.value;
+  return whatsAppTemplateMessages.value.filter(hasRequestContactInfoButton);
+});
+
 const favoriteTemplates = computed(() =>
-  whatsAppTemplateMessages.value.filter(
+  availableTemplateMessages.value.filter(
     tpl => isFavorite(tpl) && matchesQuery(tpl)
   )
 );
 
 const recentTemplatesList = computed(() => {
-  const all = whatsAppTemplateMessages.value;
+  const all = availableTemplateMessages.value;
   return recentTemplates.value
     .map(r =>
       all.find(tpl => tpl.name === r.name && tpl.language === r.language)
@@ -145,7 +161,7 @@ const recentTemplatesList = computed(() => {
 });
 
 const allFilteredTemplates = computed(() =>
-  whatsAppTemplateMessages.value.filter(matchesQuery)
+  availableTemplateMessages.value.filter(matchesQuery)
 );
 
 const displayedTemplates = computed(() => {
@@ -178,7 +194,7 @@ const tabs = computed(() => [
   },
   {
     label: t('WHATSAPP_TEMPLATES.PICKER.TABS.ALL'),
-    count: whatsAppTemplateMessages.value.length,
+    count: availableTemplateMessages.value.length,
   },
 ]);
 
@@ -570,7 +586,7 @@ defineExpose({ addToRecent });
         <!-- Search with no results in All tab -->
         <div
           v-if="
-            activeTabIndex === 0 && query && whatsAppTemplateMessages.length
+            activeTabIndex === 0 && query && availableTemplateMessages.length
           "
         >
           <p>
@@ -580,7 +596,7 @@ defineExpose({ addToRecent });
         </div>
         <!-- No templates at all -->
         <div
-          v-else-if="activeTabIndex === 0 && !whatsAppTemplateMessages.length"
+          v-else-if="activeTabIndex === 0 && !availableTemplateMessages.length"
           class="space-y-4"
         >
           <p class="text-n-slate-11">
