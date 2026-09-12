@@ -52,7 +52,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
       it 'preserves HTML-like content in normal message requests' do
         message.update!(content: "<a>\n<b></b></a>asdf")
 
-        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+        stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
           .with(
             body: {
               messaging_product: 'whatsapp',
@@ -261,7 +261,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
           ]
         }.to_json
 
-        stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+        stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
           .with(
             body: {
               messaging_product: 'whatsapp', to: '+123456789',
@@ -413,7 +413,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
     let(:parent_bsuid) { 'IN.ENT.9081726354' }
 
     it 'sends a text message via the recipient field instead of to' do
-      stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+      stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
         .with(
           body: {
             messaging_product: 'whatsapp',
@@ -430,7 +430,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
     end
 
     it 'sends a text message to a parent BSUID via the recipient field instead of to' do
-      stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+      stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
         .with(
           body: {
             messaging_product: 'whatsapp',
@@ -448,7 +448,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
 
     it 'sends a template via the recipient field instead of to' do
       template_info = { name: 'test_template', namespace: 'test_namespace', lang_code: 'en_US', parameters: [] }
-      stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+      stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
         .with(body: hash_including({ messaging_product: 'whatsapp', recipient_type: 'individual', recipient: bsuid, type: 'template' }))
         .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
 
@@ -459,7 +459,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
       interactive_message = create(:message, message_type: :outgoing, content: 'test', inbox: whatsapp_channel.inbox,
                                              content_type: 'input_select',
                                              content_attributes: { items: [{ title: 'Burito', value: 'Burito' }] })
-      stub_request(:post, 'https://graph.facebook.com/v13.0/123456789/messages')
+      stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
         .with(body: hash_including({ messaging_product: 'whatsapp', recipient_type: 'individual', recipient: bsuid, type: 'interactive' }))
         .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
 

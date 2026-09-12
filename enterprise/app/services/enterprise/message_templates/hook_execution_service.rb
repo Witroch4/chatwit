@@ -80,6 +80,10 @@ module Enterprise::MessageTemplates::HookExecutionService
   end
 
   def captain_assistant_configured?
+    # Chatwit: inboxes em phase2_only usam o Captain só para payment review — não
+    # respondem, não fazem handoff de quota e não suprimem greeting/OOO.
+    return false if inbox.captain_inbox&.phase2_only?
+
     inbox.captain_assistant.present?
   end
 end
