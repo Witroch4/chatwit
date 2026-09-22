@@ -20,7 +20,7 @@ class AsyncDispatcher < BaseDispatcher
       Conversations::UnreadCounts::Listener.instance,
       ReportingEventListener.instance,
       WebhookListener.instance,
-      ContactEmailDetectionListener.instance,
+      ContactIdentityDetectionListener.instance,
       SocialwiseFlowListener.instance
     ]
   end
