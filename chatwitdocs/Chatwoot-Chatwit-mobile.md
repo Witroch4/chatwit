@@ -259,6 +259,21 @@ All under `app/javascript/dashboard/components-next/mobile/`:
 
 ## Changelog
 
+### 2026-09-25 — Swipe estilo WhatsApp + fixar conversa
+
+- **Swipe elástico** (`MobileSwipeableRow`, prop `full-swipe`, ligado só na lista de conversas):
+  os botões acompanham o dedo e dividem a largura revelada; puxando além de 60% da
+  linha, a primeira ação daquele lado ocupa a faixa inteira (haptic) e é executada ao
+  soltar — "Lida"/"Não lida" à esquerda, "Status" à direita. Soltar antes disso abre
+  os botões na largura fixa (72px cada). A caixa de entrada (`MobileInboxView`) segue
+  com o comportamento antigo (sem `full-swipe`).
+- **Fixar conversa** (segundo botão do swipe para a direita): não existe no desktop nem
+  no backend, então os IDs fixados ficam em `ui_settings.mobile_pinned_conversation_ids`
+  do agente (store `updateUISettings`, já usado pelo desktop — sem migration; o mesmo
+  agente vê os fixados em qualquer aparelho). As fixadas sobem para o topo da lista
+  (mais recente primeiro) com um ícone de alfinete. Limitação: só reordena conversas já
+  carregadas no filtro atual; uma fixada fora da página/filtro não é buscada à parte.
+
 ### 2026-08-02 — Boot do PWA: fim da tela branca/preta e do congelamento na abertura
 
 Sintoma relatado: ao abrir o PWA no celular a tela ficava totalmente branca ou preta e só depois começava a carregar; às vezes travava no preto e só carregava depois de fechar e reabrir o app. Quatro causas independentes, todas corrigidas:

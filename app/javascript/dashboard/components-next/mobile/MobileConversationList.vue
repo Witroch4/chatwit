@@ -17,6 +17,7 @@ import {
   filterItemsByPermission,
 } from 'dashboard/helper/permissionsHelper.js';
 import { useConversationRequiredAttributes } from 'dashboard/composables/useConversationRequiredAttributes';
+import { useUISettings } from 'dashboard/composables/useUISettings';
 
 import ConversationCard from 'dashboard/components/widgets/conversation/ConversationCard.vue';
 import ConversationResolveAttributesModal from 'dashboard/components-next/ConversationWorkflow/ConversationResolveAttributesModal.vue';
@@ -39,6 +40,11 @@ const { t } = useI18n();
 const { medium, success } = useHaptics();
 const { beforeEnter, afterEnter, enterCancelled } = useStaggeredEnter();
 const { checkMissingAttributes } = useConversationRequiredAttributes();
+const { uiSettings, updateUISettings } = useUISettings();
+
+// Pinned conversations live in the agent's ui_settings, so they follow the
+// agent across devices. Most recently pinned first.
+const PINNED_SETTINGS_KEY = 'mobile_pinned_conversation_ids';
 
 const swipeOpenRowId = ref(null);
 provide('swipeOpenRowId', swipeOpenRowId);
@@ -89,6 +95,16 @@ const assigneeTabItems = computed(() => {
 
 const chatLists = useMapGetter('getAllConversations');
 const chatListLoadingStatus = useMapGetter('getChatListLoadingStatus');
+
+const pinnedIds = computed(() => uiSettings.value[PINNED_SETTINGS_KEY] || []);
+const isPinned = chat => pinnedIds.value.includes(chat.id);
+
+const sortedChats = computed(() => {
+  const pinned = pinnedIds.value
+    .map(id => chatLists.value.find(chat => chat.id === id))
+    .filter(Boolean);
+  return [...pinned, ...chatLists.value.filter(chat => !isPinned(chat))];
+});
 const getConversationById = useMapGetter('getConversationById');
 const currentPage = useFunctionGetter(
   'conversationPage/getCurrentPageFilter',
@@ -243,6 +259,7 @@ const getSwipeActions = () => {
 
 const getLeftSwipeActions = chat => {
   const hasUnread = chat.unread_count > 0;
+  const pinned = isPinned(chat);
   return [
     {
       key: hasUnread ? 'markRead' : 'markUnread',
@@ -252,7 +269,22 @@ const getLeftSwipeActions = chat => {
         ? t('MOBILE.SWIPE.MARK_READ')
         : t('MOBILE.SWIPE.MARK_UNREAD'),
     },
+    {
+      key: pinned ? 'unpin' : 'pin',
+      icon: pinned ? 'i-lucide-pin-off' : 'i-lucide-pin',
+      color: 'bg-n-slate-9',
+      label: pinned ? t('MOBILE.SWIPE.UNPIN') : t('MOBILE.SWIPE.PIN'),
+    },
   ];
+};
+
+const togglePin = chat => {
+  const others = pinnedIds.value.filter(id => id !== chat.id);
+  const pinned = isPinned(chat);
+  updateUISettings({
+    [PINNED_SETTINGS_KEY]: pinned ? others : [chat.id, ...others],
+  });
+  useAlert(pinned ? t('MOBILE.SWIPE.UNPINNED') : t('MOBILE.SWIPE.PINNED'));
 };
 
 const onSwipeAction = (chat, actionKey) => {
@@ -264,7 +296,9 @@ const onSwipeAction = (chat, actionKey) => {
 
 const onLeftSwipeAction = async (chat, actionKey) => {
   medium();
-  if (actionKey === 'markUnread') {
+  if (actionKey === 'pin' || actionKey === 'unpin') {
+    togglePin(chat);
+  } else if (actionKey === 'markUnread') {
     try {
       await store.dispatch('markMessagesUnread', { id: chat.id });
       useAlert(t('MOBILE.SWIPE.MARKED_UNREAD'));
@@ -490,11 +524,12 @@ watch(conversationFilters, newFilters => {
             @enter-cancelled="enterCancelled"
           >
             <MobileSwipeableRow
-              v-for="chat in chatLists"
+              v-for="chat in sortedChats"
               :key="chat.id"
               :row-id="chat.id"
               :actions="getSwipeActions(chat)"
               :left-actions="getLeftSwipeActions(chat)"
+              full-swipe
               class="mb-0.5"
               @action="onSwipeAction(chat, $event)"
               @left-action="onLeftSwipeAction(chat, $event)"
@@ -510,6 +545,10 @@ watch(conversationFilters, newFilters => {
                 :show-inbox-name="showInboxName"
                 class="rounded-lg"
                 @click="onConversationClick(chat)"
+              />
+              <span
+                v-if="isPinned(chat)"
+                class="i-lucide-pin pointer-events-none absolute bottom-2.5 end-3 size-3.5 rotate-45 text-n-slate-10"
               />
             </MobileSwipeableRow>
           </TransitionGroup>

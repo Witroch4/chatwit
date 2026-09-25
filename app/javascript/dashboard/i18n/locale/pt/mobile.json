@@ -163,6 +163,10 @@
       "MARK_UNREAD": "Não lido",
       "MARKED_READ": "Conversa marcada como lida",
       "MARKED_UNREAD": "Conversa marcada como não lida",
+      "PIN": "Fixar",
+      "UNPIN": "Desafixar",
+      "PINNED": "Conversa fixada",
+      "UNPINNED": "Conversa desafixada",
       "DELETE": "Excluir",
       "CONFIRM_DELETE": "Tem certeza de que deseja excluir esta conversa?"
     },

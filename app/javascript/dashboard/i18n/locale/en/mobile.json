@@ -163,6 +163,10 @@
       "MARK_UNREAD": "Unread",
       "MARKED_READ": "Conversation marked as read",
       "MARKED_UNREAD": "Conversation marked as unread",
+      "PIN": "Pin",
+      "UNPIN": "Unpin",
+      "PINNED": "Conversation pinned",
+      "UNPINNED": "Conversation unpinned",
       "DELETE": "Delete",
       "CONFIRM_DELETE": "Are you sure you want to delete this conversation?"
     },
