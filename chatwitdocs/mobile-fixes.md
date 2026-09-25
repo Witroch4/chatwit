@@ -2,6 +2,31 @@
 
 Date: 2026-03-14
 
+## 2026-09-25 - Badge de não lidas não sumia após abrir a conversa
+
+### Contexto
+
+Na lista de conversas do PWA, o contador verde de não lidas (ex.: "8" na Bianca
+Rocha) continuava aparecendo mesmo depois do agente abrir e ler a conversa. Só o
+swipe "marcar como lida" zerava o contador de forma confiável.
+
+### Causa raiz
+
+No desktop, abrir uma conversa segue `ConversationView`/`InboxView.setActiveChat` →
+`emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE)` → `MessagesView.onScrollToMessage` →
+`markMessagesRead`. O `MobileChatView.setActiveChat` só despachava `setActiveChat` e
+**nunca** emitia o evento nem chamava `markMessagesRead`, então o
+`POST /update_last_seen` não era feito. O "às vezes funciona" vinha de um
+`UPDATE_CONVERSATION` via websocket com a conversa aberta, que emite
+`SCROLL_TO_MESSAGE` por acaso.
+
+### Correção
+
+`MobileChatView.setActiveChat` agora despacha `markMessagesRead` (a mesma action do
+desktop) ao abrir a conversa. Não foi usado o evento de barramento porque o
+`MessagesView` fica atrás de `v-if="chatLoaded"` e pode ainda não estar montado
+quando o evento dispara. Nenhum arquivo desktop foi alterado.
+
 ## 2026-08-04 - Chat sem composer: estado de swipe preso deixava a tab bar cobrindo o input
 
 ### Contexto

@@ -222,10 +222,12 @@ const setActiveChat = async () => {
     const fetchedChat = store.getters.getAllConversations.find(
       c => c.id === conversationId
     );
-    if (fetchedChat) {
-      store.dispatch('setActiveChat', { data: fetchedChat });
-    }
+    if (!fetchedChat) return;
+    store.dispatch('setActiveChat', { data: fetchedChat });
   }
+  // Desktop marks read via SCROLL_TO_MESSAGE → MessagesView; on mobile the
+  // MessagesView may not be mounted yet, so mark read directly.
+  store.dispatch('markMessagesRead', { id: conversationId });
 };
 
 const refreshConversation = async () => {
