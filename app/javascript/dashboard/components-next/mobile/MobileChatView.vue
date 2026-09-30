@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useWindowSize } from '@vueuse/core';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
@@ -349,6 +349,14 @@ onMounted(() => {
     conversationId: props.conversationId,
   });
   setActiveChat().then(() => consumeFocusReplyParam());
+});
+
+// Mirror desktop ConversationView.beforeRouteLeave: leaving the chat must
+// clear the selection, otherwise the reconnect list refresh keeps this
+// conversation's stale messages (dataFetched) and messages received while the
+// PWA was in background never show up when it is reopened.
+onUnmounted(() => {
+  store.dispatch('clearSelectedState');
 });
 
 watch(

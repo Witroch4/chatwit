@@ -2,6 +2,32 @@
 
 Date: 2026-03-14
 
+## 2026-09-30 - Mensagem da notificação não aparecia ao abrir a conversa
+
+### Contexto
+
+No iPhone, a push chegava e a prévia aparecia na lista, mas ao abrir a conversa a
+mensagem nova não estava no chat. Acontecia com a última conversa aberta antes do
+PWA ir para o background.
+
+### Causa raiz
+
+- O `MobileChatView` é montado com `v-if` e, ao voltar para a lista, nunca limpava
+  `selectedChatId`. O desktop faz isso em `ConversationView.beforeRouteLeave`
+  (`clearSelectedState`).
+- Com o app em background, o websocket cai. Na reconexão, estando na lista, o
+  `ReconnectService` recarrega a lista, mas `preserveConversationMessageState`
+  mantém as mensagens antigas e o `dataFetched` da conversa "selecionada". Como a
+  rota não tem `conversation_id`, `syncActiveConversationMessages` não roda.
+- Ao reabrir, `setActiveChat` vê `dataFetched` e não busca nada, então a mensagem
+  recebida offline não aparece.
+
+### Implementado
+
+- `MobileChatView.vue`: `onUnmounted` → `store.dispatch('clearSelectedState')`,
+  igual ao desktop. Na reconexão, a conversa é trocada pelo objeto novo e, ao
+  reabrir, `setActiveChat` busca o histórico outra vez.
+
 ## 2026-09-25 - Badge de não lidas não sumia após abrir a conversa
 
 ### Contexto
