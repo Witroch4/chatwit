@@ -36,4 +36,16 @@ module SafeFetch
   def self.allow_private_network?
     ActiveModel::Type::Boolean.new.cast(ENV.fetch('SAFE_FETCH_ALLOW_PRIVATE_NETWORK', false))
   end
+
+  # Exceção estreita: libera só IP literal + porta listados em SAFE_FETCH_PRIVATE_ALLOWLIST
+  # (ex.: "100.64.0.1:8788"). Hostname nunca entra, para não abrir DNS rebinding.
+  def self.private_allowlisted?(uri)
+    entries = ENV.fetch('SAFE_FETCH_PRIVATE_ALLOWLIST', '').split(',').map(&:strip).compact_blank
+    return false if entries.empty?
+
+    IPAddr.new(uri.hostname)
+    entries.include?("#{uri.hostname}:#{uri.port}")
+  rescue IPAddr::InvalidAddressError
+    false
+  end
 end

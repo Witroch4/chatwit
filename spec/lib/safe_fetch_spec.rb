@@ -277,6 +277,57 @@ RSpec.describe SafeFetch do
 
         expect(redirected_headers).not_to include('x-api-key')
       end
+
+      context 'with SAFE_FETCH_PRIVATE_ALLOWLIST' do
+        let(:jarvis_url) { 'http://100.64.0.1:8788/webhook' }
+
+        before do
+          allow(Resolv).to receive(:getaddresses).with('100.64.0.1').and_return(['100.64.0.1'])
+          allow(Resolv).to receive(:getaddresses).with('10.0.0.1').and_return(['10.0.0.1'])
+        end
+
+        def post_to(target)
+          described_class.fetch(target, method: :post, body: '{}', validate_content_type: false) { nil }
+        end
+
+        it 'allows a POST to an allowlisted private ip:port' do
+          stub_request(:post, jarvis_url).to_return(status: 200, body: '')
+          with_modified_env('SAFE_FETCH_PRIVATE_ALLOWLIST' => '100.64.0.1:8788') do
+            expect { post_to(jarvis_url) }.not_to raise_error
+          end
+        end
+
+        it 'blocks the same ip on another port' do
+          with_modified_env('SAFE_FETCH_PRIVATE_ALLOWLIST' => '100.64.0.1:8788') do
+            expect { post_to('http://100.64.0.1:20128/') }.to raise_error do |error|
+              expect(error.class.name).to eq('SafeFetch::UnsafeUrlError')
+            end
+          end
+        end
+
+        it 'blocks other private ips' do
+          with_modified_env('SAFE_FETCH_PRIVATE_ALLOWLIST' => '100.64.0.1:8788') do
+            expect { post_to('http://10.0.0.1:8788/webhook') }.to raise_error do |error|
+              expect(error.class.name).to eq('SafeFetch::UnsafeUrlError')
+            end
+          end
+        end
+
+        it 'ignores hostnames even when they resolve to an allowlisted ip' do
+          allow(Resolv).to receive(:getaddresses).with('jarvis.example.com').and_return(['100.64.0.1'])
+          with_modified_env('SAFE_FETCH_PRIVATE_ALLOWLIST' => '100.64.0.1:8788') do
+            expect { post_to('http://jarvis.example.com:8788/webhook') }.to raise_error do |error|
+              expect(error.class.name).to eq('SafeFetch::UnsafeUrlError')
+            end
+          end
+        end
+
+        it 'keeps blocking 100.64.0.1 when the allowlist is empty' do
+          expect { post_to(jarvis_url) }.to raise_error do |error|
+            expect(error.class.name).to eq('SafeFetch::UnsafeUrlError')
+          end
+        end
+      end
     end
 
     context 'with content-type allowlist' do
