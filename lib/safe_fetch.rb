@@ -45,7 +45,7 @@ module SafeFetch
 
     IPAddr.new(uri.hostname)
     entries.include?("#{uri.hostname}:#{uri.port}")
-  rescue IPAddr::InvalidAddressError
+  rescue IPAddr::Error
     false
   end
 end

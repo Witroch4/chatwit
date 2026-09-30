@@ -322,6 +322,17 @@ RSpec.describe SafeFetch do
           end
         end
 
+        it 'refuses to follow a redirect from an allowlisted ip:port to a non-allowlisted private host' do
+          stub_request(:post, jarvis_url).to_return(status: 302, headers: { 'Location' => 'http://10.0.0.1:8788/x' })
+          stub_request(:any, 'http://10.0.0.1:8788/x').to_return(status: 200, body: '')
+          with_modified_env('SAFE_FETCH_PRIVATE_ALLOWLIST' => '100.64.0.1:8788') do
+            expect { post_to(jarvis_url) }.to raise_error do |error|
+              expect(error.class.name).to eq('SafeFetch::UnsafeUrlError')
+            end
+          end
+          expect(a_request(:any, 'http://10.0.0.1:8788/x')).not_to have_been_made
+        end
+
         it 'keeps blocking 100.64.0.1 when the allowlist is empty' do
           expect { post_to(jarvis_url) }.to raise_error do |error|
             expect(error.class.name).to eq('SafeFetch::UnsafeUrlError')

@@ -1,6 +1,8 @@
 class SafeFetch::PrivateNetworkRequest
-  def initialize(options)
+  # restrict_redirects: true (caminho da allowlist ip:porta) só segue redirect para alvo também allowlisted.
+  def initialize(options, restrict_redirects: false)
     @options = options
+    @restrict_redirects = restrict_redirects
   end
 
   def perform(&)
@@ -15,6 +17,7 @@ class SafeFetch::PrivateNetworkRequest
       response, next_url = fetch_once(uri, resolved_addresses(uri.hostname).sample.to_s, original_uri, &)
       return response if next_url.nil?
 
+      validate_redirect_target!(next_url)
       url = next_url
     end
 
@@ -24,6 +27,13 @@ class SafeFetch::PrivateNetworkRequest
   private
 
   attr_reader :options
+
+  def validate_redirect_target!(next_url)
+    return unless @restrict_redirects
+    return if SafeFetch.private_allowlisted?(URI(next_url))
+
+    raise SsrfFilter::PrivateIPAddress, "Redirect to '#{next_url}' is not in SAFE_FETCH_PRIVATE_ALLOWLIST"
+  end
 
   def validate_scheme!(uri)
     return if SsrfFilter::DEFAULT_SCHEME_WHITELIST.include?(uri.scheme)
