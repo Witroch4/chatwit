@@ -38,6 +38,61 @@ RSpec.describe Integrations::SocialwiseFlow::ProcessorService do
     create(:captain_payment_review_trigger, conversation: conversation, account: account, state: :eligible)
   end
 
+  describe 'command lane' do
+    let(:message) do
+      create(:message, account: account, inbox: inbox, conversation: conversation, content: '/om-windows diegos kotas CC')
+    end
+    let(:http_response) { instance_double(HTTParty::Response, code: 200) }
+
+    before do
+      conversation.update!(
+        additional_attributes: { 'socialwise_handoff_at' => Time.current.iso8601, 'socialwise_handoff_by' => 'bot' }
+      )
+    end
+
+    it 'forwards a slash command even when the conversation was handed off', :aggregate_failures do
+      expect(HTTParty).to receive(:post) do |_url, options|
+        body = JSON.parse(options[:body])
+        expect(body['metadata']).to include(
+          'command_lane' => true,
+          'event_name' => 'message.created',
+          'account_id' => account.id,
+          'inbox_id' => inbox.id,
+          'conversation_id' => conversation.id,
+          'conversation_display_id' => conversation.display_id,
+          'message_id' => message.id
+        )
+        expect(body['message']).to eq('/om-windows diegos kotas CC')
+        expect(body['session_id']).to eq(conversation.contact_inbox.source_id)
+        http_response
+      end
+
+      service.perform
+    end
+
+    it 'does not type, debounce, or touch the conversation' do
+      allow(HTTParty).to receive(:post).and_return(http_response)
+      expect(service).not_to receive(:send_typing_indicator_to_user)
+      expect(SocialwiseDebounceJob).not_to receive(:perform_later)
+
+      expect { service.perform }.not_to(change { conversation.reload.additional_attributes })
+    end
+
+    it 'keeps plain text in a handed-off conversation blocked as before' do
+      message.update!(content: 'oi')
+      expect(HTTParty).not_to receive(:post)
+
+      service.perform
+    end
+
+    it 'keeps a button click whose title looks like a command blocked as before' do
+      message.update!(content_attributes: { 'button_reply' => { 'id' => '/om-windows', 'title' => '/om-windows x' } })
+      expect(HTTParty).not_to receive(:post)
+
+      service.perform
+    end
+  end
+
   describe '#perform ownership fence' do
     it 'stops before typing, Redis, enqueue, or HTTP when Captain has an eligible trigger' do
       create_eligible_trigger

@@ -14,6 +14,14 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     Rails.logger.info "[SOCIALWISE-FLOW] Hook ID: #{hook&.id}"
     Rails.logger.info "[SOCIALWISE-FLOW] Hook settings: #{hook&.settings&.except('access_token')}"
 
+    # CHATWIT: faixa de comando administrativo (bot de acesso OmniRoute). Vem ANTES de
+    # should_run_processor?, do ownership guard e do debounce de propósito: comando
+    # atravessa o handoff e não mexe na conversa. A regra mora no Socialwise.
+    if Integrations::SocialwiseFlow::CommandLane.eligible?(event_name: event_name, message: message)
+      forward_command_lane(message)
+      return
+    end
+
     unless should_run_processor?(message)
       Rails.logger.info '[SOCIALWISE-FLOW] should_run_processor? returned false, aborting'
       return
@@ -453,15 +461,38 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     message.content
   end
 
+  def socialwise_flow_url
+    hook.settings['endpoint'].presence || 'https://api.witdev.com.br/api/integrations/webhooks/socialwiseflow'
+  end
+
+  def socialwise_flow_headers
+    headers = { 'Content-Type' => 'application/json' }
+    headers['Authorization'] = "Bearer #{hook.settings['access_token']}" if hook.settings['access_token'].present?
+    headers
+  end
+
+  # CHATWIT: não usa get_response — ele chama publish_allowed? (ownership + handoff) antes
+  # do POST. Nunca loga o payload: ele carrega o token do Agent Bot.
+  def forward_command_lane(message)
+    payload = build_request_payload(conversation.contact_inbox.source_id, message.content)
+    payload[:metadata][:command_lane] = true
+    response = HTTParty.post(
+      socialwise_flow_url,
+      headers: socialwise_flow_headers,
+      body: payload.to_json,
+      timeout: ENV.fetch('SOCIALWISE_FLOW_TIMEOUT', '30').to_i
+    )
+    Rails.logger.info "[SOCIALWISE-FLOW] Command lane: message #{message.id} -> HTTP #{response.code}"
+  rescue StandardError => e
+    Rails.logger.error "[SOCIALWISE-FLOW] Command lane failed: #{e.class}: #{e.message}"
+  end
+
   def get_response(session_id, message_content)
-    url = hook.settings['endpoint'].presence || 'https://api.witdev.com.br/api/integrations/webhooks/socialwiseflow'
+    url = socialwise_flow_url
 
     payload = build_request_payload(session_id, message_content)
 
-    headers = {
-      'Content-Type' => 'application/json'
-    }
-    headers['Authorization'] = "Bearer #{hook.settings['access_token']}" if hook.settings['access_token'].present?
+    headers = socialwise_flow_headers
 
     # Debug: Log full outbound content
     begin
