@@ -12,9 +12,11 @@ RSpec.describe Integrations::SocialwiseFlow::CommandLane do
     expect(described_class.eligible?(event_name: 'message.created', message: message)).to be(true)
   end
 
-  it 'is case insensitive' do
-    message.update!(content: '/OM-Windows Diego')
-    expect(described_class.eligible?(event_name: 'message.created', message: message)).to be(true)
+  ['/OM-WINDOWS x', '/OM-Windows Diego', '/om-linux Diego', '  /om-windows Diego', '/om-windows', "/om-windows\nDiego"].each do |content|
+    it "accepts #{content.inspect}" do
+      message.update!(content: content)
+      expect(described_class.eligible?(event_name: 'message.created', message: message)).to be(true)
+    end
   end
 
   it 'ignores edits' do
@@ -43,7 +45,7 @@ RSpec.describe Integrations::SocialwiseFlow::CommandLane do
     end
   end
 
-  ['oi /om-windows x', '/1abc', '//om-windows x'].each do |content|
+  ['/start', '/om-mac x', '/om-windowsx', "oi\n/om-windows x", 'oi /om-windows x', '/1abc', '//om-windows x'].each do |content|
     it "ignores #{content.inspect}" do
       message.update!(content: content)
       expect(described_class.eligible?(event_name: 'message.created', message: message)).to be(false)

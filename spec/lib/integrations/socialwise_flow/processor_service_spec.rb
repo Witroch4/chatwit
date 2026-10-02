@@ -64,6 +64,7 @@ RSpec.describe Integrations::SocialwiseFlow::ProcessorService do
         )
         expect(body['message']).to eq('/om-windows diegos kotas CC')
         expect(body['session_id']).to eq(conversation.contact_inbox.source_id)
+        expect(options[:timeout]).to eq(10)
         http_response
       end
 
@@ -83,6 +84,32 @@ RSpec.describe Integrations::SocialwiseFlow::ProcessorService do
       expect(HTTParty).not_to receive(:post)
 
       service.perform
+    end
+
+    it 'keeps an unknown slash command in a handed-off conversation blocked as before' do
+      message.update!(content: '/start')
+      expect(HTTParty).not_to receive(:post)
+
+      service.perform
+    end
+
+    it 'sends an unknown slash command through the normal flow when the bot owns the conversation' do
+      conversation.update!(additional_attributes: {})
+      message.update!(content: '/start')
+      allow(service).to receive(:send_typing_indicator_to_user)
+      expect(service).not_to receive(:forward_command_lane)
+      expect(service).to receive(:process_content).with(message)
+
+      service.perform
+    end
+
+    it 'logs and swallows a failed forward' do
+      allow(HTTParty).to receive(:post).and_raise(Net::ReadTimeout)
+      allow(Rails.logger).to receive(:error)
+      expect(ChatwootExceptionTracker).not_to receive(:new)
+
+      expect { service.perform }.not_to raise_error
+      expect(Rails.logger).to have_received(:error).with(/Command lane failed: Net::ReadTimeout/)
     end
 
     it 'keeps a button click whose title looks like a command blocked as before' do

@@ -1,14 +1,18 @@
-# CHATWIT: faixa de comando administrativo do Socialwise.
+# CHATWIT: faixa de comando administrativo do Socialwise (bot de acesso OmniRoute).
 #
-# Mensagem de texto recebida que começa com "/palavra" vai direto ao Socialwise,
-# sem ownership guard, handoff, debounce nem indicador de digitação, e sem
-# alterar a conversa. Quem decide se é comando válido — e quem pode usá-lo — é o
-# Socialwise (FastAPI). O padrão é o MESMO de
-# domains/socialwise/services/om_access/commands.py (COMMAND_RE).
+# Mensagem de texto recebida cuja primeira linha começa com um comando CONHECIDO
+# (/om-windows ou /om-linux) vai direto ao Socialwise, sem ownership guard, handoff,
+# debounce nem indicador de digitação, e sem alterar a conversa. Qualquer outro
+# "/palavra" (ex.: /start) segue o fluxo normal: o Socialwise assume TODA mensagem
+# com metadata.command_lane, então marcar "/palavra" genérico silenciaria leads.
+# Espelha COMMANDS/parse_command de domains/socialwise/services/om_access/commands.py;
+# comando novo lá = entrada nova em COMMANDS aqui.
 # Clique de botão/lista/quick reply/postback nunca é comando, mesmo com título "/...".
 # Ver chatwitdocs/socialwise-command-lane.md.
 class Integrations::SocialwiseFlow::CommandLane
-  COMMAND_PATTERN = %r{\A/[a-z][a-z0-9-]*(\s|\z)}i
+  COMMANDS = %w[om-windows om-linux].freeze
+  COMMAND_PATTERN = %r{\A/(#{COMMANDS.join('|')})(\s|\z)}i
+  FORWARD_TIMEOUT_SECONDS = 10
   INTERACTION_KEYS = %w[button_reply list_reply quick_reply_payload postback_payload].freeze
 
   def self.eligible?(event_name:, message:)

@@ -472,7 +472,8 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
   end
 
   # CHATWIT: não usa get_response — ele chama publish_allowed? (ownership + handoff) antes
-  # do POST. Nunca loga o payload: ele carrega o token do Agent Bot.
+  # do POST. Nunca loga o payload: ele carrega o token do Agent Bot. Timeout curto (o
+  # Socialwise responde accepted na hora) e fail-quiet: erro só vira log, nunca sobe ao job.
   def forward_command_lane(message)
     payload = build_request_payload(conversation.contact_inbox.source_id, message.content)
     payload[:metadata][:command_lane] = true
@@ -480,7 +481,7 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       socialwise_flow_url,
       headers: socialwise_flow_headers,
       body: payload.to_json,
-      timeout: ENV.fetch('SOCIALWISE_FLOW_TIMEOUT', '30').to_i
+      timeout: Integrations::SocialwiseFlow::CommandLane::FORWARD_TIMEOUT_SECONDS
     )
     Rails.logger.info "[SOCIALWISE-FLOW] Command lane: message #{message.id} -> HTTP #{response.code}"
   rescue StandardError => e
