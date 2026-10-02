@@ -71,12 +71,14 @@ RSpec.describe Integrations::SocialwiseFlow::ProcessorService do
       service.perform
     end
 
-    it 'does not type, debounce, or touch the conversation' do
+    it 'does not type, debounce, or touch a bot-owned conversation' do
+      conversation.update!(additional_attributes: {})
       allow(HTTParty).to receive(:post).and_return(http_response)
       expect(service).not_to receive(:send_typing_indicator_to_user)
       expect(SocialwiseDebounceJob).not_to receive(:perform_later)
 
-      expect { service.perform }.not_to(change { conversation.reload.additional_attributes })
+      expect { with_modified_env(SOCIALWISE_DEBOUNCE_MS: '5000') { service.perform } }
+        .not_to(change { conversation.reload.slice(:additional_attributes, :status) })
     end
 
     it 'keeps plain text in a handed-off conversation blocked as before' do

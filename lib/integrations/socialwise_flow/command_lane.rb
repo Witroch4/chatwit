@@ -15,14 +15,17 @@ class Integrations::SocialwiseFlow::CommandLane
   FORWARD_TIMEOUT_SECONDS = 10
   INTERACTION_KEYS = %w[button_reply list_reply quick_reply_payload postback_payload].freeze
 
+  # O regex vem antes das guardas de propósito: mensagem comum de lead sai aqui sem
+  # consultar anexos.
   def self.eligible?(event_name:, message:)
-    return false unless event_name == 'message.created' && plain_incoming_text?(message)
+    return false unless event_name == 'message.created' && message.present?
+    return false unless COMMAND_PATTERN.match?(message.content.to_s.lstrip)
 
-    COMMAND_PATTERN.match?(message.content.to_s.lstrip)
+    plain_incoming_text?(message)
   end
 
   def self.plain_incoming_text?(message)
-    return false if message.blank? || message.private? || !message.incoming?
+    return false if message.private? || !message.incoming?
     return false unless message.content_type.to_s == 'text' && message.attachments.none?
 
     message.content_attributes.to_h.with_indifferent_access.slice(*INTERACTION_KEYS).values.none?(&:present?)
