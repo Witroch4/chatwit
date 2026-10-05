@@ -326,6 +326,9 @@
     "NATIVE_APP_ADVISORY": "Esta mensagem foi enviada a partir do aplicativo nativo. Responda pelo Chatwoot para manter a janela de mensagens ativa.",
     "SEND_FAILED": "Não foi possível enviar a mensagem! Tente novamente",
     "TRY_AGAIN": "tentar novamente",
+    "EXTERNAL_ERRORS": {
+      "CODE_131049": "O WhatsApp não entregou este template de marketing a este contato (limite de marketing por usuário da Meta). Reenviar agora não resolve. Aguarde o contato responder."
+    },
     "ASSIGNMENT": {
       "SELECT_AGENT": "selecionar Agente",
       "REMOVE": "Excluir",

@@ -6,16 +6,25 @@ import { useMessageContext } from './provider.js';
 import { hasOneDayPassed } from 'shared/helpers/timeHelper';
 import { ORIENTATION, MESSAGE_STATUS } from './constants';
 
-defineProps({
+const props = defineProps({
   error: { type: String, required: true },
 });
 
 const emit = defineEmits(['retry']);
 
+const ERROR_CODE_PATTERN = /^(\d+):/;
+
 const { orientation, status, createdAt, content, attachments } =
   useMessageContext();
 
-const { t } = useI18n();
+const { t, te } = useI18n();
+
+// Provider errors arrive as "<code>: <title>"; show a localized explanation when we have one.
+const errorMessage = computed(() => {
+  const code = props.error.match(ERROR_CODE_PATTERN)?.[1];
+  const key = `CONVERSATION.EXTERNAL_ERRORS.CODE_${code}`;
+  return code && te(key) ? t(key) : props.error;
+});
 
 const canRetry = computed(() => {
   const hasContent = content.value !== null;
@@ -37,13 +46,13 @@ const canRetry = computed(() => {
         />
       </div>
       <div
-        class="absolute bg-n-alpha-3 px-4 py-3 border rounded-xl border-n-strong text-n-slate-12 bottom-6 w-52 text-xs backdrop-blur-[100px] shadow-[0px_0px_24px_0px_rgba(0,0,0,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all break-all"
+        class="absolute bg-n-alpha-3 px-4 py-3 border rounded-xl border-n-strong text-n-slate-12 bottom-6 w-52 text-xs backdrop-blur-[100px] shadow-[0px_0px_24px_0px_rgba(0,0,0,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all break-words"
         :class="{
           'ltr:left-0 rtl:right-0': orientation === ORIENTATION.LEFT,
           'ltr:right-0 rtl:left-0': orientation === ORIENTATION.RIGHT,
         }"
       >
-        {{ error }}
+        {{ errorMessage }}
       </div>
     </div>
     <button
