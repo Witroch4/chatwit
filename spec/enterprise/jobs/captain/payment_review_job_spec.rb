@@ -147,7 +147,9 @@ RSpec.describe Captain::PaymentReviewJob do
         .to have_enqueued_job(described_class).with(run.id)
 
       run.reload
-      expect(run).to be_running
+      # The lease goes back to the queue so the scheduled retry can acquire it.
+      expect(run).to be_queued
+      expect(run.execution_token).to be_nil
       expect(run.attempts).to eq(1)
       expect(conversation.messages.where(private: false).count).to eq(0)
     end

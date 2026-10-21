@@ -60,14 +60,15 @@ RSpec.describe Captain::PaymentReview::Finalizer do
       expect(conversation.reload.label_list).not_to include(label)
     end
 
-    it 'preserves the label and promotes the successor generation after the terminal' do
+    it 'supersedes a run whose generation was removed, preserves the label and promotes the successor' do
       trigger.update!(state: :cancelled, deactivated_at: Time.current)
       successor = create(:captain_payment_review_trigger, conversation: conversation, account: account,
                                                           state: :eligible, generation: 2)
 
       finalizer.no_action!
 
-      expect(run.reload).to be_completed
+      expect(run.reload).to be_superseded
+      expect(run.reason_code).to eq('label_removed')
       expect(conversation.reload.label_list).to include(label)
       successor.reload
       expect(successor).to be_claimed

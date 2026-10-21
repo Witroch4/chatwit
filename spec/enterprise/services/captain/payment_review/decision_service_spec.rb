@@ -204,6 +204,9 @@ RSpec.describe Captain::PaymentReview::DecisionService do
 
   describe 'usage accounting' do
     it 'counts exactly one captain response per successful decision' do
+      # Upstream only meters Captain responses on Chatwoot Cloud.
+      allow(ChatwootApp).to receive(:chatwoot_cloud?).and_return(true)
+
       expect { service.call }.to change { account.reload.custom_attributes['captain_responses_usage'].to_i }.by(1)
     end
 

@@ -25,26 +25,35 @@ class Captain::PaymentReviewJob < ApplicationJob
 
   private
 
-  def execute_review(run, token)
+  def execute_review(run, token) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     finalizer = Captain::PaymentReview::Finalizer.new(run: run, token: token)
     client = Captain::PaymentReview::PlatformClient.new(run)
 
     context = client.payment_context
+    # Pin the charge on the run (spec §6.4): a paid outcome needs its NSU to feed the verified reconciler.
+    run.update!(payment_order_nsu: context.order_nsu) if context&.order_nsu.present? && run.payment_order_nsu.blank?
     return finalizer.paid! if context&.paid?
 
     decide_and_finalize(run, finalizer, client, context)
   rescue Captain::PaymentReview::PlatformClient::Unavailable
-    schedule_retry(run, finalizer, reason_code: 'platform_timeout')
+    schedule_retry(run, finalizer, token, reason_code: 'platform_timeout')
   rescue Captain::PaymentReview::PlatformClient::ContextConflict
-    schedule_retry(run, finalizer, reason_code: 'context_not_committed')
+    schedule_retry(run, finalizer, token, reason_code: 'context_not_committed')
   rescue Captain::PaymentReview::Finalizer::EnvelopeExpiredError
-    schedule_retry(run, finalizer, reason_code: 'envelope_expired')
+    schedule_retry(run, finalizer, token, reason_code: 'envelope_expired')
+  rescue Captain::PaymentReview::DecisionService::DecisionUnavailable
+    schedule_retry(run, finalizer, token, reason_code: 'llm_unavailable')
   rescue Captain::PaymentReview::DecisionService::DecisionFailed => e
     finalizer.fail!(reason_code: 'decision_invalid', error_message: e.message)
   rescue Captain::PaymentReview::Finalizer::PresetNotAllowedError => e
     finalizer.fail!(reason_code: 'invalid_official_value', error_message: e.message)
   rescue Captain::PaymentReview::Finalizer::StaleRunError
     nil
+  rescue StandardError => e
+    # A raised job would leave the run holding its lease with no worker to finish it, which
+    # fences Socialwise on this conversation forever. Fail closed instead (label kept + private note).
+    ChatwootExceptionTracker.new(e, account: run.account).capture_exception
+    finalizer.fail!(reason_code: 'unexpected_error', error_message: e.class.name)
   end
 
   def decide_and_finalize(run, finalizer, client, context)
@@ -57,7 +66,7 @@ class Captain::PaymentReviewJob < ApplicationJob
     when 'send_payment_preset' then finalizer.send_payment_preset!(decision)
     when 'send_pix_key'
       finalize_pix_key(run, finalizer, client, context, decision)
-    else finalize_financial_action(run, finalizer, client, context, decision)
+    else finalize_financial_action(finalizer, client, context, decision)
     end
   end
 
@@ -65,25 +74,27 @@ class Captain::PaymentReviewJob < ApplicationJob
   # Platform envelope remains the fallback for installations without it.
   def finalize_pix_key(run, finalizer, client, context, decision)
     pix_key = run.conversation.inbox.captain_inbox&.phase2_pix_key
-    return finalize_financial_action(run, finalizer, client, context, decision) if pix_key.blank?
+    return finalize_financial_action(finalizer, client, context, decision) if pix_key.blank?
 
     finalizer.send_pix_key!(decision, pix_key)
   end
 
-  def finalize_financial_action(run, finalizer, client, context, decision)
+  def finalize_financial_action(finalizer, client, context, decision)
     envelope = client.authorize(decision.action, context: context)
 
     case envelope.result
     when 'paid_noop' then finalizer.paid!
     when 'authorized' then finalizer.complete_with_envelope!(decision, envelope)
     when 'context_conflict', 'temporarily_unavailable'
-      schedule_retry(run, finalizer, reason_code: 'platform_timeout')
+      raise Captain::PaymentReview::PlatformClient::Unavailable, envelope.result
     else
       finalizer.fail!(reason_code: 'invalid_official_value', error_message: envelope.result)
     end
   end
 
-  def schedule_retry(run, finalizer, reason_code:)
+  # The lease is released before re-enqueueing: the backoff is shorter than the lease, so
+  # a retry that found it still held would exit silently and leave the run stuck forever.
+  def schedule_retry(run, finalizer, token, reason_code:)
     attempts = run.attempts + 1
     if attempts >= max_attempts
       finalizer.fail!(reason_code: reason_code)
@@ -91,7 +102,7 @@ class Captain::PaymentReviewJob < ApplicationJob
     end
 
     wait = RETRY_BACKOFF_BASE * (2**(attempts - 1))
-    run.update!(attempts: attempts, next_attempt_at: wait.from_now)
+    Captain::PaymentReview::LeaseService.new(run).release!(token, attempts: attempts, next_attempt_at: wait.from_now)
     self.class.set(wait: wait).perform_later(run.id)
   end
 

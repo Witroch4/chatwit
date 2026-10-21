@@ -35,6 +35,17 @@ class Captain::PaymentReview::LeaseService
     ) == 1
   end
 
+  # Hands the run back to the queue for a scheduled retry so the next job can
+  # acquire it immediately instead of waiting for this lease to expire.
+  def release!(token, attributes = {})
+    return false if token.blank?
+
+    # Atomic release guarded by the owning token; update_all is intentional here.
+    base_scope.where(status: running_value, execution_token: token).update_all( # rubocop:disable Rails/SkipsModelValidations
+      attributes.merge(status: Captain::PaymentReviewRun.statuses[:queued], execution_token: nil, lease_expires_at: nil)
+    ) == 1
+  end
+
   private
 
   def running_value

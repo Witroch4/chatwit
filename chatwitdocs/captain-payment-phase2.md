@@ -65,3 +65,26 @@ Ver tabela do Contrato 6. Essenciais: `CAPTAIN_PAYMENT_PLATFORM_URL`,
 - Auditoria: `captain_payment_review_triggers` (gerações), `captain_payment_review_runs`
   (lease/outcome/reason), `infinitepay_webhook_events` (inbox), `payment_reconciliations`
   (milestones).
+
+## Correções 2026-10-21
+
+- **Retry travava o run para sempre.** O backoff (30s, 60s…) é menor que o lease (2 min), então
+  o retry agendado não conseguia readquirir o lease e saía em silêncio; o run ficava `running`
+  e o fence (`active_run_present?`) calava o Socialwise na conversa até mesmo depois de resolver.
+  Agora `schedule_retry` devolve o run para `queued` (`LeaseService#release!`) antes de reenfileirar.
+- **Erro HTTP/timeout do LLM** (Faraday) virou `DecisionUnavailable`, retentado como
+  `llm_unavailable`. Qualquer outro erro inesperado falha fechado (`unexpected_error`, nota
+  privada, etiqueta mantida, Sentry) em vez de deixar o lease órfão.
+- **Job enfileirado antes do commit.** `enqueue_after_transaction_commit` é `:never` nesta
+  instalação; o `WakeService` agora enfileira o job só depois do commit do claim.
+- **`payment_order_nsu` nunca era gravado**, então o outcome `paid` do Captain não alimentava o
+  reconciler verificado. O job agora fixa o NSU do contexto no run.
+- **Remover a etiqueta / resolver durante o run** não interrompia o Captain, que ainda publicava.
+  Agora o finalizer encerra o run como `superseded` (`label_removed`) sem efeito público e
+  promove o sucessor.
+- **`handoff_required` devolvia a conversa ao Socialwise**, que voltava a responder o lead
+  enquanto ele esperava o humano. O handoff agora chama `OwnershipGuard#pause_for_phase2!`
+  (fence até o resolve) e promove o sucessor pendente.
+- Fora do escopo desta correção: os outros desfechos (`paid`, `no_action`, `reply`, CTA/Pix/
+  status) ainda devolvem a posse ao Socialwise logo no terminal; a spec original (§6.4/§8.2)
+  previa `pause_for_phase2!` já no claim, mantendo o fence até o resolve.

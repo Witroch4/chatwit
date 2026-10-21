@@ -15,15 +15,20 @@ class Captain::PaymentReview::WakeService
   # there is nothing eligible to claim.
   def call
     locked = @conversation.class.find(@conversation.id)
-    locked.with_lock do
+    claimed = nil
+    run = locked.with_lock do
       trigger = claimable_trigger(locked.id)
       next if trigger.nil?
 
       active = active_run(locked.id)
       next note_pending(active, trigger) if active.present?
 
-      claim(locked, trigger)
+      claimed = claim(locked, trigger)
     end
+    # Enqueue only after the claim commits: a worker that picks the job up earlier cannot
+    # see the run, exits, and leaves it queued (and Socialwise fenced) forever.
+    Captain::PaymentReviewJob.perform_later(claimed.id) if claimed
+    run
   end
 
   private
@@ -69,7 +74,6 @@ class Captain::PaymentReview::WakeService
       status: :queued
     )
     trigger.update!(state: :claimed, run: run)
-    Captain::PaymentReviewJob.perform_later(run.id)
     run
   end
 end
