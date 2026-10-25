@@ -4,7 +4,7 @@
 # lease token: optional idempotent message + run terminal + trigger consumption
 # + canonical label release (only when the present generation is the claimed
 # one). External HTTP (preset charge creation) always happens BEFORE the lock.
-class Captain::PaymentReview::Finalizer
+class Captain::PaymentReview::Finalizer # rubocop:disable Metrics/ClassLength
   class StaleRunError < StandardError; end
   class EnvelopeExpiredError < StandardError; end
   class PresetNotAllowedError < StandardError; end
@@ -78,8 +78,12 @@ class Captain::PaymentReview::Finalizer
         status: :completed, outcome: :handoff_required, decision_action: 'handoff_required',
         reason_code: decision.reason_code, completed_at: Time.current
       )
-      conversation.bot_handoff!
+      # Keep Socialwise fenced until the conversation is resolved, so the bot does not
+      # answer the lead while the human handoff is waiting (spec §8.2/§8.3).
+      Integrations::SocialwiseFlow::OwnershipGuard.new(conversation).pause_for_phase2!
+      conversation.reload.bot_handoff!
     end
+    promote_successor
   end
 
   def fail!(reason_code:, error_message: nil)
@@ -117,6 +121,11 @@ class Captain::PaymentReview::Finalizer
     conversation.with_lock do
       @run.reload
       raise StaleRunError, 'run is no longer owned by this worker' unless @run.lease_held_by?(@token)
+      # Label removed (resolving also removes it) while the run was in flight (spec §9.4):
+      # the gesture that woke the Captain is gone, so nothing is published.
+      if @run.trigger&.cancelled?
+        next @run.update!(status: :superseded, outcome: :superseded, reason_code: 'label_removed', completed_at: Time.current)
+      end
 
       result = yield(conversation)
     end

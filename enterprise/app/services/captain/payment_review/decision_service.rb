@@ -4,6 +4,8 @@
 # NSUs or keys), and must answer with exactly one closed-schema action.
 class Captain::PaymentReview::DecisionService
   class DecisionFailed < StandardError; end
+  # Transient LLM transport failure (timeout, connection, 429/5xx); the job retries it.
+  class DecisionUnavailable < StandardError; end
 
   MAX_ATTEMPTS = 2
   REQUEST_TIMEOUT = 30
@@ -171,6 +173,8 @@ class Captain::PaymentReview::DecisionService
       }
     )
     response.dig('choices', 0, 'message', 'content').to_s
+  rescue Faraday::Error => e
+    raise DecisionUnavailable, e.class.name
   end
 
   def llm_api_base
