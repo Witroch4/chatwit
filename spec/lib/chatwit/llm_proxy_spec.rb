@@ -98,7 +98,7 @@ RSpec.describe Chatwit::LlmProxy do
     allow(described_class).to receive(:route_witdev?).and_return(true)
     allow(described_class).to receive(:enabled?).and_return(true)
     allow(described_class).to receive(:model).and_return('configured-but-unverified')
-    allow(RubyLLM.models).to receive(:all).and_return(registry)
+    allow(RubyLLM.models).to receive(:all_including_unlisted).and_return(registry)
 
     described_class.register_models!
 
@@ -108,7 +108,7 @@ RSpec.describe Chatwit::LlmProxy do
   it 'registers an exact alias only after the catalog recovers and authorizes it' do
     registry = []
     allow(described_class).to receive_messages(route_witdev?: true, enabled?: true)
-    allow(RubyLLM.models).to receive(:all).and_return(registry)
+    allow(RubyLLM.models).to receive(:all_including_unlisted).and_return(registry)
     allow(HTTParty).to receive(:get).and_raise(Net::OpenTimeout, 'execution expired')
 
     described_class.register_models!
@@ -125,7 +125,7 @@ RSpec.describe Chatwit::LlmProxy do
   it 'does not register an alias that fails operational authorization' do
     registry = []
     model['hidden'] = true
-    allow(RubyLLM.models).to receive(:all).and_return(registry)
+    allow(RubyLLM.models).to receive(:all_including_unlisted).and_return(registry)
 
     expect { described_class.resolve_model!('witdev_claude/sonnet') }
       .to raise_error(Chatwit::LlmProxy::ModelUnavailableError)
@@ -134,7 +134,7 @@ RSpec.describe Chatwit::LlmProxy do
 
   it 'registers an authorized alias idempotently across repeated resolutions' do
     registry = []
-    allow(RubyLLM.models).to receive(:all).and_return(registry)
+    allow(RubyLLM.models).to receive(:all_including_unlisted).and_return(registry)
 
     2.times { expect(described_class.resolve_model!('witdev_claude/sonnet')).to eq('witdev_claude/sonnet') }
 

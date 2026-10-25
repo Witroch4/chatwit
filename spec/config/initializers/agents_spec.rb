@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe Agents do
   let(:agents_config) do
-    Struct.new(:openai_api_key, :gemini_api_key, :openai_api_base, :default_model, :debug).new.tap do |config|
+    Struct.new(:openai_api_key, :gemini_api_key, :openai_api_base, :openai_protocol, :model_registry_file, :default_model, :debug).new.tap do |config|
       config.default_model = 'gpt-4o-mini'
     end
   end
@@ -28,6 +28,7 @@ RSpec.describe Agents do
 
     expect(agents_config.openai_api_key).to be_nil
     expect(agents_config.openai_api_base).to eq('http://platform-litellm:4000/v1')
+    expect(agents_config.openai_protocol).to eq(:chat_completions)
     expect(agents_config.default_model).to eq('witdev/global')
   end
 

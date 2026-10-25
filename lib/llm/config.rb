@@ -1,7 +1,7 @@
 require 'ruby_llm'
 
 module Llm::Config
-  DEFAULT_MODEL = 'gpt-4.1-mini'.freeze
+  DEFAULT_MODEL = 'gpt-6-luna'.freeze
 
   class << self
     def initialized?
@@ -36,6 +36,7 @@ module Llm::Config
         configure_openai(config)
         config.gemini_api_key = gemini_api_key if !Chatwit::LlmProxy.route_witdev? && gemini_api_key.present?
         config.model_registry_file = Rails.root.join('config/llm_models.json').to_s
+        config.openai_protocol = :chat_completions
         config.logger = Rails.logger
       end
     end
@@ -48,7 +49,7 @@ module Llm::Config
         config.openai_api_base = Chatwit::LlmProxy.api_base
       else
         config.openai_api_key = system_api_key if system_api_key.present?
-        config.openai_api_base = openai_endpoint.chomp('/') if openai_endpoint.present?
+        config.openai_api_base = "#{openai_endpoint.chomp('/')}/v1" if openai_endpoint.present?
       end
     end
 

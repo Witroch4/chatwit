@@ -93,7 +93,7 @@ RSpec.describe Captain::InboxPendingConversationsResolutionJob, type: :job do
     end
 
     it 'uses the assistant inactivity timer' do
-      captain_assistant.account.enable_features!('captain_integration_v2')
+      captain_assistant.account.enable_features!('captain_integration')
       captain_assistant.update!(config: captain_assistant.config.merge('auto_resolve_after' => 180))
 
       described_class.perform_now(inbox)
@@ -102,7 +102,7 @@ RSpec.describe Captain::InboxPendingConversationsResolutionJob, type: :job do
     end
 
     it 'resolves silently when the resolution message is disabled' do
-      captain_assistant.account.enable_features!('captain_integration_v2')
+      captain_assistant.account.enable_features!('captain_integration')
       captain_assistant.update!(config: captain_assistant.config.merge('send_inactivity_resolution_message' => false))
 
       described_class.perform_now(inbox)

@@ -416,7 +416,7 @@ export default {
       </SettingsFieldSection>
     </div>
     <ImapSettings :inbox="inbox" />
-    <SmtpSettings v-if="inbox.imap_enabled" :inbox="inbox" />
+    <SmtpSettings :inbox="inbox" />
   </div>
   <div v-else-if="isEvolutionGoWhatsAppChannel">
     <SettingsFieldSection

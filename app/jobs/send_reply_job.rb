@@ -21,6 +21,8 @@ class SendReplyJob < ApplicationJob
 
     channel_name = message.conversation.inbox.channel.class.to_s
 
+    Captain::Conversation::AgentMessageTranslationService.new(message: message).perform if message.content_attributes['translation_pending']
+
     return if send_meta_rich_message(message)
 
     return send_on_facebook_page(message) if channel_name == 'Channel::FacebookPage'

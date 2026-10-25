@@ -212,6 +212,9 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
 
 - MVP focus: Least code change, happy-path only
 - Ship the happy path first; iterate after confirmation
+- **Database foreign keys**: Prefer Rails associations and callbacks over database foreign-key constraints. Add a database foreign key only when there is a clear need and after checking deletion behavior and production migration/locking risks. Existing foreign keys alone are not a reason to add new ones.
+- **Migrations**: Create migrations with `bundle exec rails g migration <Name>` so the version is a real timestamp. Never hand-write or round the version (e.g. `20260925000000`); rounded versions collide across branches and break `db:migrate`.
+- **No custom SQL**: Write queries and data migrations in Ruby with ActiveRecord (`where`, `find_each`, `update!`). Do not use `execute`, SQL heredocs or raw SQL strings.
 - Prefer the smallest production-ready change that solves the current problem.
 - Build for the expected production path first. Do not add speculative guards, fallbacks, retries, or edge-case handling unless the caller can actually hit that case or production has proven it necessary.
 - Enforce eligibility and exclusivity rules at the earliest shared entry point. Do not repeat backup guards across downstream jobs, callbacks, services, or writes unless a proven independent path bypasses that point.
@@ -223,6 +226,9 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
 - Prefer existing repo dependencies/client libraries over hand-rolled protocol code for auth, signing, parsing, or API plumbing.
 - Avoid one-use private helpers unless they hide real complexity or make the main flow meaningfully easier to read.
 - Prefer minimal, readable code over elaborate abstractions; clarity beats cleverness
+- Optimize for human-readable, idiomatic Rails code. Prefer clear model methods, associations, scopes, and named route helpers over dense controller chains or manually assembled paths.
+- Keep record relationships, association traversal, and reusable database queries in models or model scopes. Return an ActiveRecord relation when callers need to filter or order the result.
+- Controllers should coordinate requests and prepare responses. Keep request-specific URL generation and presentation logic in controllers or view helpers. Before finalizing controller changes, check that relationship and traversal logic lives in the model layer.
 - Break down complex tasks into small, testable units
 - Iterate after confirmation
 - In specs, avoid custom helper methods for setup/data. Prefer `let` values and direct per-example setup; only add a helper when it removes meaningful repeated complexity.
@@ -274,6 +280,7 @@ bundle exec rspec spec/path/to/file_spec.rb:LINE_NUMBER  # Teste individual
   - Backend i18n → `en.yml`, Frontend i18n → `en.json`
 - **Frontend**:
   - Use `components-next/` for message bubbles (the rest is being deprecated)
+- **AI models**: Before adding or changing an OpenAI model in `config/llm.yml` or code, check the deprecations page (https://developers.openai.com/api/docs/deprecations). Do not use a model that has a shutdown date; use the replacement the page recommends. Pick models through `config/llm.yml` and `Llm::FeatureRouter`, not hard-coded names.
 
 ## Ruby Best Practices
 
@@ -315,6 +322,20 @@ Practical checklist for any change impacting core logic or public APIs
 ---
 
 ## Historico de Migração
+
+### 2026-10-25 - Upstream sync v4.19.1 (214 commits, 206 PRs)
+- Sync type: Normal merge
+- New merge-base: `3564ec1e96` (upstream/develop HEAD no momento do sync)
+- Conflicts: 41 resolvidos
+- Critical:
+  - RubyLLM 2.0: `RubyLLM.models.all` virou cópia filtrada e `RubyLLM::Model::Info` virou `RubyLLM::Model`. `Chatwit::LlmProxy#register_model!` usa `RubyLLM.models.all_including_unlisted` + `RubyLLM::Model.default`; sem isso nenhum alias WitDev é registrado.
+  - A rota WitDev fica em chat completions: `Llm::FeatureRouter.standard_openai_endpoint?` retorna `false` com `route_witdev?` e `configure_witdev` fixa `openai_protocol = :chat_completions` (o upstream passou a usar a Responses API com endpoint OpenAI vazio).
+  - Exclusividade de bot por inbox (novo upstream): só vale para `CaptainInbox` em modo `continuous`; o phase2_only coexiste com o Agent Bot do Socialwise. É o 4º ponto de guarda de `phase2_only?` (além dos 3 de 4.17.1): `CaptainInbox` (`if: :continuous?`) e `Enterprise::Inbox#conflicting_bot_provider`.
+  - `captain_integration_v2` está deprecated; o gate do assistente agora é `captain_integration` (`Agentable#agent_model`, `Llm::BaseAiService#captain_assistant?`).
+  - Super Admin redesenhado: branding Chatwit em `_standalone`/`_brand`, widget de suporte Chatwoot continua desativado (`_javascript.html.erb` mantém a versão Chatwit), botão "Chat Support" removido, aviso WitDev e selects fail-closed em `app_configs/show`, toggle Captain Payment Phase 2 no tab Maintenance.
+  - Quoted-reply toggle e label suggestions foram removidos pelo upstream (não recriar).
+  - `spec/enterprise/models/message_spec.rb` (4 exemplos `mark_pending_conversation_as_open_for_human_response`) já falha no backup pré-sync; não é regressão.
+- Documentação: `chatwitdocs/upstream-sync-v4.19.1.md`
 
 ### 2026-09-12 - Upstream sync v4.17.1 (334 PRs)
 - Sync type: Normal merge

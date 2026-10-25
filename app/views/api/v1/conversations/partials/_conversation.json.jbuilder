@@ -12,7 +12,7 @@ json.meta do
       json.partial! 'api/v1/models/agent_bot_slim', formats: [:json], resource: conversation.assigned_entity
     end
     json.assignee_type 'AgentBot'
-  elsif conversation.assignee_type == 'User'
+  elsif conversation.assigned_entity.is_a?(User)
     json.assignee do
       json.partial! 'api/v1/models/agent', formats: [:json], resource: conversation.assigned_entity
     end
@@ -47,15 +47,8 @@ json.uuid conversation.uuid
 json.additional_attributes conversation.additional_attributes
 json.agent_last_seen_at conversation.agent_last_seen_at.to_i
 json.assignee_last_seen_at conversation.assignee_last_seen_at.to_i
-can_reply = conversation.can_reply?
-json.can_reply can_reply
-contact_info_request = local_assigns[:contact_info_request] ||
-                       Whatsapp::ContactInfoRequestEligibilityService.new(conversation: conversation, can_reply: can_reply).availability
-json.contact_info_request do
-  json.available contact_info_request[:available]
-  json.reason contact_info_request[:reason]
-  json.delivery_mode contact_info_request[:delivery_mode]
-end
+json.can_reply conversation.can_reply?
+json.anonymous_caller conversation.contact_inbox.anonymous_caller?
 json.contact_last_seen_at conversation.contact_last_seen_at.to_i
 json.custom_attributes conversation.custom_attributes
 json.inbox_id conversation.inbox_id

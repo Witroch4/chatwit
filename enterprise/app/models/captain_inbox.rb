@@ -21,7 +21,9 @@ class CaptainInbox < ApplicationRecord
   enum :mode, { continuous: 0, phase2_only: 1 }, default: :continuous, validate: true
 
   validates :inbox_id, uniqueness: true
-
+  # Chatwit: phase2_only is a one-shot payment review that coexists with the Socialwise
+  # agent bot; only continuous mode competes with other bot providers for the inbox.
+  validate :ensure_exclusive_bot_provider, if: :continuous?
   before_validation :normalize_phase2_settings
   validate :phase2_payment_preset_ids_are_account_presets
 
@@ -65,5 +67,10 @@ class CaptainInbox < ApplicationRecord
 
     known = PaymentPreset.where(account_id: inbox&.account_id, id: ids).pluck(:id)
     errors.add(:phase2_payment_preset_ids, 'must reference payment presets from the same account') if (ids - known).any?
+  end
+
+  def ensure_exclusive_bot_provider
+    provider = inbox&.conflicting_bot_provider(:captain)
+    errors.add(:base, I18n.t('errors.inboxes.bot_provider_conflict', current_provider: provider, requested_provider: 'Captain')) if provider
   end
 end

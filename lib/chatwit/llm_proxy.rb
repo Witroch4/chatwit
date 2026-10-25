@@ -101,8 +101,9 @@ module Chatwit::LlmProxy
 
     def register_model!(model_id)
       MODEL_REGISTRY_MUTEX.synchronize do
-        registry = RubyLLM.models.all
-        registry << RubyLLM::Model::Info.default(model_id, 'openai') unless registry.any? { |registered| registered.id == model_id }
+        # RubyLLM 2.0 `all` returns a filtered copy; the live registry array is `all_including_unlisted`.
+        registry = RubyLLM.models.all_including_unlisted
+        registry << RubyLLM::Model.default(model_id, 'openai') unless registry.any? { |registered| registered.id == model_id }
       end
     end
 

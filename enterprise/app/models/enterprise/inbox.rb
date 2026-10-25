@@ -28,6 +28,10 @@ module Enterprise::Inbox
     captain_inbox&.phase2_only? && captain_available?
   end
 
+  def conflicting_bot_provider(provider)
+    super || ('Captain' if provider != :captain && CaptainInbox.continuous.joins(:captain_assistant).exists?(inbox_id: id))
+  end
+
   private
 
   def captain_available?

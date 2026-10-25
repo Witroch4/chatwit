@@ -1,12 +1,9 @@
+<%# locals: (page:) -%>
 <% enabled = page.resource.internal_attributes['captain_payment_phase2'] == true %>
-<section class="main-content__body">
- <hr/>
-  <div class="pb-3">
-    <p>Captain Payment Phase 2 is currently <strong><%= enabled ? 'Enabled' : 'Disabled' %></strong> for this account.</p>
+<%= form_for([:toggle_captain_payment_phase2, namespace, page.resource], method: :post, html: { id: nil, class: "flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4" }) do |f| %>
+  <div class="min-w-0">
+    <h2 class="text-heading-3">Captain Payment Phase 2</h2>
+    <p class="text-body-main text-n-slate-11">Captain Payment Phase 2 is currently <strong><%= enabled ? 'Enabled' : 'Disabled' %></strong> for this account.</p>
   </div>
-  <%= form_for([:toggle_captain_payment_phase2, namespace, page.resource], method: :post, html: { class: "form" }) do |f| %>
-    <div class="form-actions">
-      <%= f.submit enabled ? 'Disable Captain Payment Phase 2' : 'Enable Captain Payment Phase 2' %>
-    </div>
-  <% end %>
-</section>
+  <%= render "button", label: enabled ? 'Disable Captain Payment Phase 2' : 'Enable Captain Payment Phase 2', variant: :secondary, submit: f %>
+<% end %>

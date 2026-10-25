@@ -15,6 +15,12 @@ module Enterprise::Conversation
 
   public
 
+  def can_reply?
+    return false if contact_inbox.anonymous_caller?
+
+    super
+  end
+
   def dispatch_captain_inference_resolved_event
     dispatch_captain_inference_event(Events::Types::CONVERSATION_CAPTAIN_INFERENCE_RESOLVED)
   end
