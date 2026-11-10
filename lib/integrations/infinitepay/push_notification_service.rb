@@ -3,19 +3,16 @@
 class Integrations::Infinitepay::PushNotificationService
   pattr_initialize [:account!, :notification_payload!, :log_reference]
 
+  # A confirmed payment always reaches the agents' devices, whatever its origin
+  # (Chatwit link or SocialWise flow). The account's "push only" switch just
+  # silences the other pushes (Notification::PushNotificationService).
   def perform
-    return unless push_only_enabled?
-
     browser_push_subscriptions.find_each do |subscription|
       send_browser_push(subscription)
     end
   end
 
   private
-
-  def push_only_enabled?
-    ActiveModel::Type::Boolean.new.cast(account.custom_attributes&.dig('infinitepay_push_only'))
-  end
 
   def browser_push_subscriptions
     NotificationSubscription
