@@ -39,8 +39,40 @@ class Integrations::Infinitepay::VerifyWebhookJob < ApplicationJob
   # Flow charges (sw-*) have no Chatwit anchor: the Platform owns the financial
   # truth and re-verifies internally (raw ingress closed in Task 12a). The
   # forward keeps the resume path alive without any local financial effect.
+  # The Platform answer drives the rest: not yet verified (provider delay) or
+  # unreachable → re-forward with backoff; verified → push the agents.
   def forward_flow_event(event)
-    Integrations::Infinitepay::WebhookProcessorService.forward_raw_flow_event(event.payload)
+    response = Integrations::Infinitepay::WebhookProcessorService.forward_raw_flow_event(event.payload)
+    answer = platform_answer(response)
+    if retry_flow_forward?(response, answer)
+      event.update!(status: :awaiting_verification)
+      raise VerificationPending, "#{event.order_nsu}:platform_#{response.success? ? 'unverified' : response.code}"
+    end
+
     event.update!(status: :processed, verified_at: Time.current)
+    Integrations::Infinitepay::FlowPaymentPushService.new(order_nsu: event.order_nsu, answer: answer).perform
+  rescue Net::OpenTimeout, Net::ReadTimeout, Errno::ECONNREFUSED, Errno::ECONNRESET, SocketError => e
+    event.update!(status: :awaiting_verification)
+    raise VerificationPending, "#{event.order_nsu}:#{e.class.name}"
+  end
+
+  # No response = SOCIALWISE_WEBHOOK_URL not configured: nothing to retry.
+  # (Type check, not #nil?: HTTParty answers nil? == true for an empty body.)
+  def retry_flow_forward?(response, answer)
+    return false unless response.is_a?(HTTParty::Response)
+    return true unless response.success?
+
+    !ActiveModel::Type::Boolean.new.cast(answer['verified']) &&
+      ActiveModel::Type::Boolean.new.cast(answer['retryable'])
+  end
+
+  def platform_answer(response)
+    return {} unless response.is_a?(HTTParty::Response)
+
+    parsed = response.parsed_response
+    parsed = JSON.parse(parsed) if parsed.is_a?(String)
+    parsed.is_a?(Hash) ? parsed : {}
+  rescue JSON::ParserError
+    {}
   end
 end

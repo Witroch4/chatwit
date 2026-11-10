@@ -86,5 +86,53 @@ RSpec.describe Integrations::Infinitepay::VerifyWebhookJob do
       expect(PaymentLink.count).to eq(0)
       expect(PaymentReconciliation.count).to eq(0)
     end
+
+    def platform_answer(body)
+      stub_request(:post, %r{/api/v1/socialwise/admin/leads-chatwit/recebearquivos})
+        .to_return(status: 200, body: body.to_json, headers: { 'Content-Type' => 'application/json' })
+    end
+
+    it 'pushes the agents once the Platform answers the payment as verified' do
+      platform_answer(success: true, ok: true, verified: true, conversationId: conversation.id, paidAmountCents: 2790)
+      pusher = instance_double(Integrations::Infinitepay::FlowPaymentPushService, perform: true)
+      allow(Integrations::Infinitepay::FlowPaymentPushService).to receive(:new)
+        .with(order_nsu: order_nsu, answer: hash_including('verified' => true, 'conversationId' => conversation.id))
+        .and_return(pusher)
+
+      described_class.perform_now(event.id)
+
+      expect(pusher).to have_received(:perform)
+      expect(event.reload).to be_processed
+    end
+
+    it 're-forwards with backoff while the Platform has not verified the payment yet' do
+      platform_answer(success: true, ok: true, verified: false, retryable: true)
+      allow(Integrations::Infinitepay::FlowPaymentPushService).to receive(:new)
+
+      expect { described_class.perform_now(event.id) }.to have_enqueued_job(described_class)
+      expect(event.reload).to be_awaiting_verification
+      expect(Integrations::Infinitepay::FlowPaymentPushService).not_to have_received(:new)
+    end
+
+    it 're-forwards when the Platform is unavailable instead of dropping the event' do
+      stub_request(:post, %r{/api/v1/socialwise/admin/leads-chatwit/recebearquivos}).to_return(status: 502, body: '')
+
+      expect { described_class.perform_now(event.id) }.to have_enqueued_job(described_class)
+      expect(event.reload).to be_awaiting_verification
+    end
+
+    it 're-forwards when the Platform times out' do
+      stub_request(:post, %r{/api/v1/socialwise/admin/leads-chatwit/recebearquivos}).to_timeout
+
+      expect { described_class.perform_now(event.id) }.to have_enqueued_job(described_class)
+      expect(event.reload).to be_awaiting_verification
+    end
+
+    it 'closes the event when the Platform does not know the charge' do
+      platform_answer(success: true, ok: true, verified: false, retryable: false)
+
+      expect { described_class.perform_now(event.id) }.not_to have_enqueued_job(described_class)
+      expect(event.reload).to be_processed
+    end
   end
 end

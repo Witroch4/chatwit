@@ -19,7 +19,7 @@ describe Integrations::Infinitepay::PushNotificationService do
   let(:notification_payload) do
     {
       title: 'Pagamento Confirmado!',
-      body: "Ola Nonata, seu pagamento foi recebido com sucesso!",
+      body: 'Ola Nonata, seu pagamento foi recebido com sucesso!',
       tag: 'infinitepay_payment_confirmed_1',
       url: 'https://chatwit.witdev.com.br/app/accounts/3/conversations/1'
     }
@@ -50,7 +50,8 @@ describe Integrations::Infinitepay::PushNotificationService do
 
   it 'sends browser push notifications to account users when exclusive infinitepay push is enabled' do
     with_modified_env VAPID_PUBLIC_KEY: 'test-public-key', VAPID_PRIVATE_KEY: 'test-private-key' do
-      described_class.new(payment_link: payment_link, notification_payload: notification_payload).perform
+      described_class.new(account: account, notification_payload: notification_payload,
+                          log_reference: "payment_link=#{payment_link.id}").perform
 
       expect(WebPush).to have_received(:payload_send)
       expect(Rails.logger).to have_received(:info).with(
@@ -64,7 +65,8 @@ describe Integrations::Infinitepay::PushNotificationService do
 
     it 'does not send browser push notifications' do
       with_modified_env VAPID_PUBLIC_KEY: 'test-public-key', VAPID_PRIVATE_KEY: 'test-private-key' do
-        described_class.new(payment_link: payment_link, notification_payload: notification_payload).perform
+        described_class.new(account: account, notification_payload: notification_payload,
+                            log_reference: "payment_link=#{payment_link.id}").perform
 
         expect(WebPush).not_to have_received(:payload_send)
       end
