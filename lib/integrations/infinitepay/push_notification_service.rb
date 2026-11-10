@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Integrations::Infinitepay::PushNotificationService
-  pattr_initialize [:payment_link!, :notification_payload!]
+  pattr_initialize [:account!, :notification_payload!, :log_reference]
 
   def perform
     return unless push_only_enabled?
@@ -12,10 +12,6 @@ class Integrations::Infinitepay::PushNotificationService
   end
 
   private
-
-  def account
-    payment_link.account
-  end
 
   def push_only_enabled?
     ActiveModel::Type::Boolean.new.cast(account.custom_attributes&.dig('infinitepay_push_only'))
@@ -52,7 +48,7 @@ class Integrations::Infinitepay::PushNotificationService
 
     WebPush.payload_send(**browser_push_payload(subscription))
     Rails.logger.info(
-      "[INFINITEPAY-PUSH] Browser push sent to #{subscription.user.email} for payment_link=#{payment_link.id}"
+      "[INFINITEPAY-PUSH] Browser push sent to #{subscription.user.email} for #{log_reference}"
     )
   rescue StandardError => e
     handle_browser_push_error(e, subscription)

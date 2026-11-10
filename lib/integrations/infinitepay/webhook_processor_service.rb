@@ -73,8 +73,9 @@ class Integrations::Infinitepay::WebhookProcessorService
 
   def send_payment_push!
     Integrations::Infinitepay::PushNotificationService.new(
-      payment_link: @payment_link,
-      notification_payload: notification_payload.slice(:title, :body, :tag, :url)
+      account: @payment_link.account,
+      notification_payload: notification_payload.slice(:title, :body, :tag, :url),
+      log_reference: "payment_link=#{@payment_link.id}"
     ).perform
   end
 
