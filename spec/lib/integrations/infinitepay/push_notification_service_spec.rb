@@ -63,12 +63,12 @@ describe Integrations::Infinitepay::PushNotificationService do
   context 'when exclusive infinitepay push is disabled' do
     let(:push_only_enabled) { false }
 
-    it 'does not send browser push notifications' do
+    it 'still sends the payment push (the switch only silences the other pushes)' do
       with_modified_env VAPID_PUBLIC_KEY: 'test-public-key', VAPID_PRIVATE_KEY: 'test-private-key' do
         described_class.new(account: account, notification_payload: notification_payload,
                             log_reference: "payment_link=#{payment_link.id}").perform
 
-        expect(WebPush).not_to have_received(:payload_send)
+        expect(WebPush).to have_received(:payload_send)
       end
     end
   end
