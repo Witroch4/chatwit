@@ -6,6 +6,9 @@
 class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcessorService
   pattr_initialize [:event_name!, :hook!, :event_data!]
 
+  # Depois deste prazo sem resposta humana, um clique novo em anúncio devolve a conversa ao robô.
+  STALE_HUMAN_HANDOFF_AFTER = 24.hours
+
   # Override perform to add debounce logic
   def perform
     Rails.logger.info '[SOCIALWISE-FLOW] === ProcessorService.perform called ==='
@@ -263,6 +266,8 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
       return
     end
 
+    release_stale_human_handoff_for_ad_return(message)
+
     # Accept pending OR open conversations unless Socialwise explicitly handed off.
     # A historical human reply must not suppress automation forever: Chatwit is
     # transport, and the platform decides handoff through the response action.
@@ -291,6 +296,26 @@ class Integrations::SocialwiseFlow::ProcessorService < Integrations::BotProcesso
     return true if conversation.open? && !handoff_done
 
     false
+  end
+
+  # Lead que volta por um anúncio (clique novo, com `referral`) numa conversa que ficou
+  # com uma pessoa há mais de STALE_HUMAN_HANDOFF_AFTER volta ao robô: o handoff de
+  # resposta humana é regravado a cada resposta, então a marca antiga só bloqueava
+  # o robô para sempre (lead #3616, 12-13/11/2026: 4 meses de handoff, 2 cliques ignorados).
+  # Mensagem sem anúncio (arquivo, "ok", resposta ao atendente) continua com a pessoa.
+  def release_stale_human_handoff_for_ad_return(message)
+    return unless ad_return_message?(message)
+
+    return unless ownership_guard.release_stale_human_handoff!(cutoff: STALE_HUMAN_HANDOFF_AFTER.ago)
+
+    Rails.logger.info(
+      "[SOCIALWISE-FLOW] Stale human handoff released for conversation #{message.conversation.id}: " \
+      "ad return after more than #{STALE_HUMAN_HANDOFF_AFTER.inspect}"
+    )
+  end
+
+  def ad_return_message?(message)
+    message.incoming? && message.conversation.open? && message.content_attributes&.dig('referral').present?
   end
 
   # Check if handoff has been completed for this conversation

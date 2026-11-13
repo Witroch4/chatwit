@@ -477,4 +477,70 @@ RSpec.describe 'Integrations::SocialwiseFlow::OwnershipGuard' do
       end
     end
   end
+
+  describe '#release_stale_human_handoff!' do
+    let(:cutoff) { 24.hours.ago }
+
+    def human_handoff(by:, at:)
+      conversation.update!(
+        additional_attributes: {
+          'socialwise_handoff_at' => at.iso8601(6),
+          'socialwise_handoff_by' => by,
+          'socialwise_ownership_epoch' => 3,
+          'unrelated' => 'kept'
+        }
+      )
+    end
+
+    %w[agent_reply human_reply external_echo].each do |source|
+      it "releases a #{source} handoff older than the cutoff and bumps the epoch", :aggregate_failures do
+        human_handoff(by: source, at: 2.days.ago)
+
+        expect(guard.release_stale_human_handoff!(cutoff: cutoff)).to be(true)
+
+        attributes = conversation.reload.additional_attributes
+        expect(attributes).not_to include('socialwise_handoff_at', 'socialwise_handoff_by')
+        expect(attributes).to include('socialwise_ownership_epoch' => 4, 'unrelated' => 'kept')
+        expect(build_guard(conversation).socialwise_owned?).to be(true)
+      end
+    end
+
+    it 'keeps a human handoff that is newer than the cutoff', :aggregate_failures do
+      handoff_at = 2.hours.ago
+      human_handoff(by: 'agent_reply', at: handoff_at)
+
+      expect(guard.release_stale_human_handoff!(cutoff: cutoff)).to be(false)
+
+      expect(conversation.reload.additional_attributes).to include(
+        'socialwise_handoff_at' => handoff_at.iso8601(6),
+        'socialwise_handoff_by' => 'agent_reply',
+        'socialwise_ownership_epoch' => 3
+      )
+    end
+
+    %w[bot captain_payment_phase2].each do |source|
+      it "never releases a #{source} handoff, however old", :aggregate_failures do
+        human_handoff(by: source, at: 30.days.ago)
+
+        expect(guard.release_stale_human_handoff!(cutoff: cutoff)).to be(false)
+
+        expect(conversation.reload.additional_attributes).to include('socialwise_handoff_by' => source)
+      end
+    end
+
+    it 'does nothing when there is no handoff' do
+      expect(guard.release_stale_human_handoff!(cutoff: cutoff)).to be(false)
+    end
+
+    it 'does not touch payment review triggers or labels', :aggregate_failures do
+      human_handoff(by: 'agent_reply', at: 2.days.ago)
+      conversation.update!(label_list: [canonical_label])
+      trigger = create_trigger(activated_at: 3.days.ago)
+
+      expect(guard.release_stale_human_handoff!(cutoff: cutoff)).to be(true)
+
+      expect(trigger.reload.state).to eq('eligible')
+      expect(conversation.reload.label_list).to include(canonical_label)
+    end
+  end
 end

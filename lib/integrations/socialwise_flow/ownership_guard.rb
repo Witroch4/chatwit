@@ -5,6 +5,10 @@ class Integrations::SocialwiseFlow::OwnershipGuard
   EPOCH_KEY = 'socialwise_ownership_epoch'
   HANDOFF_AT_KEY = 'socialwise_handoff_at'
   HANDOFF_BY_KEY = 'socialwise_handoff_by'
+  # Handoffs gravados quando uma pessoa responde na conversa. Os demais donos
+  # (o handoff executado pelo Socialwise e o `captain_payment_phase2`) têm ciclo de
+  # vida próprio e nunca expiram por tempo.
+  HUMAN_HANDOFF_SOURCES = %w[agent_reply human_reply external_echo].freeze
 
   def initialize(conversation)
     @conversation = conversation
@@ -82,9 +86,30 @@ class Integrations::SocialwiseFlow::OwnershipGuard
     end
   end
 
+  # Devolve a conversa ao Socialwise quando o único dono é uma resposta humana
+  # antiga. `socialwise_handoff_at` é regravado a cada resposta humana, então ele
+  # marca a ÚLTIMA vez que alguém respondeu: se passou de `cutoff`, a conversa
+  # ficou parada com a pessoa e o contato está voltando. Só limpa o handoff e
+  # avança o epoch (cancela publicações em voo); não mexe em gatilhos nem em
+  # labels de revisão de pagamento.
+  def release_stale_human_handoff!(cutoff:)
+    locked_conversation = reload_conversation
+    locked_conversation.with_lock do
+      attributes = locked_conversation.additional_attributes || {}
+      next false unless stale_human_handoff?(attributes, cutoff)
+
+      locked_conversation.update!(additional_attributes: released_attributes(attributes, true))
+      true
+    end
+  end
+
   private
 
   attr_reader :conversation
+
+  def stale_human_handoff?(attributes, cutoff)
+    HUMAN_HANDOFF_SOURCES.include?(attributes[HANDOFF_BY_KEY]) && handoff_present_at?(attributes, cutoff)
+  end
 
   def reload_conversation
     conversation.class.find(conversation.id)
