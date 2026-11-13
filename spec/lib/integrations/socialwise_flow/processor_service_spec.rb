@@ -738,4 +738,73 @@ RSpec.describe Integrations::SocialwiseFlow::ProcessorService do
       expect(service.send(:bot_should_respond?)).to be(true)
     end
   end
+
+  describe 'lead returning from an ad after a stale human handoff' do
+    let(:referral) { { 'source_type' => 'ad', 'source_id' => '120231251402970754', 'body' => 'Contrate um advogado' } }
+    let(:ad_message) do
+      create(
+        :message,
+        account: account,
+        inbox: inbox,
+        conversation: conversation,
+        message_type: :incoming,
+        content: 'Olá! Posso ter mais informações sobre isso?',
+        content_attributes: { referral: referral }
+      )
+    end
+    let(:plain_message) do
+      create(
+        :message,
+        account: account,
+        inbox: inbox,
+        conversation: conversation,
+        message_type: :incoming,
+        content: 'Olá! Posso ter mais informações sobre isso?'
+      )
+    end
+
+    def human_handoff(by:, at:)
+      conversation.update!(
+        additional_attributes: { 'socialwise_handoff_at' => at.iso8601(6), 'socialwise_handoff_by' => by }
+      )
+    end
+
+    it 'releases the handoff and lets the bot answer when the last human reply is older than 24h', :aggregate_failures do
+      human_handoff(by: 'agent_reply', at: 25.hours.ago)
+
+      expect(service.send(:should_run_processor?, ad_message)).to be(true)
+
+      attributes = conversation.reload.additional_attributes
+      expect(attributes).not_to include('socialwise_handoff_at', 'socialwise_handoff_by')
+      expect(attributes['socialwise_ownership_epoch']).to eq(1)
+    end
+
+    it 'keeps the handoff when the human replied less than 24h ago', :aggregate_failures do
+      handoff_at = 23.hours.ago
+      human_handoff(by: 'agent_reply', at: handoff_at)
+
+      expect(service.send(:should_run_processor?, ad_message)).to be_nil
+
+      expect(conversation.reload.additional_attributes).to include(
+        'socialwise_handoff_at' => handoff_at.iso8601(6),
+        'socialwise_handoff_by' => 'agent_reply'
+      )
+    end
+
+    it 'keeps the handoff for a message that does not come from an ad, however old the handoff', :aggregate_failures do
+      human_handoff(by: 'agent_reply', at: 30.days.ago)
+
+      expect(service.send(:should_run_processor?, plain_message)).to be_nil
+
+      expect(conversation.reload.additional_attributes).to include('socialwise_handoff_by' => 'agent_reply')
+    end
+
+    it 'never releases a handoff that Socialwise itself executed', :aggregate_failures do
+      human_handoff(by: 'bot', at: 30.days.ago)
+
+      expect(service.send(:should_run_processor?, ad_message)).to be_nil
+
+      expect(conversation.reload.additional_attributes).to include('socialwise_handoff_by' => 'bot')
+    end
+  end
 end
