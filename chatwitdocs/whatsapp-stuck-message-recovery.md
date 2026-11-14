@@ -38,17 +38,20 @@ Comportamento (definido com o time — "reenviar 1x, depois sinalizar"):
 Antes o texto dizia "Entrega não confirmada pela WhatsApp após reenvio automático. Reenvie
 manualmente.", o que lia como erro do arquivo/envio e empurrava o agente a reenviar. No caso
 Eliseu (#3616, 14/11/2026) a Meta **aceitou** 5 envios do mesmo `.docx` e respondeu só `sent`
-(nunca `delivered` nem `failed`): o celular do contato estava desligado/sem internet, e cada
-reenvio manual só aumenta as cópias que chegam juntas quando ele voltar.
+(nunca `delivered` nem `failed`), enquanto as outras 91 mensagens do dia foram entregues/lidas.
+
+**A causa não é determinável a partir do que recebemos.** Cabem três hipóteses e nenhum dado as
+separa: o celular do contato desligado/offline (a mensagem fica na fila da Meta e cada reenvio só
+soma cópias), uma perda silenciosa da Meta (17/07: o mesmo arquivo reenviado à mão 8h depois foi
+entregue) ou algo do nosso lado. Por isso o aviso não aponta culpado nem manda reenviar às cegas.
 
 Texto atual (`Whatsapp::StuckMessageRecoveryJob::UNDELIVERED_ERROR`):
 
-> Aceita pelo WhatsApp, entrega não confirmada: o celular do contato pode estar desligado ou
-> sem internet; não reenvie (pode chegar repetida) e avise o contato por outro meio.
+> Aceita pelo WhatsApp, mas sem confirmação de entrega. Pode ser o celular do contato (desligado
+> ou sem internet), a Meta ou o sistema. Confirme com o contato por outro meio antes de reenviar:
+> se ele não recebeu, reenvie; se recebeu, não reenvie.
 
-O status continua `failed` (é ele que acende o ícone vermelho); só o texto mudou. O incidente
-de 17/07 acima mostra que a Meta também pode perder a entrega de verdade: se o contato confirmar
-por outro meio que não recebeu, aí sim vale reenviar.
+O status continua `failed` (é ele que acende o ícone vermelho); só o texto mudou.
 
 ### Salvaguardas
 - Só `whatsapp_cloud` (Evolution Go/360dialog podem não reportar `delivered`).

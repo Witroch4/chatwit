@@ -44,7 +44,7 @@ RSpec.describe Whatsapp::StuckMessageRecoveryJob do
       expect(message.reload.status).to eq('sent')
     end
 
-    it 'flags the message as failed after the resend stays unconfirmed, saying it was accepted but not delivered', :aggregate_failures do
+    it 'flags the message as failed after the resend stays unconfirmed, without blaming a single cause', :aggregate_failures do
       message = stuck_message(additional_attributes: { 'stuck_recovery_resent_at' => 15.minutes.ago.iso8601 })
 
       described_class.perform_now
@@ -52,7 +52,9 @@ RSpec.describe Whatsapp::StuckMessageRecoveryJob do
       message.reload
       expect(message.status).to eq('failed')
       expect(message.external_error).to eq(described_class::UNDELIVERED_ERROR)
-      expect(message.external_error).to include('Aceita pelo WhatsApp', 'entrega não confirmada', 'não reenvie')
+      # aceita pela Meta, sem confirmação; lista as três causas possíveis; manda confirmar antes de reenviar
+      expect(message.external_error).to include('Aceita pelo WhatsApp', 'sem confirmação de entrega', 'celular do contato', 'a Meta ou o sistema')
+      expect(message.external_error).to include('por outro meio antes de reenviar')
       expect(message.external_error).not_to match(/falha|erro/i)
     end
 

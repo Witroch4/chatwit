@@ -19,12 +19,15 @@ class Whatsapp::StuckMessageRecoveryJob < ApplicationJob
   STUCK_AFTER = 10.minutes
   # Don't resurrect very old sends (e.g. after a long outage/backfill).
   MAX_AGE = 6.hours
-  # Shown to the agent on the flagged message. The Meta API ACCEPTED it (we have a wamid) and never
-  # reported `failed`: the usual cause is the recipient's phone being off or offline, in which case the
-  # message is still queued at WhatsApp and a manual resend only produces duplicates (Eliseu, 14/11/2026:
-  # 5 accepted sends, no `delivered`). Do not call this a delivery failure.
-  UNDELIVERED_ERROR = 'Aceita pelo WhatsApp, entrega não confirmada: o celular do contato pode estar desligado ou sem internet; ' \
-                      'não reenvie (pode chegar repetida) e avise o contato por outro meio.'.freeze
+  # Shown to the agent on the flagged message. The Meta API ACCEPTED it (we have a wamid) and reported
+  # neither `delivered` nor `failed`. From here the cause is NOT knowable: the recipient's phone off or
+  # offline (the message is still queued and a resend only duplicates it), a silent loss on Meta's side
+  # (17/07/2026: the same file resent by hand 8h later was delivered), or our own side. Eliseu, 14/11/2026:
+  # 5 accepted sends, no `delivered`, while 91 other messages that day were delivered/read. So the text
+  # blames nobody and tells the agent to confirm with the contact before resending.
+  UNDELIVERED_ERROR = 'Aceita pelo WhatsApp, mas sem confirmação de entrega. Pode ser o celular do contato (desligado ou sem internet), ' \
+                      'a Meta ou o sistema. Confirme com o contato por outro meio antes de reenviar: ' \
+                      'se ele não recebeu, reenvie; se recebeu, não reenvie.'.freeze
 
   def perform
     inbox_ids = whatsapp_cloud_inbox_ids
