@@ -10,8 +10,8 @@
 # when the customer complains.
 #
 # Strategy (chosen with the team): resend once automatically; if it is still
-# stuck after the resend, flag it as `failed` so the agent sees the red badge +
-# resend button and knows delivery failed.
+# stuck after the resend, flag it as `failed` so the agent sees the red badge and
+# knows delivery was not confirmed (see UNDELIVERED_ERROR for what the agent is told).
 class Whatsapp::StuckMessageRecoveryJob < ApplicationJob
   queue_as :low
 
@@ -19,6 +19,12 @@ class Whatsapp::StuckMessageRecoveryJob < ApplicationJob
   STUCK_AFTER = 10.minutes
   # Don't resurrect very old sends (e.g. after a long outage/backfill).
   MAX_AGE = 6.hours
+  # Shown to the agent on the flagged message. The Meta API ACCEPTED it (we have a wamid) and never
+  # reported `failed`: the usual cause is the recipient's phone being off or offline, in which case the
+  # message is still queued at WhatsApp and a manual resend only produces duplicates (Eliseu, 14/11/2026:
+  # 5 accepted sends, no `delivered`). Do not call this a delivery failure.
+  UNDELIVERED_ERROR = 'Aceita pelo WhatsApp, entrega não confirmada: o celular do contato pode estar desligado ou sem internet; ' \
+                      'não reenvie (pode chegar repetida) e avise o contato por outro meio.'.freeze
 
   def perform
     inbox_ids = whatsapp_cloud_inbox_ids
@@ -83,10 +89,7 @@ class Whatsapp::StuckMessageRecoveryJob < ApplicationJob
     # Give the resend its own grace period before declaring it failed.
     return if resent_at.present? && Time.current - resent_at < STUCK_AFTER
 
-    message.update!(
-      status: :failed,
-      external_error: 'Entrega não confirmada pela WhatsApp após reenvio automático. Reenvie manualmente.'
-    )
+    message.update!(status: :failed, external_error: UNDELIVERED_ERROR)
     Rails.logger.warn("[WA-STUCK-RECOVERY] Flagged message #{message.id} as failed (undelivered after resend)")
   end
 
