@@ -160,7 +160,7 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
   def ensure_audio_model!(resolved)
     return if Chatwit::AudioTranscriptionService.audio_capable?(resolved)
 
-    raise Chatwit::LlmProxy::ModelUnavailableError, "model #{resolved} does not support audio (use gpt-4o-transcribe or gemini-*)"
+    raise Chatwit::LlmProxy::ModelUnavailableError, "model #{resolved} does not support audio (use gpt-transcribe or gemini-*)"
   end
 
   # Chatwit: an incomplete WitDev route fails closed instead of silently using

@@ -53,7 +53,7 @@ RSpec.describe Chatwit::AudioTranscriptionService do
       allow(Chatwit::LlmProxy).to receive(:resolve_model!).and_return('witdev/model-without-audio')
       expect(HTTParty).not_to receive(:post)
 
-      expect(service.perform).to eq(error: 'model witdev/model-without-audio does not support audio (use gpt-4o-transcribe or gemini-*)')
+      expect(service.perform).to eq(error: 'model witdev/model-without-audio does not support audio (use gpt-transcribe or gemini-*)')
     end
 
     it 'sends OpenAI transcription models to the audio transcriptions endpoint as multipart mp3' do
@@ -102,19 +102,41 @@ RSpec.describe Chatwit::AudioTranscriptionService do
       expect(service.perform).to eq(success: true, transcriptions: 'longo')
     end
 
+    it 'falls back to the Gemini model when the OpenAI transcription fails' do
+      allow(Chatwit::LlmProxy).to receive(:resolve_model!) { |name| name }
+      allow(Chatwit::LlmProxy).to receive_messages(api_base: 'http://litellm.test/v1', api_key: 'chave-teste')
+      allow(described_class).to receive(:model).and_return('gpt-transcribe')
+      allow(service).to receive(:read_mp3).and_return('mp3-bytes')
+      allow(attachment).to receive(:update!)
+      stub_request(:post, 'http://litellm.test/v1/audio/transcriptions').to_return(status: 503, body: 'upstream down')
+      response = instance_double(HTTParty::Response, success?: true,
+                                                     parsed_response: { 'choices' => [{ 'message' => { 'content' => 'pelo gemini' } }] })
+      expect(HTTParty).to receive(:post) do |_url, options|
+        expect(JSON.parse(options.fetch(:body)).fetch('model')).to eq(described_class::LONG_AUDIO_MODEL)
+        response
+      end
+
+      expect(service.perform).to eq(success: true, transcriptions: 'pelo gemini')
+    end
+
     it 'keeps the proxy error body in the failure message' do
       allow(Chatwit::LlmProxy).to receive_messages(resolve_model!: 'gpt-4o-transcribe', api_base: 'http://litellm.test/v1',
                                                    api_key: 'chave-teste')
       allow(service).to receive(:read_mp3).and_return('mp3-bytes')
       stub_request(:post, 'http://litellm.test/v1/audio/transcriptions')
         .to_return(status: 400, body: '{"error":{"message":"audio too long"}}')
+      failed = instance_double(HTTParty::Response, success?: false, code: 502, body: 'gemini down')
+      allow(HTTParty).to receive(:post).and_return(failed)
 
-      expect(service.perform[:error]).to include('HTTP 400').and include('audio too long')
+      error = service.perform[:error]
+      expect(error).to include('HTTP 400').and include('audio too long')
+      expect(error).to include('HTTP 502').and include('gemini down')
     end
   end
 
   describe '.audio_capable?' do
     it 'accepts the OpenAI transcription models and the Gemini aliases only' do
+      expect(described_class.audio_capable?('gpt-transcribe')).to be(true)
       expect(described_class.audio_capable?('gpt-4o-transcribe')).to be(true)
       expect(described_class.audio_capable?('gpt-4o-mini-transcribe')).to be(true)
       expect(described_class.audio_capable?('gemini-3.5-transcribe')).to be(true)

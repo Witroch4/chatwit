@@ -2,9 +2,11 @@
 # platform LiteLLM proxy.
 #
 # Model comes from CAPTAIN_WITDEV_TRANSCRIPTION_MODEL (super admin → Captain),
-# defaulting to OpenAI's gpt-4o-transcribe through the direct API. Two transports:
-# - OpenAI transcription models (gpt-4o-transcribe, gpt-4o-mini-transcribe) only
-#   exist on /audio/transcriptions (multipart mp3); they are not chat models.
+# defaulting to OpenAI's gpt-transcribe through the direct API (it replaces
+# gpt-4o-transcribe, which OpenAI shuts down on 26/02/2027). Two transports:
+# - OpenAI transcription models (gpt-transcribe, gpt-4o-transcribe, gpt-4o-mini-transcribe)
+#   only exist on /audio/transcriptions (multipart mp3); they are not chat models.
+#   If OpenAI fails or returns nothing, the note falls back to Gemini.
 # - gemini-* aliases take the audio inside chat completions (input_audio, base64 mp3)
 #   with the verbatim prompt below.
 # Chat models without audio input are refused: Luna and Claude reject input_audio,
@@ -15,17 +17,17 @@
 # Result is cached in attachment.meta['transcribed_text'], same slot the legacy
 # Messages::AudioTranscriptionService uses, so both paths reuse each other.
 class Chatwit::AudioTranscriptionService
-  RECOMMENDED_MODEL = 'gpt-4o-transcribe'.freeze
+  RECOMMENDED_MODEL = 'gpt-transcribe'.freeze
   # OpenAI speech-to-text models served on /audio/transcriptions (direct API).
-  OPENAI_TRANSCRIPTION_MODELS = %w[gpt-4o-transcribe gpt-4o-mini-transcribe].freeze
+  OPENAI_TRANSCRIPTION_MODELS = %w[gpt-transcribe gpt-4o-transcribe gpt-4o-mini-transcribe].freeze
   # Chat aliases that really carry input_audio through the proxy.
   AUDIO_ALIAS_ALLOWLIST = %w[gemini-].freeze
   TRANSCRIPTION_LANGUAGE = 'pt'.freeze
   # Doc: inline base64 is reliable up to ~15-20MB of audio; larger files need chunking.
   MAX_AUDIO_BYTES = 15.megabytes
-  # gpt-4o-transcribe caps its output (~2k tokens) and duration, so a long note would
-  # come back truncated and stay cached that way. The dossier mp3 is 64 kbps mono:
-  # 4.5 MB ≈ 9 minutes. Longer audio goes to Gemini, which handles long recordings.
+  # The OpenAI transcription models cap their output (gpt-4o-transcribe: ~2k tokens), so
+  # a long note could come back truncated and stay cached that way. The dossier mp3 is
+  # 64 kbps mono: 4.5 MB ≈ 9 minutes. Longer audio goes to Gemini, which handles it.
   OPENAI_MAX_AUDIO_BYTES = 4.5.megabytes
   LONG_AUDIO_MODEL = 'gemini-3.5-transcribe'.freeze
   ERROR_BODY_LIMIT = 300
@@ -80,7 +82,7 @@ class Chatwit::AudioTranscriptionService
 
   def precondition_error
     return 'WitDev proxy API key not configured' unless self.class.available?
-    return "model #{resolved_model} does not support audio (use gpt-4o-transcribe or gemini-*)" unless self.class.audio_capable?(resolved_model)
+    return "model #{resolved_model} does not support audio (use gpt-transcribe or gemini-*)" unless self.class.audio_capable?(resolved_model)
 
     nil
   end
@@ -98,8 +100,34 @@ class Chatwit::AudioTranscriptionService
 
   def transcribe_mp3(mp3)
     return request_transcription(Base64.strict_encode64(mp3), resolved_model) unless self.class.transcription_endpoint?(resolved_model)
-    return request_audio_transcription(mp3) if mp3.bytesize <= OPENAI_MAX_AUDIO_BYTES
+    return transcribe_with_gemini(mp3) if mp3.bytesize > OPENAI_MAX_AUDIO_BYTES
 
+    openai_or_gemini(mp3)
+  end
+
+  # OpenAI first; an error or an empty answer goes to Gemini once. When both fail,
+  # the message keeps both causes.
+  def openai_or_gemini(mp3)
+    openai_error = nil
+    begin
+      text = request_audio_transcription(mp3)
+      return text if text.present?
+    rescue StandardError => e
+      openai_error = e
+    end
+
+    Rails.logger.warn("[CHATWIT][CAPTAIN_WHISPER] OpenAI transcription #{openai_error ? 'failed' : 'came back empty'} " \
+                      "for attachment ##{attachment.id}, falling back to #{LONG_AUDIO_MODEL}: #{openai_error&.message}")
+    begin
+      transcribe_with_gemini(mp3)
+    rescue StandardError => e
+      raise e unless openai_error
+
+      raise "#{openai_error.message}; fallback #{LONG_AUDIO_MODEL}: #{e.message}"
+    end
+  end
+
+  def transcribe_with_gemini(mp3)
     request_transcription(Base64.strict_encode64(mp3), Chatwit::LlmProxy.resolve_model!(LONG_AUDIO_MODEL))
   end
 
