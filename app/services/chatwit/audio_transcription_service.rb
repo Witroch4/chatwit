@@ -164,10 +164,13 @@ class Chatwit::AudioTranscriptionService
     "LiteLLM proxy returned HTTP #{code}: #{body.to_s.squish.first(ERROR_BODY_LIMIT)}"
   end
 
+  # The proxy asks for verbose_json when no format is sent, and gpt-transcribe refuses it
+  # (HTTP 400 "use 'json' or 'text'"). json is accepted by every OpenAI transcription model.
   def transcription_form(mp3)
     [
       ['model', resolved_model],
       ['language', TRANSCRIPTION_LANGUAGE],
+      %w[response_format json],
       ['file', StringIO.new(mp3), { filename: 'audio.mp3', content_type: 'audio/mpeg' }]
     ]
   end

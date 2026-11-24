@@ -74,16 +74,18 @@ RSpec.describe Chatwit::AudioTranscriptionService do
       expect(request).to have_been_requested.once
     end
 
-    it 'builds the transcription form with the resolved model, Portuguese and the mp3 file' do
-      allow(Chatwit::LlmProxy).to receive(:resolve_model!).and_return('gpt-4o-transcribe')
+    it 'builds the transcription form with the resolved model, Portuguese, plain json and the mp3 file' do
+      allow(Chatwit::LlmProxy).to receive(:resolve_model!).and_return('gpt-transcribe')
 
       form = service.send(:transcription_form, 'mp3-bytes')
 
-      expect(form[0]).to eq(%w[model gpt-4o-transcribe])
+      expect(form[0]).to eq(%w[model gpt-transcribe])
       expect(form[1]).to eq(%w[language pt])
-      expect(form[2][0]).to eq('file')
-      expect(form[2][1].read).to eq('mp3-bytes')
-      expect(form[2][2]).to eq(filename: 'audio.mp3', content_type: 'audio/mpeg')
+      # gpt-transcribe refuses the proxy's default verbose_json.
+      expect(form[2]).to eq(%w[response_format json])
+      expect(form[3][0]).to eq('file')
+      expect(form[3][1].read).to eq('mp3-bytes')
+      expect(form[3][2]).to eq(filename: 'audio.mp3', content_type: 'audio/mpeg')
     end
 
     it 'sends long audio to the long-audio Gemini model through chat even when gpt-4o-transcribe is configured' do
