@@ -1,20 +1,26 @@
 # Chatwit: "Captain Whisper" — canonical audio transcription through the
-# platform LiteLLM proxy (OpenAI chat completions + input_audio, base64 mp3).
+# platform LiteLLM proxy.
 #
 # Model comes from CAPTAIN_WITDEV_TRANSCRIPTION_MODEL (super admin → Captain),
-# defaulting to the tested legal-grade alias. Only witdev_antigravity/* aliases
-# carry audio for real — copilot routes hallucinate transcriptions and codex
-# routes reject input_audio (see witdev-platform-core
+# defaulting to OpenAI's gpt-4o-transcribe through the direct API. Two transports:
+# - OpenAI transcription models (gpt-4o-transcribe, gpt-4o-mini-transcribe) only
+#   exist on /audio/transcriptions (multipart mp3); they are not chat models.
+# - gemini-* aliases take the audio inside chat completions (input_audio, base64 mp3)
+#   with the verbatim prompt below.
+# Chat models without audio input are refused: Luna and Claude reject input_audio,
+# copilot routes hallucinate the transcription (audio dropped) and the old
+# witdev_antigravity/* aliases were retired on 23/10/2026 (see witdev-platform-core
 # docs/agent-memory/witdev-audio-transcription.md).
 #
 # Result is cached in attachment.meta['transcribed_text'], same slot the legacy
 # Messages::AudioTranscriptionService uses, so both paths reuse each other.
 class Chatwit::AudioTranscriptionService
-  RECOMMENDED_MODEL = 'witdev_antigravity/gemini-3.1-pro-low'.freeze
-  # Only these alias families actually carry audio through the proxy. Copilot
-  # returns 200 OK with a fully hallucinated transcription (audio dropped),
-  # codex rejects input_audio (HTTP 400) and Claude models have no audio input.
-  AUDIO_ALIAS_ALLOWLIST = %w[witdev_antigravity/ gemini-].freeze
+  RECOMMENDED_MODEL = 'gpt-4o-transcribe'.freeze
+  # OpenAI speech-to-text models served on /audio/transcriptions (direct API).
+  OPENAI_TRANSCRIPTION_MODELS = %w[gpt-4o-transcribe gpt-4o-mini-transcribe].freeze
+  # Chat aliases that really carry input_audio through the proxy.
+  AUDIO_ALIAS_ALLOWLIST = %w[gemini-].freeze
+  TRANSCRIPTION_LANGUAGE = 'pt'.freeze
   # Doc: inline base64 is reliable up to ~15-20MB of audio; larger files need chunking.
   MAX_AUDIO_BYTES = 15.megabytes
   REQUEST_TIMEOUT_SECONDS = 180
@@ -43,8 +49,12 @@ class Chatwit::AudioTranscriptionService
     Chatwit::LlmProxy.resolve_model!(model)
   end
 
+  def self.transcription_endpoint?(alias_name)
+    OPENAI_TRANSCRIPTION_MODELS.include?(alias_name.to_s)
+  end
+
   def self.audio_capable?(alias_name)
-    AUDIO_ALIAS_ALLOWLIST.any? { |prefix| alias_name.to_s.start_with?(prefix) }
+    transcription_endpoint?(alias_name) || AUDIO_ALIAS_ALLOWLIST.any? { |prefix| alias_name.to_s.start_with?(prefix) }
   end
 
   def perform
@@ -64,29 +74,67 @@ class Chatwit::AudioTranscriptionService
 
   def precondition_error
     return 'WitDev proxy API key not configured' unless self.class.available?
-    return "model #{resolved_model} does not support audio (use witdev_antigravity/*)" unless self.class.audio_capable?(resolved_model)
+    return "model #{resolved_model} does not support audio (use gpt-4o-transcribe or gemini-*)" unless self.class.audio_capable?(resolved_model)
 
     nil
   end
 
   def transcribe
-    audio_base64 = encode_audio
-    return { error: "audio larger than #{MAX_AUDIO_BYTES / 1.megabyte}MB" } if audio_base64.blank?
+    text = if self.class.transcription_endpoint?(resolved_model)
+             mp3 = read_mp3
+             return audio_too_large if mp3.nil?
 
-    text = request_transcription(audio_base64)
+             request_audio_transcription(mp3)
+           else
+             audio_base64 = encode_audio
+             return audio_too_large if audio_base64.blank?
+
+             request_transcription(audio_base64)
+           end
     return { error: 'proxy returned an empty transcription' } if text.blank?
 
     cache_transcription(text)
     { success: true, transcriptions: text }
   end
 
+  def audio_too_large
+    { error: "audio larger than #{MAX_AUDIO_BYTES / 1.megabyte}MB" }
+  end
+
   # Reuses the dossier mp3 pipeline (cached playback_file / ffmpeg fallback)
   # so the proxy always receives mp3, whatever the original codec was.
-  def encode_audio
+  def read_mp3
     Conversations::DossierAudioService.new(attachment: attachment).open_mp3 do |io|
       data = io.read
-      data.bytesize > MAX_AUDIO_BYTES ? nil : Base64.strict_encode64(data)
+      data.bytesize > MAX_AUDIO_BYTES ? nil : data
     end
+  end
+
+  def encode_audio
+    mp3 = read_mp3
+    mp3 && Base64.strict_encode64(mp3)
+  end
+
+  # Multipart via Net::HTTP: the LiteLLM proxy rejects HTTParty's multipart body
+  # ("There was an error parsing the body").
+  def request_audio_transcription(mp3)
+    uri = URI("#{Chatwit::LlmProxy.api_base}/audio/transcriptions")
+    request = Net::HTTP::Post.new(uri)
+    request['Authorization'] = "Bearer #{Chatwit::LlmProxy.api_key}"
+    request.set_form(transcription_form(mp3), 'multipart/form-data')
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 10,
+                                                   read_timeout: REQUEST_TIMEOUT_SECONDS) { |http| http.request(request) }
+    raise "LiteLLM proxy returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+
+    JSON.parse(response.body).fetch('text', '').to_s.strip
+  end
+
+  def transcription_form(mp3)
+    [
+      ['model', resolved_model],
+      ['language', TRANSCRIPTION_LANGUAGE],
+      ['file', StringIO.new(mp3), { filename: 'audio.mp3', content_type: 'audio/mpeg' }]
+    ]
   end
 
   def request_transcription(audio_base64)
