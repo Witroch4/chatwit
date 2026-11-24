@@ -98,15 +98,6 @@ class Integrations::Infinitepay::WebhookProcessorService
     response
   end
 
-  def forward_to_jusmonitoria!
-    Integrations::Jusmonitoria::WebhookForwarderService.forward_event(
-      event_type: 'payment.confirmed',
-      payload: event_payload,
-      account: @payment_link.account,
-      path: Integrations::Jusmonitoria::WebhookForwarderService::PAYMENT_PATH
-    )
-  end
-
   private
 
   def verified_paid_amount_cents

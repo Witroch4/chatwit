@@ -5,15 +5,13 @@
 # Prefers the internal docker network (http://platform-api:8000); override with
 # JUSMONITORIA_WEBHOOK_URL. Auth: HMAC-SHA256 signature in X-Chatwit-Signature.
 #
-# Two platform routes live on the same platform-api service:
-#   DEFAULT_PATH (message.*/tag.*/contact.*/conversation.resolved) → chatwit_webhook
-#   PAYMENT_PATH (payment.confirmed) → chatwit_unified_webhook (process_payment_confirmed)
-# Payment MUST target PAYMENT_PATH — chatwit_webhook does not handle payments.
+# Forwards message.*/tag.*/contact.*/conversation.resolved to chatwit_webhook (DEFAULT_PATH).
+# Payments are NOT forwarded from here: the Platform is the single source of
+# payments and posts the JusMonitorIA entry itself after verifying the receipt.
 
 class Integrations::Jusmonitoria::WebhookForwarderService
   TIMEOUT = 15
   DEFAULT_PATH = '/webhooks/chatwit'
-  PAYMENT_PATH = '/api/v1/jusmonitoria/integrations/chatwit'
 
   class << self
     def forward_event(event_type:, payload:, account: nil, path: DEFAULT_PATH)
