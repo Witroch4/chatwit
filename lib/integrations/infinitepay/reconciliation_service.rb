@@ -38,7 +38,10 @@ class Integrations::Infinitepay::ReconciliationService
     # Socialwise event; the two milestones are recorded around the same call.
     run_milestone(reconciliation, 'session_reconciled') { effects.forward_to_socialwise! }
     run_milestone(reconciliation, 'socialwise_forwarded') { nil }
-    run_milestone(reconciliation, 'jusmonitoria_forwarded') { effects.forward_to_jusmonitoria! }
+    # The Platform is the single source of payments: it records the receipt on
+    # /payment-events/verify and posts the JusMonitorIA entry itself, so the
+    # Chatwit no longer forwards payments to JusMonitorIA.
+    run_milestone(reconciliation, 'jusmonitoria_forwarded') { nil }
     run_milestone(reconciliation, 'completed') { nil }
     reconciliation
   end
