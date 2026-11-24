@@ -287,7 +287,7 @@
   locked: false
 - name: CAPTAIN_WITDEV_TRANSCRIPTION_MODEL
   display_title: 'Captain Whisper — Audio Transcription Model'
-  description: 'Official model for dossier audio transcription, called through the platform LiteLLM proxy (requires the WitDev Proxy API Key). Recommended: witdev_antigravity/gemini-3.1-pro-low (tested, legal-grade accuracy). Use witdev_antigravity/* aliases only — copilot routes silently hallucinate audio and codex routes reject it.'
+  description: 'Official model for dossier audio transcription, called through the platform LiteLLM proxy (requires the WitDev Proxy API Key). Recommended: gpt-4o-transcribe (OpenAI direct API, /audio/transcriptions). gemini-* aliases also carry audio; notes longer than ~9 minutes always go to gemini-3.5-transcribe. Chat models without audio input (Claude, GPT Luna, copilot routes) are refused.'
   locked: false
 - name: CAPTAIN_CLOUD_PLAN_LIMITS
   display_title: 'Captain Cloud Plan Limits'

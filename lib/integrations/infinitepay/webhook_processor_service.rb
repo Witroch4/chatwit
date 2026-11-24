@@ -49,7 +49,7 @@ class Integrations::Infinitepay::WebhookProcessorService
       'transaction_nsu' => @raw_payload['transaction_nsu'],
       'capture_method' => @raw_payload['capture_method'],
       'paid_amount' => verified_paid_amount_cents,
-      'receipt_url' => @raw_payload['receipt_url'],
+      'receipt_url' => Integrations::Infinitepay::ReceiptUrl.safe(@raw_payload['receipt_url']),
       'verified_source' => @receipt['source'],
       'raw' => @raw_payload
     )
@@ -146,7 +146,8 @@ class Integrations::Infinitepay::WebhookProcessorService
     contact_name = conversation.contact&.name || 'Cliente'
     amount_formatted = format_brl(verified_paid_amount_cents / 100.0)
     transaction_code = @raw_payload['transaction_nsu'].presence || @payment_link.transaction_nsu.presence || @payment_link.order_nsu
-    receipt_url = @raw_payload['receipt_url'].presence || @payment_link.receipt_url
+    receipt_url = Integrations::Infinitepay::ReceiptUrl.safe(@raw_payload['receipt_url']) ||
+                  Integrations::Infinitepay::ReceiptUrl.safe(@payment_link.receipt_url)
 
     {
       title: 'Pagamento Confirmado!',
@@ -172,14 +173,19 @@ class Integrations::Infinitepay::WebhookProcessorService
       \\> • **Pagamento:** #{capture_detail}
       \\> • **Código:** #{transaction_code}
 
-      🧾 **Comprovante**
-      #{receipt_url}
+      #{receipt_block(receipt_url)}
 
        🙏 Obrigado pela confiança!
        Qualquer dúvida, estamos à disposição.
 
       ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
     MSG
+  end
+
+  def receipt_block(receipt_url)
+    return '' if receipt_url.blank?
+
+    "🧾 **Comprovante**\n#{receipt_url}"
   end
 
   def capture_detail

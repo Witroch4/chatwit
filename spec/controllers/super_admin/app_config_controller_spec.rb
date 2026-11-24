@@ -38,6 +38,23 @@ RSpec.describe 'Super Admin Application Config API', type: :request do
         expect(transcription_values).not_to include(Chatwit::AudioTranscriptionService::RECOMMENDED_MODEL)
       end
 
+      it 'keeps speech-to-text models out of the Captain chat model select' do
+        allow(Chatwit::LlmProxy).to receive(:operational_models).and_return(
+          [{ 'value' => 'claude-haiku-5-5', 'label' => 'Haiku', 'provider_label' => 'Anthropic' },
+           { 'value' => 'gpt-4o-transcribe', 'label' => 'GPT-4o Transcribe', 'provider_label' => 'OpenAI' }]
+        )
+
+        sign_in(super_admin, scope: :super_admin)
+        get '/super_admin/app_config?config=captain'
+
+        document = Nokogiri::HTML(response.body)
+        model_values = document.css('select[name="app_config[CAPTAIN_WITDEV_MODEL]"] option').pluck('value')
+        transcription_values = document.css('select[name="app_config[CAPTAIN_WITDEV_TRANSCRIPTION_MODEL]"] option').pluck('value')
+
+        expect(model_values).to eq(['claude-haiku-5-5'])
+        expect(transcription_values).to eq(['gpt-4o-transcribe'])
+      end
+
       it 'renders empty WitDev selects when the operational catalog is unavailable' do
         allow(Chatwit::LlmProxy).to receive(:operational_models).and_return([])
 
@@ -85,6 +102,18 @@ RSpec.describe 'Super Admin Application Config API', type: :request do
         expect(response).to redirect_to('/super_admin/app_config?config=captain')
         expect(flash[:alert]).to include('alias unavailable')
         expect(config.reload.value).to eq('witdev/old')
+      end
+
+      it 'rejects a speech-to-text model as the Captain chat model' do
+        config = create(:installation_config, name: 'CAPTAIN_WITDEV_MODEL', value: 'claude-haiku-5-5')
+        allow(Chatwit::LlmProxy).to receive(:resolve_model!).with('gpt-4o-transcribe').and_return('gpt-4o-transcribe')
+
+        sign_in(super_admin, scope: :super_admin)
+        post '/super_admin/app_config?config=captain', params: { app_config: { CAPTAIN_WITDEV_MODEL: 'gpt-4o-transcribe' } }
+
+        expect(response).to redirect_to('/super_admin/app_config?config=captain')
+        expect(flash[:alert]).to include('not a chat model')
+        expect(config.reload.value).to eq('claude-haiku-5-5')
       end
 
       it 'rejects a transcription alias that cannot transport audio after canonical resolution' do

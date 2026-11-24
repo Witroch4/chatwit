@@ -25,7 +25,7 @@ RSpec.describe Chatwit::AudioTranscriptionService do
     it 'fails before encoding or HTTP when the alias is absent from the operational catalog' do
       allow(Chatwit::LlmProxy).to receive(:resolve_model!)
         .and_raise(Chatwit::LlmProxy::ModelUnavailableError, 'alias unavailable')
-      expect(service).not_to receive(:encode_audio)
+      expect(service).not_to receive(:read_mp3)
       expect(HTTParty).not_to receive(:post)
 
       expect(service.perform).to eq(error: 'alias unavailable')
@@ -37,7 +37,7 @@ RSpec.describe Chatwit::AudioTranscriptionService do
         .once
         .with('gemini-configured')
         .and_return('gemini-canonical')
-      allow(service).to receive(:encode_audio).and_return('encoded-audio')
+      allow(service).to receive(:read_mp3).and_return('mp3-bytes')
       allow(attachment).to receive(:update!)
       response = instance_double(HTTParty::Response, success?: true,
                                                      parsed_response: { 'choices' => [{ 'message' => { 'content' => 'texto' } }] })
@@ -84,6 +84,32 @@ RSpec.describe Chatwit::AudioTranscriptionService do
       expect(form[2][0]).to eq('file')
       expect(form[2][1].read).to eq('mp3-bytes')
       expect(form[2][2]).to eq(filename: 'audio.mp3', content_type: 'audio/mpeg')
+    end
+
+    it 'sends long audio to the long-audio Gemini model through chat even when gpt-4o-transcribe is configured' do
+      allow(described_class).to receive(:model).and_return('gpt-4o-transcribe')
+      allow(Chatwit::LlmProxy).to receive(:resolve_model!) { |name| name }
+      allow(service).to receive(:read_mp3).and_return('x' * (described_class::OPENAI_MAX_AUDIO_BYTES + 1))
+      allow(attachment).to receive(:update!)
+      response = instance_double(HTTParty::Response, success?: true,
+                                                     parsed_response: { 'choices' => [{ 'message' => { 'content' => 'longo' } }] })
+      expect(HTTParty).to receive(:post) do |url, options|
+        expect(url).to end_with('/chat/completions')
+        expect(JSON.parse(options.fetch(:body)).fetch('model')).to eq(described_class::LONG_AUDIO_MODEL)
+        response
+      end
+
+      expect(service.perform).to eq(success: true, transcriptions: 'longo')
+    end
+
+    it 'keeps the proxy error body in the failure message' do
+      allow(Chatwit::LlmProxy).to receive_messages(resolve_model!: 'gpt-4o-transcribe', api_base: 'http://litellm.test/v1',
+                                                   api_key: 'chave-teste')
+      allow(service).to receive(:read_mp3).and_return('mp3-bytes')
+      stub_request(:post, 'http://litellm.test/v1/audio/transcriptions')
+        .to_return(status: 400, body: '{"error":{"message":"audio too long"}}')
+
+      expect(service.perform[:error]).to include('HTTP 400').and include('audio too long')
     end
   end
 

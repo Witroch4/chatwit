@@ -50,6 +50,9 @@ RSpec.describe Integrations::Infinitepay::ReconciliationService do
     expect(link.status).to eq('paid')
     expect(link.paid_amount_cents).to eq(500) # receipt value, not the lying raw 999_999
     expect(conversation.messages.outgoing.count).to eq(1)
+    # The raw webhook link is not from recibo.infinitepay.io: never stored nor sent to the lead.
+    expect(link.receipt_url).to be_nil
+    expect(conversation.messages.outgoing.last.content).not_to include('recibo.example')
     # The Platform posts the JusMonitorIA entry; the Chatwit must not forward it too.
     expect(Integrations::Jusmonitoria::WebhookForwarderService).not_to have_received(:forward_event)
   end

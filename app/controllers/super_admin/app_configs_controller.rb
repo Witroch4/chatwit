@@ -121,7 +121,9 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
       [entry['value'], "#{entry['label']} — #{entry['provider_label']}"]
     end
 
-    apply_select_options('CAPTAIN_WITDEV_MODEL', options)
+    # Speech-to-text models answer only on /audio/transcriptions: never offer them as the chat model.
+    chat_options = options.reject { |value, _label| Chatwit::AudioTranscriptionService.transcription_endpoint?(value) }
+    apply_select_options('CAPTAIN_WITDEV_MODEL', chat_options)
     apply_select_options('CAPTAIN_WITDEV_TRANSCRIPTION_MODEL', transcription_options(options))
   end
 
@@ -146,7 +148,16 @@ class SuperAdmin::AppConfigsController < SuperAdmin::ApplicationController
     return if config&.value == value
 
     resolved = Chatwit::LlmProxy.resolve_model!(value)
-    return unless key == 'CAPTAIN_WITDEV_TRANSCRIPTION_MODEL'
+    key == 'CAPTAIN_WITDEV_MODEL' ? ensure_chat_model!(resolved) : ensure_audio_model!(resolved)
+  end
+
+  def ensure_chat_model!(resolved)
+    return unless Chatwit::AudioTranscriptionService.transcription_endpoint?(resolved)
+
+    raise Chatwit::LlmProxy::ModelUnavailableError, "model #{resolved} is a speech-to-text model, not a chat model"
+  end
+
+  def ensure_audio_model!(resolved)
     return if Chatwit::AudioTranscriptionService.audio_capable?(resolved)
 
     raise Chatwit::LlmProxy::ModelUnavailableError, "model #{resolved} does not support audio (use gpt-4o-transcribe or gemini-*)"

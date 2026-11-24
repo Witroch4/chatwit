@@ -50,7 +50,7 @@ class Integrations::Infinitepay::VerifyEventService
       # The Platform records the receipt and posts the JusMonitorIA entry, so it
       # needs the receipt link from the webhook. It never decides "paid" from
       # this field and only keeps https://recibo.infinitepay.io/ links.
-      event: { receipt_url: query_pointer('receipt_url') }.compact.presence
+      event: { receipt_url: Integrations::Infinitepay::ReceiptUrl.safe(query_pointer('receipt_url')) }.compact.presence
     }.compact
   end
 

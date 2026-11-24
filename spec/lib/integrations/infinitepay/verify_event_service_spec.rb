@@ -38,6 +38,14 @@ RSpec.describe Integrations::Infinitepay::VerifyEventService do
                                             'invoiceSlug' => 'S1')
   end
 
+  it 'omits a receipt link from any host other than the official InfinitePay one' do
+    raw = { 'transaction_nsu' => 'T1', 'receipt_url' => 'https://recibo.infinitepay.io.evil.com/abc' }
+
+    body = sent_body { described_class.new(payment_link: payment_link, raw_payload: raw).receipt }
+
+    expect(body).not_to have_key('event')
+  end
+
   it 'omits the event when the webhook has no receipt link' do
     body = sent_body { described_class.new(payment_link: payment_link, raw_payload: { 'transaction_nsu' => 'T1' }).receipt }
 

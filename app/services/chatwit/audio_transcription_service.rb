@@ -23,6 +23,12 @@ class Chatwit::AudioTranscriptionService
   TRANSCRIPTION_LANGUAGE = 'pt'.freeze
   # Doc: inline base64 is reliable up to ~15-20MB of audio; larger files need chunking.
   MAX_AUDIO_BYTES = 15.megabytes
+  # gpt-4o-transcribe caps its output (~2k tokens) and duration, so a long note would
+  # come back truncated and stay cached that way. The dossier mp3 is 64 kbps mono:
+  # 4.5 MB ≈ 9 minutes. Longer audio goes to Gemini, which handles long recordings.
+  OPENAI_MAX_AUDIO_BYTES = 4.5.megabytes
+  LONG_AUDIO_MODEL = 'gemini-3.5-transcribe'.freeze
+  ERROR_BODY_LIMIT = 300
   REQUEST_TIMEOUT_SECONDS = 180
 
   TRANSCRIPTION_PROMPT = <<~PROMPT.freeze
@@ -80,21 +86,21 @@ class Chatwit::AudioTranscriptionService
   end
 
   def transcribe
-    text = if self.class.transcription_endpoint?(resolved_model)
-             mp3 = read_mp3
-             return audio_too_large if mp3.nil?
+    mp3 = read_mp3
+    return audio_too_large if mp3.nil?
 
-             request_audio_transcription(mp3)
-           else
-             audio_base64 = encode_audio
-             return audio_too_large if audio_base64.blank?
-
-             request_transcription(audio_base64)
-           end
+    text = transcribe_mp3(mp3)
     return { error: 'proxy returned an empty transcription' } if text.blank?
 
     cache_transcription(text)
     { success: true, transcriptions: text }
+  end
+
+  def transcribe_mp3(mp3)
+    return request_transcription(Base64.strict_encode64(mp3), resolved_model) unless self.class.transcription_endpoint?(resolved_model)
+    return request_audio_transcription(mp3) if mp3.bytesize <= OPENAI_MAX_AUDIO_BYTES
+
+    request_transcription(Base64.strict_encode64(mp3), Chatwit::LlmProxy.resolve_model!(LONG_AUDIO_MODEL))
   end
 
   def audio_too_large
@@ -110,11 +116,6 @@ class Chatwit::AudioTranscriptionService
     end
   end
 
-  def encode_audio
-    mp3 = read_mp3
-    mp3 && Base64.strict_encode64(mp3)
-  end
-
   # Multipart via Net::HTTP: the LiteLLM proxy rejects HTTParty's multipart body
   # ("There was an error parsing the body").
   def request_audio_transcription(mp3)
@@ -124,9 +125,15 @@ class Chatwit::AudioTranscriptionService
     request.set_form(transcription_form(mp3), 'multipart/form-data')
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 10,
                                                    read_timeout: REQUEST_TIMEOUT_SECONDS) { |http| http.request(request) }
-    raise "LiteLLM proxy returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+    raise proxy_error(response.code, response.body) unless response.is_a?(Net::HTTPSuccess)
 
     JSON.parse(response.body).fetch('text', '').to_s.strip
+  end
+
+  # The proxy error body names the cause (duration cap, bad format) and carries no
+  # personal data; keep a short slice of it.
+  def proxy_error(code, body)
+    "LiteLLM proxy returned HTTP #{code}: #{body.to_s.squish.first(ERROR_BODY_LIMIT)}"
   end
 
   def transcription_form(mp3)
@@ -137,7 +144,7 @@ class Chatwit::AudioTranscriptionService
     ]
   end
 
-  def request_transcription(audio_base64)
+  def request_transcription(audio_base64, model)
     response = HTTParty.post(
       "#{Chatwit::LlmProxy.api_base}/chat/completions",
       timeout: REQUEST_TIMEOUT_SECONDS,
@@ -145,16 +152,16 @@ class Chatwit::AudioTranscriptionService
         'Content-Type' => 'application/json',
         'Authorization' => "Bearer #{Chatwit::LlmProxy.api_key}"
       },
-      body: request_body(audio_base64)
+      body: request_body(audio_base64, model)
     )
-    raise "LiteLLM proxy returned HTTP #{response.code}" unless response.success?
+    raise proxy_error(response.code, response.body) unless response.success?
 
     response.parsed_response.dig('choices', 0, 'message', 'content').to_s.strip
   end
 
-  def request_body(audio_base64)
+  def request_body(audio_base64, model)
     {
-      model: resolved_model,
+      model: model,
       messages: [{
         role: 'user',
         content: [
