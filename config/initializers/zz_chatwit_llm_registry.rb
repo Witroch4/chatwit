@@ -16,7 +16,7 @@ Rails.application.config.after_initialize do
   next unless File.exist?(registry)
 
   RubyLLM.configure { |config| config.model_registry_file = registry }
-  RubyLLM.models.load_from_json!(registry)
+  RubyLLM.models.load_from_json(registry)
 
   # Chatwit: when the WitDev route is active, append the platform proxy aliases
   # (e.g. witdev_claude/sonnet) as OpenAI-compatible chat models so both engines
